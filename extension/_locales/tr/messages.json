@@ -190,5 +190,8 @@
   },
   "back": {
     "message": "Geri"
+  },
+  "tooManyRooms": {
+    "message": "Çok fazla oda oluşturdun. Bir dakika bekleyip yeniden dene."
   }
 }

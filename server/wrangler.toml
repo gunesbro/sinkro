@@ -7,7 +7,15 @@ send_metrics = false
 name = "ROOMS"
 class_name = "Room"
 
+[[durable_objects.bindings]]
+name = "CREATION_LIMITERS"
+class_name = "CreationLimiter"
+
 # SQLite-backed Durable Objects are the ones available on the free plan.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["CreationLimiter"]

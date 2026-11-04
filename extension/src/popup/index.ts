@@ -228,7 +228,7 @@ async function onCreate(): Promise<void> {
   const created = await send<CreateRoomResponse>({ type: "room/create" });
   isBusy = false;
   if ("error" in created) {
-    homeError = t("cantReach");
+    homeError = t(created.error === "rate_limited" ? "tooManyRooms" : "cantReach");
     render();
     return;
   }

@@ -190,5 +190,8 @@
   },
   "back": {
     "message": "Back"
+  },
+  "tooManyRooms": {
+    "message": "You've created a lot of rooms. Wait a minute and try again."
   }
 }

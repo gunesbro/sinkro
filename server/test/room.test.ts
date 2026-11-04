@@ -61,8 +61,20 @@ function request(path: string, init?: RequestInit): Promise<Response> {
   return exports.default.fetch(new Request(`${BASE}${path}`, init));
 }
 
+let nextAddress = 0;
+
+/** Each test client looks like a different person, so the creation limit stays out of the way. */
+function newAddress(): string {
+  nextAddress += 1;
+  return `192.0.2.${nextAddress}`;
+}
+
+function createFrom(address: string): Promise<Response> {
+  return request("/rooms", { method: "POST", headers: { "CF-Connecting-IP": address } });
+}
+
 async function createRoom(): Promise<string> {
-  const response = await request("/rooms", { method: "POST" });
+  const response = await createFrom(newAddress());
   expect(response.status).toBe(201);
   return ((await response.json()) as { code: string }).code;
 }
@@ -103,8 +115,59 @@ describe("HTTP routes", () => {
   it("answers CORS preflight and allows any origin", async () => {
     const preflight = await request("/rooms", { method: "OPTIONS" });
     expect(preflight.headers.get("Access-Control-Allow-Origin")).toBe("*");
-    const created = await request("/rooms", { method: "POST" });
+    const created = await createFrom(newAddress());
     expect(created.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+
+  it("limits how many rooms one address can create", async () => {
+    const address = newAddress();
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      statuses.push((await createFrom(address)).status);
+    }
+    expect(statuses.slice(0, 10)).toEqual(Array(10).fill(201));
+    expect(statuses.slice(10)).toEqual([429, 429]);
+  });
+
+  it("answers a refused creation so a page can read it", async () => {
+    const address = newAddress();
+    let refused: Response | null = null;
+    for (let attempt = 0; attempt < 12 && !refused; attempt += 1) {
+      const response = await createFrom(address);
+      if (response.status === 429) refused = response;
+    }
+    expect(refused?.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+
+  it("doesn't let one address's limit affect another", async () => {
+    const address = newAddress();
+    for (let attempt = 0; attempt < 12; attempt += 1) await createFrom(address);
+    expect((await createFrom(newAddress())).status).toBe(201);
+  });
+
+  it("starts over when the window ends, and keeps nothing after it", async () => {
+    const address = newAddress();
+    for (let attempt = 0; attempt < 11; attempt += 1) await createFrom(address);
+    expect((await createFrom(address)).status).toBe(429);
+
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(address));
+    const name = [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    const limiter = env.CREATION_LIMITERS.getByName(name);
+    expect(await runDurableObjectAlarm(limiter)).toBe(true);
+    const stored = await runInDurableObject(limiter, (_, state) => state.storage.list());
+    expect(stored.size).toBe(0);
+
+    expect((await createFrom(address)).status).toBe(201);
+  });
+
+  it("doesn't count joining against the limit", async () => {
+    const code = await createRoom();
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const { client } = await join(code);
+      client.close();
+    }
   });
 
   it("only creates rooms with POST", async () => {
