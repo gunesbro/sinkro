@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sinkro</title>
+    <link rel="stylesheet" href="popup.css" />
+    <script src="popup.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <!-- lang="en" keeps the uppercase I undotted when the popup is in Turkish. -->
+      <span class="wordmark" lang="en">Sinkro</span>
+      <div class="languages" role="group" data-i18n-aria-label="langLabel">
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+        <button type="button" data-lang="tr" aria-pressed="false">TR</button>
+      </div>
+    </header>
+    <footer data-i18n="footer"></footer>
+  </body>
+</html>

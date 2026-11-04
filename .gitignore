@@ -1,0 +1,11 @@
+node_modules/
+dist/
+web-ext-artifacts/
+.wrangler/
+.dev.vars
+.env
+*.log
+.claude/settings.local.json
+
+# Planning and design notes, kept local for now.
+docs/

@@ -60,6 +60,7 @@ Phase gate for MVP: 3 people, a 1-hour video, drift stays under 0.5 s.
 ## Working conventions
 
 - Public repo. `main` is always releasable; never commit straight to it.
+- `docs/` is gitignored and exists only on the maintainer's machine for now; it gets edited and published near the end. Never commit it, and don't link to it from public files.
 - One branch + one pull request per piece of work, in this order: repo skeleton → server → sync core → detection → popup UI → invite page → test suite.
 - Small, focused commits with clear messages. PR description says what changed, how it was tested, and what's left.
 - Accessibility is part of done: real `<button>`/`<label>`/`<input>`, 44 px touch targets, text contrast ≥ 4.5:1, `aria-label` on icon-only buttons.

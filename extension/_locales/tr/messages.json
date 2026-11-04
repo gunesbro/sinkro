@@ -1,0 +1,46 @@
+{
+  "extName": { "message": "Sinkro — Watch Party: Sync Any Video With Friends" },
+  "extDescription": {
+    "message": "Her sitedeki her videoyu arkadaşlarınla senkron izlemeni sağlayan ücretsiz, açık kaynak watch party eklentisi."
+  },
+  "langLabel": { "message": "Dil" },
+  "settings": { "message": "Ayarlar" },
+  "help": { "message": "Yardım" },
+  "found": { "message": "Bu sekmede bir video bulundu" },
+  "create": { "message": "Oda oluştur" },
+  "createHelp": {
+    "message": "Paylaşacağın bir link alırsın. Linki açan herkes bu videoyu seninle senkron izler."
+  },
+  "joinLabel": { "message": "Kodun mu var?" },
+  "joinPh": { "message": "Oda kodu veya davet linki" },
+  "join": { "message": "Katıl" },
+  "footer": { "message": "Hesap yok. Sadece oynat, durdur ve konum paylaşılır." },
+  "live": { "message": "Oda açık" },
+  "copyLink": { "message": "Davet linkini kopyala" },
+  "inSync": { "message": "Herkes 0,2 sn içinde" },
+  "bring": { "message": "Herkesi bana getir" },
+  "leave": { "message": "Çık" },
+  "synced": { "message": "Senkron" },
+  "buffering": { "message": "Arabellekte" },
+  "diffEpisode": {
+    "message": "$NAME$ başka bir bölümde",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "bringHere": { "message": "Onu buraya getir" },
+  "goThere": { "message": "Onun bölümüne git" },
+  "connLost": { "message": "Bağlantı koptu" },
+  "adWait": {
+    "message": "$NAME$ reklam izliyor",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "dontWait": { "message": "Bekleme" },
+  "noVideo": { "message": "Bu sayfada henüz video yok" },
+  "pickVideo": { "message": "Videoyu seç" },
+  "pickerHint": { "message": "Senkronlanacak videoya tıkla" },
+  "inviteTitle": {
+    "message": "$NAME$ seni film gecesine çağırıyor",
+    "placeholders": { "name": { "content": "$1" } }
+  },
+  "addToChrome": { "message": "Chrome'a ekle, ücretsiz" },
+  "onboardTitle": { "message": "Aynı film. Aynı saniye. Farklı koltuklar." }
+}

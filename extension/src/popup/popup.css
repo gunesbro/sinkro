@@ -1,0 +1,75 @@
+/* Design tokens */
+:root {
+  --bg: #110d0c;
+  --bg-deep: #0a0807;
+  --surface: #1a1513;
+  --line: #2a221f;
+  --border: #3a2f2a;
+  --border-strong: #4a3c35;
+  --text: #f4ede6;
+  --text-2: #c9bcb1;
+  --muted: #a39589;
+  --faint: #8f8279;
+  --accent: #f2b045;
+  --on-accent: #1a1208;
+  --ok: #5fd4a0;
+  --warn: #f2b045;
+  --danger: #ff9a8f;
+  --font-display: "Big Shoulders Display", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+}
+
+body {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  height: 560px;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 12px 14px 24px;
+}
+
+.wordmark {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.languages {
+  display: flex;
+}
+
+.languages button {
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  font: 700 13px var(--font-body);
+  cursor: pointer;
+}
+
+.languages button[aria-pressed="true"] {
+  color: var(--text);
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 6px;
+}
+
+footer {
+  margin-top: auto;
+  padding: 14px 24px;
+  color: var(--faint);
+  font-size: 12px;
+}
