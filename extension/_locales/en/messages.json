@@ -26,8 +26,8 @@
     "message": "$NAME$ is on a different episode",
     "placeholders": { "name": { "content": "$1" } }
   },
-  "bringHere": { "message": "Bring her here" },
-  "goThere": { "message": "Go to her episode" },
+  "bringHere": { "message": "Bring them here" },
+  "goThere": { "message": "Go to their episode" },
   "connLost": { "message": "Connection lost" },
   "adWait": {
     "message": "$NAME$ is watching an ad",
