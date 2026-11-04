@@ -122,6 +122,7 @@ export class SyncEngine {
     video.addEventListener("ratechange", () => this.onRateChange(), options);
     video.addEventListener("timeupdate", () => this.tick(), options);
     video.addEventListener("canplay", () => this.tick(), options);
+    video.addEventListener("emptied", () => this.onEmptied(), options);
 
     this.syncWithRoom();
   }
@@ -379,6 +380,15 @@ export class SyncEngine {
     this.baseRate = video.playbackRate;
     this.correcting = false;
     this.publishIfChanged();
+  }
+
+  /** The player reloaded the element, so no events will come for what was in flight. */
+  private onEmptied(): void {
+    if (!this.video) return;
+    this.clearFlags();
+    this.knownPaused = this.video.paused;
+    this.unreportedChangeSince = null;
+    this.tick();
   }
 
   private consumePlayFlag(): boolean {

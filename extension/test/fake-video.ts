@@ -71,6 +71,14 @@ export class FakeVideo extends EventTarget {
     this.playbackRate = rate;
   }
 
+  /** The player reloads the element: what's in flight is dropped, and pause doesn't fire. */
+  reload(): void {
+    this.seekId += 1;
+    this.seeking = false;
+    this.paused = true;
+    this.emit("emptied");
+  }
+
   /** Taken out of the page, which pauses it without anyone asking. */
   removeFromPage(): void {
     this.isConnected = false;

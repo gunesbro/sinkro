@@ -310,6 +310,36 @@ describe("seeks that don't go to plan", () => {
     expect(sent).toEqual([]);
   });
 
+  it("drops a seek the player's reload cancelled, so the next one is the viewer's", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, video, peerState, sent } = context;
+    video.seekDelayMs = 60_000;
+    engine.handleState(peerState({ position: 900 }));
+    await vi.advanceTimersByTimeAsync(100);
+    video.reload();
+    await settle();
+
+    video.seekDelayMs = 0;
+    video.userSeek(1500);
+    await settle();
+
+    expect(sent).toMatchObject([{ position: 1500 }]);
+  });
+
+  it("gets back on the timeline after the player reloads the element", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { video, sent } = context;
+    await vi.advanceTimersByTimeAsync(1300);
+
+    video.reload();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(video.paused).toBe(false);
+    expect(sent).toEqual([]);
+  });
+
   it("doesn't take a replaced seek for the viewer's, on a video that can't seek", async () => {
     const context = setup();
     await joinPlaying(context);
