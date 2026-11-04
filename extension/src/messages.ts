@@ -2,6 +2,7 @@
 // through chrome.runtime, which only this extension's scripts can reach.
 import type { CloseReason, ConnectionStatus } from "./content/sync/connection";
 import type { EngineSnapshot } from "./content/sync/engine";
+import type { Messages } from "./i18n";
 
 /** The room a tab is in. Kept by the background so it survives page loads in that tab. */
 export type TabSession = { code: string; serverUrl: string };
@@ -13,13 +14,26 @@ export type SessionStatus = EngineSnapshot & {
 };
 
 export type BackgroundRequest =
+  // From extension pages.
   | { type: "room/create" }
-  | { type: "session/get" }
   | { type: "session/join"; tabId: number; code: string }
-  | { type: "session/leave"; tabId: number };
+  | { type: "session/leave"; tabId: number }
+  | { type: "picker/start"; tabId: number }
+  // From content scripts, in every frame.
+  | { type: "session/get" }
+  | { type: "detect/report"; score: number }
+  | { type: "picker/picked" }
+  | { type: "picker/cancelled" };
 
+export type SessionInfo = { session: TabSession | null; active: boolean };
+export type ReportResponse = { active: boolean };
 export type CreateRoomResponse = { code: string } | { error: "unreachable" };
 export type JoinResponse = { code: string } | { error: "invalid_code" };
 
 export type TabRequest =
-  { type: "session/changed"; session: TabSession | null } | { type: "session/status" };
+  | { type: "session/changed"; session: TabSession | null }
+  /** Whether this frame should run the connection and sync engine. Sent to one frame. */
+  | { type: "session/role"; active: boolean }
+  | { type: "session/status" }
+  | { type: "picker/start"; messages: Messages }
+  | { type: "picker/stop"; picked: boolean };
