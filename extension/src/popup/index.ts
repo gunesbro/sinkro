@@ -113,6 +113,12 @@ function alertFor(current: SessionStatus | null): AlertContent | null {
   if (current.connection === "reconnecting") {
     return { tone: "danger", title: t("connLost"), body: t("connLostHelp"), canPick: false };
   }
+  if (current.hold === "ad") {
+    return { tone: "warn", title: t("adPlaying"), body: t("adPlayingHelp"), canPick: false };
+  }
+  if (current.hold === "past_end") {
+    return { tone: "warn", title: t("pastEnd"), body: t("pastEndHelp"), canPick: true };
+  }
   if (current.needsGesture) {
     return { tone: "warn", title: t("needsGesture"), body: t("needsGestureHelp"), canPick: false };
   }
@@ -128,6 +134,7 @@ function roomStatusLine(current: SessionStatus | null): { tone: Tone; text: stri
   }
   if (current.connection !== "connected") return { tone: "danger", text: t("connLost") };
   if (!current.hasVideo) return { tone: "ok", text: t("live") };
+  if (current.hold) return { tone: "warn", text: t("onHold") };
   if (current.drift !== null && Math.abs(current.drift) >= IN_SYNC_SECONDS) {
     return { tone: "warn", text: t("catchingUp") };
   }
@@ -157,7 +164,7 @@ function renderRoom(): void {
     element("pick-room").hidden = !alert.canPick;
   }
   element<HTMLButtonElement>("bring").disabled =
-    status?.connection !== "connected" || !status.hasVideo;
+    status?.connection !== "connected" || !status.hasVideo || status.hold !== null;
 }
 
 function render(): void {

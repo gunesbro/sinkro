@@ -4,6 +4,7 @@ import {
   type PlaybackState,
   type RoomState,
 } from "../../../../server/src/protocol";
+import type { HoldReason } from "../detection/ads";
 import { IGNORE_DRIFT_SECONDS, planCorrection, targetPosition } from "./timeline";
 
 /** Rate limit on the server is 5 messages a second; this leaves room for pings. */
@@ -23,6 +24,8 @@ const ENDED_TOLERANCE_SECONDS = 0.5;
 const RATE_EPSILON = 0.001;
 /** How long to wait for an element change's event. Some, like a reload's pause, never fire. */
 const UNREPORTED_CHANGE_GRACE_MS = 1000;
+/** HTMLMediaElement.HAVE_METADATA: its length is known. */
+const HAVE_METADATA = 1;
 /** HTMLMediaElement.HAVE_FUTURE_DATA: enough is buffered to keep playing. */
 const HAVE_FUTURE_DATA = 3;
 
@@ -46,6 +49,8 @@ export type EngineDeps = {
   serverNow: () => number;
   /** Returns false if the message couldn't be handed to the connection. */
   send: (state: PlaybackState) => boolean;
+  /** Says why the video can't follow the room right now, such as an ad playing. */
+  holdFor?: (roomPosition: number | null) => HoldReason | null;
 };
 
 export type EngineSnapshot = {
@@ -57,6 +62,8 @@ export type EngineSnapshot = {
   correcting: boolean;
   /** The browser refused to start playback until the viewer interacts with the page. */
   needsGesture: boolean;
+  /** The video isn't following the room for now, and nothing it does reaches the room. */
+  hold: HoldReason | null;
 };
 
 /**
@@ -81,6 +88,7 @@ export class SyncEngine {
   /** The speed we last set, so our own ratechange events can be told apart. */
   private expectedRate = 1;
   private correcting = false;
+  private hold: HoldReason | null = null;
   /** Whether the video was paused the last time we changed it or heard from it. */
   private knownPaused = true;
   private unreportedChangeSince: number | null = null;
@@ -175,7 +183,7 @@ export class SyncEngine {
 
   /** Makes this viewer's position the room's, for "Bring everyone to me". */
   bringEveryone(): void {
-    this.publish();
+    if (!this.refreshHold()) this.publish();
   }
 
   stop(): void {
@@ -191,11 +199,12 @@ export class SyncEngine {
       hasVideo: video !== null,
       position: video?.currentTime ?? null,
       drift:
-        video && timeline
+        video && timeline && !this.hold
           ? video.currentTime - targetPosition(timeline, this.deps.serverNow(), video.duration)
           : null,
       correcting: this.correcting,
       needsGesture: this.autoplayRetryAt !== 0,
+      hold: this.hold,
     };
   }
 
@@ -208,22 +217,44 @@ export class SyncEngine {
   private syncWithRoom(): void {
     if (!this.joined || !this.video) return;
     if (this.timeline) this.apply(true);
-    else this.publish();
+    else if (this.video.readyState >= HAVE_METADATA && !this.refreshHold()) this.publish();
+  }
+
+  /** Returns whether the video is on hold. Asks each time, since an ad can end at any moment. */
+  private refreshHold(): boolean {
+    const roomPosition = this.timeline
+      ? targetPosition(this.timeline, this.deps.serverNow(), Number.POSITIVE_INFINITY)
+      : null;
+    this.hold = this.deps.holdFor?.(roomPosition) ?? null;
+    return this.hold !== null;
   }
 
   private tick(): void {
     const now = this.deps.now();
     if (now - this.lastTickAt < MIN_TICK_GAP_MS) return;
     this.lastTickAt = now;
-    this.apply(false);
+    // A room with no timeline yet may have been waiting for an ad to end.
+    if (this.timeline) this.apply(false);
+    else this.syncWithRoom();
   }
 
   /** `force` means a new state just arrived, so it can't wait out buffering or a cooldown. */
-  private apply(force: boolean): void {
+  private apply(newState: boolean): void {
     const { video, timeline } = this;
     if (!this.joined || !video || !timeline) return;
     // Playing a video that's been taken out of the page would leave its sound running.
     if (!video.isConnected) return;
+
+    const wasOnHold = this.hold !== null;
+    if (this.refreshHold()) {
+      this.finishCorrection();
+      this.clearFlags();
+      this.knownPaused = video.paused;
+      this.expectedRate = video.playbackRate;
+      return;
+    }
+    // Coming back from an ad can't wait for a cooldown any more than a new state can.
+    const force = newState || wasOnHold;
     if (!force && this.hasUnreportedChange(video)) return;
 
     const target = targetPosition(timeline, this.deps.serverNow(), video.duration);
@@ -411,6 +442,18 @@ export class SyncEngine {
     if (!this.joined || !video) return;
     // Browsers pause a video when it's removed. Nobody chose that.
     if (!video.isConnected) return;
+    if (this.refreshHold()) return;
+
+    // Players swap a source and call play straight away, so events arrive with the position
+    // at zero and no length to judge by. Nothing here says where the viewer wants to be.
+    if (video.readyState < HAVE_METADATA) {
+      // Pressing play on a video that loads only then is the one clear wish.
+      if (timeline && !timeline.playing && !video.paused) {
+        const position = targetPosition(timeline, this.deps.serverNow(), Number.POSITIVE_INFINITY);
+        this.publish(position);
+      }
+      return;
+    }
 
     if (timeline) {
       const target = targetPosition(timeline, this.deps.serverNow(), video.duration);
@@ -430,14 +473,15 @@ export class SyncEngine {
     }
   }
 
-  private publish(): void {
+  private publish(position?: number): void {
     this.cancelPublish();
     const { video } = this;
     if (!this.joined || !video) return;
 
     const state: PlaybackState = {
       playing: !video.paused,
-      position: Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : 0,
+      position:
+        position ?? (Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : 0),
       rate: Math.min(MAX_RATE, Math.max(MIN_RATE, this.baseRate)),
       sentAt: this.deps.serverNow(),
     };
