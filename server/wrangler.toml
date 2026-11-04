@@ -7,6 +7,12 @@ send_metrics = false
 name = "ROOMS"
 class_name = "Room"
 
+# Counted per address and held only by Cloudflare's limiter; Sinkro stores no addresses.
+[[ratelimits]]
+name = "CREATE_ROOM_LIMIT"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
 # SQLite-backed Durable Objects are the ones available on the free plan.
 [[migrations]]
 tag = "v1"

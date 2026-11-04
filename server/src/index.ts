@@ -19,7 +19,12 @@ function text(body: string, status: number): Response {
   return new Response(body, { status, headers: CORS_HEADERS });
 }
 
-async function createRoom(env: Cloudflare.Env): Promise<Response> {
+async function createRoom(request: Request, env: Cloudflare.Env): Promise<Response> {
+  // Rooms cost storage and anyone can ask for one, so one address can't ask endlessly.
+  const address = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const { success } = await env.CREATE_ROOM_LIMIT.limit({ key: address });
+  if (!success) return text("Too many rooms", 429);
+
   for (let attempt = 0; attempt < MAX_CREATE_ATTEMPTS; attempt += 1) {
     const code = generateRoomCode();
     const created = await env.ROOMS.getByName(code).create();
@@ -35,7 +40,7 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
     if (pathname === "/health") return json({ ok: true });
     if (pathname === "/rooms") {
-      return request.method === "POST" ? createRoom(env) : text("Method not allowed", 405);
+      return request.method === "POST" ? createRoom(request, env) : text("Method not allowed", 405);
     }
 
     const match = /^\/rooms\/([^/]+)\/ws$/.exec(pathname);

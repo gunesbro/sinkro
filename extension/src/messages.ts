@@ -38,7 +38,7 @@ export type BackgroundRequest =
 
 export type SessionInfo = { session: TabSession | null; active: boolean };
 export type ReportResponse = { active: boolean };
-export type CreateRoomResponse = { code: string } | { error: "unreachable" };
+export type CreateRoomResponse = { code: string } | { error: "unreachable" | "rate_limited" };
 export type JoinResponse = { code: string } | { error: "invalid_code" };
 
 export type TabRequest =

@@ -65,6 +65,7 @@ async function recordReport(tabId: number, frameId: number, score: number): Prom
 async function createRoom(): Promise<CreateRoomResponse> {
   try {
     const response = await fetch(`${await getServerUrl()}/rooms`, { method: "POST" });
+    if (response.status === 429) return { error: "rate_limited" };
     if (!response.ok) return { error: "unreachable" };
     const { code } = (await response.json()) as { code: unknown };
     const normalized = typeof code === "string" ? normalizeRoomCode(code) : null;
