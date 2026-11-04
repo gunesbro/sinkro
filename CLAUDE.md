@@ -46,14 +46,14 @@ docs/                 PLAN.md, DESIGN.md, design-reference/
 
 ## Video detection (core feature — make it excellent)
 
-Six discovery layers: (1) DOM scan + `MutationObserver`; (2) open shadow roots, closed ones via an `attachShadow` hook in page context; (3) all frames (`all_frames`, `match_about_blank`, `match_origin_as_fallback`), candidates reported with `frameId`; (4) page-context hooks on `HTMLMediaElement.prototype.play` and `src`; (5) capture-phase `play`/`playing`/`loadedmetadata` on `document`; (6) site adapters.
+Six discovery layers: (1) DOM scan + `MutationObserver`; (2) open shadow roots, closed ones via `chrome.dom.openOrClosedShadowRoot` (`element.openOrClosedShadowRoot` on Firefox), because custom elements usually attach before they're in the document, so a page-context hook's event would be lost; (3) all frames (`all_frames`, `match_about_blank`, `match_origin_as_fallback`), candidates reported with `frameId`; (4) page-context hooks on `HTMLMediaElement.prototype.play` and `src`; (5) capture-phase `play`/`playing`/`loadedmetadata` on `document`; (6) site adapters.
 
 Scoring picks one winner across all frames: + visible area, playing, unmuted, duration > 60 s, last clicked/hovered; − muted autoplay previews, hover thumbnails, tiny/hidden elements. Detect ads (duration jumps, source switches) and pause sync while one runs. Re-bind on SPA navigation (`pushState` hook, Navigation API) and element swaps (fingerprint: duration, source, title). Warn when participants are on different videos (duration differs > 2 s or normalised URLs differ). Fallback: a manual "pick the video" mode, remembered per site.
 
 ## MVP scope (phase 1)
 
-Create/join room by code or link · play/pause/seek/rate sync · drift correction · detection engine (layers 1–5, scoring, manual picker) · configurable server URL · invite page · EN + TR.
-Later: participants list with "who did what" (v1), chat + reactions (v1), host-only control (v1), site adapters (v1), "everyone ready" wait (v1), voice chat (v2), local-file mode (last).
+Create/join room by code or link · play/pause/seek/rate sync · drift correction · detection engine (layers 1–5, scoring, manual picker) · ad detection · configurable server URL · invite page · EN + TR.
+Later: same-source comparison for sites that serve one episode from several video hosts (to be evaluated), participants list with "who did what" (v1), chat + reactions (v1), host-only control (v1), site adapters (v1), "everyone ready" wait (v1), voice chat (v2), local-file mode (last).
 
 Phase gate for MVP: 3 people, a 1-hour video, drift stays under 0.5 s.
 
