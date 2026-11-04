@@ -34,6 +34,7 @@ for (const [target, overrides] of Object.entries(targetManifest)) {
     entryPoints: {
       background: join(root, "src/background/index.ts"),
       content: join(root, "src/content/index.ts"),
+      "page-hook": join(root, "src/page/hook.ts"),
       popup: join(root, "src/popup/index.ts"),
     },
     outdir,
