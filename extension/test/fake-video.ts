@@ -10,6 +10,7 @@ export class FakeVideo extends EventTarget {
   duration = 3600;
   paused = true;
   ended = false;
+  isConnected = true;
   seeking = false;
   readyState = 4;
   autoplayAllowed = true;
@@ -68,6 +69,20 @@ export class FakeVideo extends EventTarget {
 
   userSetRate(rate: number): void {
     this.playbackRate = rate;
+  }
+
+  /** The player reloads the element: what's in flight is dropped, and pause doesn't fire. */
+  reload(): void {
+    this.seekId += 1;
+    this.seeking = false;
+    this.paused = true;
+    this.emit("emptied");
+  }
+
+  /** Taken out of the page, which pauses it without anyone asking. */
+  removeFromPage(): void {
+    this.isConnected = false;
+    this.pause();
   }
 
   /** The video plays to its end, which pauses it without anyone asking. */

@@ -32,6 +32,7 @@ export type SyncedVideo = Pick<
   | "currentTime"
   | "duration"
   | "ended"
+  | "isConnected"
   | "pause"
   | "paused"
   | "play"
@@ -121,6 +122,7 @@ export class SyncEngine {
     video.addEventListener("ratechange", () => this.onRateChange(), options);
     video.addEventListener("timeupdate", () => this.tick(), options);
     video.addEventListener("canplay", () => this.tick(), options);
+    video.addEventListener("emptied", () => this.onEmptied(), options);
 
     this.syncWithRoom();
   }
@@ -212,6 +214,8 @@ export class SyncEngine {
   private apply(force: boolean): void {
     const { video, timeline } = this;
     if (!this.joined || !video || !timeline) return;
+    // Playing a video that's been taken out of the page would leave its sound running.
+    if (!video.isConnected) return;
     if (!force && this.hasUnreportedChange(video)) return;
 
     const target = targetPosition(timeline, this.deps.serverNow(), video.duration);
@@ -378,6 +382,15 @@ export class SyncEngine {
     this.publishIfChanged();
   }
 
+  /** The player reloaded the element, so no events will come for what was in flight. */
+  private onEmptied(): void {
+    if (!this.video) return;
+    this.clearFlags();
+    this.knownPaused = this.video.paused;
+    this.unreportedChangeSince = null;
+    this.tick();
+  }
+
   private consumePlayFlag(): boolean {
     const flagged = this.deps.now() < this.playFlagUntil;
     this.playFlagUntil = 0;
@@ -388,6 +401,8 @@ export class SyncEngine {
   private publishIfChanged(): void {
     const { video, timeline } = this;
     if (!this.joined || !video) return;
+    // Browsers pause a video when it's removed. Nobody chose that.
+    if (!video.isConnected) return;
 
     if (timeline) {
       const target = targetPosition(timeline, this.deps.serverNow(), video.duration);

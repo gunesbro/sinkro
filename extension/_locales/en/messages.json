@@ -1,46 +1,119 @@
 {
-  "extName": { "message": "Sinkro — Watch Party: Sync Any Video With Friends" },
+  "extName": {
+    "message": "Sinkro — Watch Party: Sync Any Video With Friends"
+  },
   "extDescription": {
     "message": "Free, open-source watch party extension that keeps any video on any website in sync with your friends."
   },
-  "langLabel": { "message": "Language" },
-  "settings": { "message": "Settings" },
-  "help": { "message": "Help" },
-  "found": { "message": "Found a video on this tab" },
-  "create": { "message": "Create a room" },
+  "langLabel": {
+    "message": "Language"
+  },
+  "settings": {
+    "message": "Settings"
+  },
+  "help": {
+    "message": "Help"
+  },
+  "found": {
+    "message": "Found a video on this tab"
+  },
+  "create": {
+    "message": "Create a room"
+  },
   "createHelp": {
     "message": "You get a link to share. Anyone who opens it watches this video with you, in sync."
   },
-  "joinLabel": { "message": "Got a code?" },
-  "joinPh": { "message": "Room code or invite link" },
-  "join": { "message": "Join" },
-  "footer": { "message": "No account. Only play, pause and position are shared." },
-  "live": { "message": "Room is live" },
-  "copyLink": { "message": "Copy invite link" },
-  "inSync": { "message": "Everyone within 0.2 s" },
-  "bring": { "message": "Bring everyone to me" },
-  "leave": { "message": "Leave" },
-  "synced": { "message": "In sync" },
-  "buffering": { "message": "Buffering" },
+  "joinLabel": {
+    "message": "Got a code?"
+  },
+  "joinPh": {
+    "message": "Room code or invite link"
+  },
+  "join": {
+    "message": "Join"
+  },
+  "footer": {
+    "message": "No account. Only play, pause and position are shared."
+  },
+  "live": {
+    "message": "Room is live"
+  },
+  "copyLink": {
+    "message": "Copy invite link"
+  },
+  "inSync": {
+    "message": "Everyone within 0.2 s"
+  },
+  "bring": {
+    "message": "Bring everyone to me"
+  },
+  "leave": {
+    "message": "Leave"
+  },
+  "synced": {
+    "message": "In sync"
+  },
+  "buffering": {
+    "message": "Buffering"
+  },
   "diffEpisode": {
     "message": "$NAME$ is on a different episode",
-    "placeholders": { "name": { "content": "$1" } }
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
   },
-  "bringHere": { "message": "Bring them here" },
-  "goThere": { "message": "Go to their episode" },
-  "connLost": { "message": "Connection lost" },
+  "bringHere": {
+    "message": "Bring them here"
+  },
+  "goThere": {
+    "message": "Go to their episode"
+  },
+  "connLost": {
+    "message": "Connection lost"
+  },
   "adWait": {
     "message": "$NAME$ is watching an ad",
-    "placeholders": { "name": { "content": "$1" } }
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
   },
-  "dontWait": { "message": "Don't wait" },
-  "noVideo": { "message": "No video on this page yet" },
-  "pickVideo": { "message": "Pick the video" },
-  "pickerHint": { "message": "Click the video you want to sync" },
+  "dontWait": {
+    "message": "Don't wait"
+  },
+  "noVideo": {
+    "message": "No video on this page yet"
+  },
+  "pickVideo": {
+    "message": "Pick the video"
+  },
+  "pickerHint": {
+    "message": "Click the video you want to sync"
+  },
+  "pickerThis": {
+    "message": "Sync this video"
+  },
+  "pickerRemembered": {
+    "message": "Remembered for this site"
+  },
+  "pickerCancel": {
+    "message": "Cancel · Esc"
+  },
   "inviteTitle": {
     "message": "$NAME$ invited you to movie night",
-    "placeholders": { "name": { "content": "$1" } }
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
   },
-  "addToChrome": { "message": "Add to Chrome, it's free" },
-  "onboardTitle": { "message": "Same movie. Same second. Different couches." }
+  "addToChrome": {
+    "message": "Add to Chrome, it's free"
+  },
+  "onboardTitle": {
+    "message": "Same movie. Same second. Different couches."
+  }
 }
