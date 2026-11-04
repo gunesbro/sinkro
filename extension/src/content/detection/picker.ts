@@ -1,3 +1,4 @@
+import { formatTimecode } from "../../format";
 import type { Messages } from "../../i18n";
 import { translate } from "../../i18n";
 import { markOwnElement, VideoDiscovery } from "./discovery";
@@ -20,15 +21,6 @@ export type PickerEvents = {
   onPick: (video: HTMLVideoElement) => void;
   onCancel: () => void;
 };
-
-function formatDuration(seconds: number): string | null {
-  if (!Number.isFinite(seconds)) return null;
-  const total = Math.floor(seconds);
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const rest = String(total % 60).padStart(2, "0");
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${rest}` : `${minutes}:${rest}`;
-}
 
 /**
  * Puts a real button over each video, so picking works from the keyboard and with a
@@ -132,7 +124,7 @@ export class VideoPicker {
     return [
       translate(this.messages, "pickerThis"),
       video.videoWidth > 0 ? `${video.videoWidth}×${video.videoHeight}` : null,
-      formatDuration(video.duration),
+      formatTimecode(video.duration),
     ]
       .filter(Boolean)
       .join(" · ");

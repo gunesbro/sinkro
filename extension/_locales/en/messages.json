@@ -115,5 +115,80 @@
   },
   "onboardTitle": {
     "message": "Same movie. Same second. Different couches."
+  },
+  "copyCode": {
+    "message": "Copy room code"
+  },
+  "copied": {
+    "message": "Copied"
+  },
+  "connecting": {
+    "message": "Connecting…"
+  },
+  "catchingUp": {
+    "message": "Catching up"
+  },
+  "people": {
+    "message": "$COUNT$ in this room",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "pageUnavailable": {
+    "message": "Sinkro can't run on this page"
+  },
+  "badCode": {
+    "message": "That doesn't look like a room code or invite link."
+  },
+  "cantReach": {
+    "message": "Can't reach the server. Check your connection and try again."
+  },
+  "connLostHelp": {
+    "message": "Reconnecting. You'll jump back to the room's spot when it's back."
+  },
+  "needsGesture": {
+    "message": "Click the video to join in"
+  },
+  "needsGestureHelp": {
+    "message": "Your browser wants a click before it plays anything on this page."
+  },
+  "noVideoHelp": {
+    "message": "It may still be loading. Press play, or point Sinkro at it."
+  },
+  "roomGone": {
+    "message": "This room no longer exists"
+  },
+  "roomGoneHelp": {
+    "message": "Rooms close a day after everyone leaves. Ask for a new link, or create a room."
+  },
+  "roomFull": {
+    "message": "This room is full"
+  },
+  "roomFullHelp": {
+    "message": "It has reached its limit of people. Someone needs to leave first."
+  },
+  "updateNeeded": {
+    "message": "Sinkro needs an update"
+  },
+  "updateNeededHelp": {
+    "message": "This room uses a newer version. Update the extension to join."
+  },
+  "serverLabel": {
+    "message": "Server address"
+  },
+  "serverHelp": {
+    "message": "Running your own server? Put its address here. It applies to the next room you join."
+  },
+  "serverInvalid": {
+    "message": "Enter a full address that starts with http:// or https://."
+  },
+  "save": {
+    "message": "Save"
+  },
+  "back": {
+    "message": "Back"
   }
 }

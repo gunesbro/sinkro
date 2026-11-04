@@ -50,6 +50,8 @@ export type EngineDeps = {
 
 export type EngineSnapshot = {
   hasVideo: boolean;
+  /** Seconds into the video, or null without one. */
+  position: number | null;
   /** Seconds this viewer is ahead of the room, or null without a video and a timeline. */
   drift: number | null;
   correcting: boolean;
@@ -171,6 +173,11 @@ export class SyncEngine {
     this.finishCorrection();
   }
 
+  /** Makes this viewer's position the room's, for "Bring everyone to me". */
+  bringEveryone(): void {
+    this.publish();
+  }
+
   stop(): void {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
@@ -182,6 +189,7 @@ export class SyncEngine {
     const { video, timeline } = this;
     return {
       hasVideo: video !== null,
+      position: video?.currentTime ?? null,
       drift:
         video && timeline
           ? video.currentTime - targetPosition(timeline, this.deps.serverNow(), video.duration)

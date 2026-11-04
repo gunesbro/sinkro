@@ -10,11 +10,146 @@
     <header>
       <!-- lang="en" keeps the uppercase I undotted when the popup is in Turkish. -->
       <span class="wordmark" lang="en">Sinkro</span>
-      <div class="languages" role="group" data-i18n-aria-label="langLabel">
-        <button type="button" data-lang="en" aria-pressed="false">EN</button>
-        <button type="button" data-lang="tr" aria-pressed="false">TR</button>
+      <div class="header-actions">
+        <div class="languages" role="group" data-i18n-aria-label="langLabel">
+          <button type="button" data-lang="en" aria-pressed="false">EN</button>
+          <button type="button" data-lang="tr" aria-pressed="false">TR</button>
+        </div>
+        <button
+          type="button"
+          class="icon-button"
+          id="open-settings"
+          data-i18n-aria-label="settings"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+            <circle cx="16" cy="7" r="2" />
+            <circle cx="10" cy="17" r="2" />
+          </svg>
+        </button>
       </div>
     </header>
-    <footer data-i18n="footer"></footer>
+
+    <main id="home" hidden>
+      <section class="found">
+        <span class="status-line"
+          ><span class="dot" id="found-dot"></span><span id="found-text"></span
+        ></span>
+        <span class="video-title" id="video-title"></span>
+        <span class="video-meta" id="video-meta"></span>
+        <button type="button" class="text-button" id="pick-home" data-i18n="pickVideo"></button>
+      </section>
+
+      <section class="create">
+        <button type="button" class="primary" id="create" data-i18n="create"></button>
+        <p class="help" data-i18n="createHelp"></p>
+      </section>
+
+      <form class="join" id="join-form" novalidate>
+        <label for="join-input" data-i18n="joinLabel"></label>
+        <div class="join-row">
+          <input
+            id="join-input"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="home-error"
+            data-i18n-placeholder="joinPh"
+          />
+          <button type="submit" class="secondary" data-i18n="join"></button>
+        </div>
+        <p class="error" id="home-error" role="alert"></p>
+      </form>
+    </main>
+
+    <main id="room" hidden>
+      <section class="room-head">
+        <span class="status-line" aria-live="polite"
+          ><span class="dot" id="room-dot"></span><span id="room-status"></span
+        ></span>
+        <div class="code-row">
+          <span class="room-code" id="room-code" lang="en"></span>
+          <button type="button" class="icon-button" id="copy-code" data-i18n-aria-label="copyCode">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="9" y="9" width="12" height="12" rx="2" />
+              <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+            </svg>
+          </button>
+        </div>
+        <button type="button" class="primary" id="copy-link" data-i18n="copyLink"></button>
+      </section>
+
+      <section class="readout">
+        <span id="people"></span>
+        <span class="timecode" id="timecode" lang="en"></span>
+      </section>
+
+      <section class="alert" id="alert" role="alert" hidden>
+        <span class="alert-title"
+          ><span class="dot" id="alert-dot"></span><span id="alert-title"></span
+        ></span>
+        <span class="alert-body" id="alert-body"></span>
+        <button
+          type="button"
+          class="secondary"
+          id="pick-room"
+          data-i18n="pickVideo"
+          hidden
+        ></button>
+      </section>
+
+      <section class="room-actions">
+        <button type="button" class="secondary" id="bring" data-i18n="bring"></button>
+        <button type="button" class="danger" id="leave" data-i18n="leave"></button>
+      </section>
+    </main>
+
+    <main id="settings" hidden>
+      <form class="settings" id="settings-form" novalidate>
+        <label for="server-input" data-i18n="serverLabel"></label>
+        <input
+          id="server-input"
+          type="url"
+          autocomplete="off"
+          spellcheck="false"
+          aria-describedby="server-help server-error"
+        />
+        <p class="help" id="server-help" data-i18n="serverHelp"></p>
+        <p class="error" id="server-error" role="alert"></p>
+        <div class="settings-actions">
+          <button type="submit" class="primary" data-i18n="save"></button>
+          <button type="button" class="secondary" id="close-settings" data-i18n="back"></button>
+        </div>
+      </form>
+    </main>
+
+    <footer>
+      <span data-i18n="footer"></span>
+      <a
+        href="https://github.com/gunesbro/sinkro#readme"
+        target="_blank"
+        rel="noreferrer"
+        data-i18n="help"
+      ></a>
+    </footer>
   </body>
 </html>

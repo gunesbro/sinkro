@@ -88,6 +88,8 @@ async function handleFromExtensionPage(request: BackgroundRequest) {
   switch (request.type) {
     case "room/create":
       return createRoom();
+    case "session/of":
+      return getSession(request.tabId);
     case "session/join": {
       const code = normalizeRoomCode(request.code);
       if (!code) return { error: "invalid_code" };

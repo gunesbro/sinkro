@@ -1,0 +1,59 @@
+import { describe, expect, it } from "vitest";
+import { formatTimecode } from "../src/format";
+import { inviteLink, parseRoomInput } from "../src/invite";
+
+describe("formatTimecode", () => {
+  it.each([
+    [0, "0:00"],
+    [9.9, "0:09"],
+    [83, "1:23"],
+    [3600, "1:00:00"],
+    [3723, "1:02:03"],
+    [36_000, "10:00:00"],
+  ])("formats %d", (seconds, expected) => {
+    expect(formatTimecode(seconds)).toBe(expected);
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])("has nothing to say about %d", (seconds) => {
+    expect(formatTimecode(seconds)).toBeNull();
+  });
+});
+
+describe("inviteLink", () => {
+  it("keeps everything in the fragment, which never reaches a server", () => {
+    const link = new URL(inviteLink("K7M-2QX", "https://example.com/watch?v=1&t=2"));
+    expect(link.search).toBe("");
+    expect(link.pathname).toBe("/");
+
+    const params = new URLSearchParams(link.hash.slice(1));
+    expect(params.get("room")).toBe("K7M-2QX");
+    expect(params.get("url")).toBe("https://example.com/watch?v=1&t=2");
+  });
+
+  it.each([null, "file:///C:/film.mp4", "chrome://settings", "about:blank"])(
+    "leaves out a page address others couldn't open: %s",
+    (pageUrl) => {
+      expect(inviteLink("K7M-2QX", pageUrl)).toBe("https://sinkro.pages.dev/#room=K7M-2QX");
+    },
+  );
+});
+
+describe("parseRoomInput", () => {
+  it.each([
+    ["K7M-2QX", "K7M-2QX"],
+    ["k7m2qx", "K7M-2QX"],
+    ["  k7m-2qx  ", "K7M-2QX"],
+    ["https://sinkro.pages.dev/#room=K7M-2QX", "K7M-2QX"],
+    ["https://sinkro.pages.dev/#room=k7m2qx&url=https%3A%2F%2Fexample.com", "K7M-2QX"],
+    [inviteLink("K7M-2QX", "https://example.com/a#b"), "K7M-2QX"],
+  ])("finds the code in %s", (input, expected) => {
+    expect(parseRoomInput(input)).toBe(expected);
+  });
+
+  it.each(["", "hello", "K7M", "https://sinkro.pages.dev/", "https://example.com/#room=nope"])(
+    "finds no code in %j",
+    (input) => {
+      expect(parseRoomInput(input)).toBeNull();
+    },
+  );
+});

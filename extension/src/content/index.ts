@@ -3,6 +3,7 @@
 // connection and sync engine. Pages that aren't in a room get no socket and no timers.
 import type {
   BackgroundRequest,
+  PeekReport,
   ReportResponse,
   SessionInfo,
   SessionStatus,
@@ -125,6 +126,10 @@ class FrameSession {
     return this.room?.status() ?? null;
   }
 
+  bringEveryone(): void {
+    this.room?.engine.bringEveryone();
+  }
+
   stop(): void {
     this.isStopped = true;
     window.removeEventListener("pagehide", this.onPageHide);
@@ -149,6 +154,26 @@ function applySession(session: TabSession | null): void {
   if (current && session?.code === current.code && session.serverUrl === current.serverUrl) return;
   frameSession?.stop();
   frameSession = session ? new FrameSession(session) : null;
+}
+
+/** A one-off look for the popup, which also asks before any room exists. */
+function peek(): PeekReport {
+  let score = 0;
+  const tracker = new VideoTracker({
+    onVideoChange: () => undefined,
+    onReport: (reported) => {
+      score = reported;
+    },
+  });
+  tracker.start(null);
+  const duration = tracker.video()?.duration ?? null;
+  tracker.stop();
+  return {
+    score,
+    duration: duration !== null && Number.isFinite(duration) ? duration : null,
+    title: isTopFrame ? document.title : null,
+    url: isTopFrame ? location.href : null,
+  };
 }
 
 function startPicker(messages: Extract<TabRequest, { type: "picker/start" }>["messages"]): void {
@@ -188,6 +213,15 @@ chrome.runtime.onMessage.addListener((request: TabRequest, _sender, sendResponse
       // Only one frame answers: the one running the room, or the top one if none is.
       const status = frameSession?.status() ?? null;
       if (status || (isTopFrame && !frameSession)) sendResponse(status);
+      return;
+    }
+    case "session/bring":
+      frameSession?.bringEveryone();
+      return;
+    case "detect/peek": {
+      const report = peek();
+      // Frames with nothing to add stay quiet. The top frame always answers, for the title.
+      if (isTopFrame || report.score > 0) void send({ type: "detect/peeked", report });
       return;
     }
     case "picker/start":

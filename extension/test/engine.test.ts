@@ -831,6 +831,26 @@ describe("connection loss", () => {
   });
 });
 
+describe("bringing everyone along", () => {
+  it("sends this viewer's position even when nothing changed", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, sent } = context;
+    engine.bringEveryone();
+
+    expect(sent).toMatchObject([{ playing: true, position: 100 }]);
+  });
+
+  it("does nothing without a room or a video", () => {
+    const context = setup();
+    context.engine.bringEveryone();
+    context.engine.bind(context.video.asVideo());
+    context.engine.bringEveryone();
+
+    expect(context.sent).toEqual([]);
+  });
+});
+
 describe("binding", () => {
   it("stops listening to a video it has let go of", async () => {
     const context = setup();

@@ -115,5 +115,80 @@
   },
   "onboardTitle": {
     "message": "Aynı film. Aynı saniye. Farklı koltuklar."
+  },
+  "copyCode": {
+    "message": "Oda kodunu kopyala"
+  },
+  "copied": {
+    "message": "Kopyalandı"
+  },
+  "connecting": {
+    "message": "Bağlanıyor…"
+  },
+  "catchingUp": {
+    "message": "Yakalıyor"
+  },
+  "people": {
+    "message": "Bu odada $COUNT$ kişi",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "pageUnavailable": {
+    "message": "Sinkro bu sayfada çalışamıyor"
+  },
+  "badCode": {
+    "message": "Bu bir oda kodu veya davet linkine benzemiyor."
+  },
+  "cantReach": {
+    "message": "Sunucuya ulaşılamıyor. Bağlantını kontrol edip yeniden dene."
+  },
+  "connLostHelp": {
+    "message": "Yeniden bağlanılıyor. Dönünce odanın olduğu yere atlarsın."
+  },
+  "needsGesture": {
+    "message": "Katılmak için videoya tıkla"
+  },
+  "needsGestureHelp": {
+    "message": "Tarayıcın bu sayfada bir şey oynatmadan önce tıklama istiyor."
+  },
+  "noVideoHelp": {
+    "message": "Hâlâ yükleniyor olabilir. Oynat ya da videoyu Sinkro’ya göster."
+  },
+  "roomGone": {
+    "message": "Bu oda artık yok"
+  },
+  "roomGoneHelp": {
+    "message": "Odalar herkes çıktıktan bir gün sonra kapanır. Yeni bir link iste ya da oda oluştur."
+  },
+  "roomFull": {
+    "message": "Bu oda dolu"
+  },
+  "roomFullHelp": {
+    "message": "Kişi sınırına ulaştı. Önce birinin çıkması gerekiyor."
+  },
+  "updateNeeded": {
+    "message": "Sinkro’nun güncellenmesi gerekiyor"
+  },
+  "updateNeededHelp": {
+    "message": "Bu oda daha yeni bir sürüm kullanıyor. Katılmak için eklentiyi güncelle."
+  },
+  "serverLabel": {
+    "message": "Sunucu adresi"
+  },
+  "serverHelp": {
+    "message": "Kendi sunucunu mu çalıştırıyorsun? Adresini buraya yaz. Katılacağın sonraki odada geçerli olur."
+  },
+  "serverInvalid": {
+    "message": "http:// veya https:// ile başlayan tam bir adres gir."
+  },
+  "save": {
+    "message": "Kaydet"
+  },
+  "back": {
+    "message": "Geri"
   }
 }
