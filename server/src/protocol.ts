@@ -39,26 +39,53 @@ export type ServerMessage =
 const MAX_MESSAGE_LENGTH = 512;
 const MAX_POSITION_SECONDS = 7 * 24 * 60 * 60;
 // The range browsers accept for HTMLMediaElement.playbackRate.
-const MIN_RATE = 0.0625;
-const MAX_RATE = 16;
+export const MIN_RATE = 0.0625;
+export const MAX_RATE = 16;
+const ERROR_CODES: readonly unknown[] = [
+  "invalid_message",
+  "not_joined",
+  "rate_limited",
+] satisfies ErrorCode[];
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseRecord(raw: string): Record<string, unknown> | null {
+  try {
+    const value: unknown = JSON.parse(raw);
+    return isRecord(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function parsePlayback(value: Record<string, unknown>): PlaybackState | null {
+  const { playing, position, rate, sentAt } = value;
+  if (typeof playing !== "boolean") return null;
+  if (!isFiniteNumber(position) || position < 0 || position > MAX_POSITION_SECONDS) return null;
+  if (!isFiniteNumber(rate) || rate < MIN_RATE || rate > MAX_RATE) return null;
+  if (!isFiniteNumber(sentAt)) return null;
+  return { playing, position, rate, sentAt };
+}
+
+function parseRoomState(value: Record<string, unknown>): RoomState | null {
+  const playback = parsePlayback(value);
+  if (!playback || !isFiniteNumber(value.seq) || typeof value.from !== "string") return null;
+  return { ...playback, seq: value.seq, from: value.from };
 }
 
 /** Returns null for anything that isn't a well-formed client message. */
 export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | null {
   if (typeof raw !== "string" || raw.length > MAX_MESSAGE_LENGTH) return null;
 
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (typeof value !== "object" || value === null) return null;
+  const message = parseRecord(raw);
+  if (!message) return null;
 
-  const message = value as Record<string, unknown>;
   switch (message.type) {
     case "join":
       return isFiniteNumber(message.protocol) ? { type: "join", protocol: message.protocol } : null;
@@ -67,13 +94,46 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
         ? { type: "ping", clientTime: message.clientTime }
         : null;
     case "state": {
-      const { playing, position, rate, sentAt } = message;
-      if (typeof playing !== "boolean") return null;
-      if (!isFiniteNumber(position) || position < 0 || position > MAX_POSITION_SECONDS) return null;
-      if (!isFiniteNumber(rate) || rate < MIN_RATE || rate > MAX_RATE) return null;
-      if (!isFiniteNumber(sentAt)) return null;
-      return { type: "state", playing, position, rate, sentAt };
+      const playback = parsePlayback(message);
+      return playback && { type: "state", ...playback };
     }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Returns null for anything that isn't a well-formed server message. The server URL
+ * is user-configurable, so a client can't assume it's talking to this code.
+ */
+export function parseServerMessage(raw: unknown): ServerMessage | null {
+  if (typeof raw !== "string") return null;
+
+  const message = parseRecord(raw);
+  if (!message) return null;
+
+  switch (message.type) {
+    case "joined": {
+      const { clientId, peers, state } = message;
+      if (typeof clientId !== "string" || !isFiniteNumber(peers)) return null;
+      if (state === null) return { type: "joined", clientId, state: null, peers };
+      const parsed = isRecord(state) ? parseRoomState(state) : null;
+      return parsed && { type: "joined", clientId, state: parsed, peers };
+    }
+    case "state": {
+      const state = parseRoomState(message);
+      return state && { type: "state", ...state };
+    }
+    case "peers":
+      return isFiniteNumber(message.count) ? { type: "peers", count: message.count } : null;
+    case "pong":
+      return isFiniteNumber(message.clientTime) && isFiniteNumber(message.serverTime)
+        ? { type: "pong", clientTime: message.clientTime, serverTime: message.serverTime }
+        : null;
+    case "error":
+      return ERROR_CODES.includes(message.code)
+        ? { type: "error", code: message.code as ErrorCode }
+        : null;
     default:
       return null;
   }
