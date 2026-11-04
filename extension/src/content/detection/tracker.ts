@@ -1,3 +1,4 @@
+import { hasAdMarker, holdReason, type HoldReason } from "./ads";
 import { VideoDiscovery } from "./discovery";
 import { pickBest, scoreVideo, type Candidate } from "./score";
 
@@ -34,6 +35,9 @@ export class VideoTracker {
   private current: HTMLVideoElement | null = null;
   private currentFingerprint = "";
   private picked: HTMLVideoElement | null = null;
+  /** The longest video synced on this page, which is how a short one gets noticed as an ad. */
+  private longestSeen = 0;
+  private longestSeenOn = location.href;
   private rememberedSelector: string | null = null;
   private lastEvaluateAt = Number.NEGATIVE_INFINITY;
   private lastHoverAt = Number.NEGATIVE_INFINITY;
@@ -80,6 +84,30 @@ export class VideoTracker {
 
   video(): HTMLVideoElement | null {
     return this.current;
+  }
+
+  /** Why the current video can't follow the room at `roomPosition`, if it can't. */
+  holdReason(roomPosition: number | null): HoldReason | null {
+    const video = this.current;
+    if (!video) return null;
+
+    // Navigating within the site starts a new film, whose length says nothing about the last.
+    if (location.href !== this.longestSeenOn) {
+      this.longestSeenOn = location.href;
+      this.longestSeen = 0;
+    }
+    const reason = holdReason({
+      duration: video.duration,
+      longestSeen: this.longestSeen,
+      roomPosition,
+      hasAdMarker: hasAdMarker(video),
+      picked: video === this.picked || this.matchesRemembered(video),
+    });
+    // Ads don't get to set the bar, and neither does a video still being measured against it.
+    if (!reason && Number.isFinite(video.duration)) {
+      this.longestSeen = Math.max(this.longestSeen, video.duration);
+    }
+    return reason;
   }
 
   /** The viewer chose this one, or chose a video in another frame (null). */
