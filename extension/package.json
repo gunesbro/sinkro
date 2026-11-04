@@ -7,11 +7,13 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "check:locales": "node scripts/check-locales.mjs",
-    "lint:firefox": "web-ext lint --source-dir dist/firefox"
+    "lint:firefox": "web-ext lint --source-dir dist/firefox",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.7",
     "esbuild": "^0.28.2",
+    "vitest": "^5.1.0",
     "web-ext": "^10.8.0"
   }
 }

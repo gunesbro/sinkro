@@ -1,7 +1,44 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMessage } from "../src/protocol";
+import { parseClientMessage, parseServerMessage } from "../src/protocol";
 
 const state = { type: "state", playing: true, position: 10, rate: 1, sentAt: 1000 };
+const roomState = { playing: true, position: 10, rate: 1, sentAt: 1000, seq: 3, from: "a" };
+
+describe("parseServerMessage", () => {
+  it.each([
+    [{ type: "joined", clientId: "a", state: null, peers: 1 }],
+    [{ type: "joined", clientId: "a", state: roomState, peers: 2 }],
+    [{ type: "state", ...roomState }],
+    [{ type: "peers", count: 3 }],
+    [{ type: "pong", clientTime: 1, serverTime: 2 }],
+    [{ type: "error", code: "rate_limited" }],
+  ])("accepts %j", (message) => {
+    expect(parseServerMessage(JSON.stringify(message))).toEqual(message);
+  });
+
+  it.each([
+    ["not JSON", "{"],
+    ["binary data", new ArrayBuffer(4)],
+    ["keepalive", "keepalive"],
+    ["an unknown type", JSON.stringify({ type: "chat" })],
+    ["a join without an id", JSON.stringify({ type: "joined", state: null, peers: 1 })],
+    [
+      "a join with a broken state",
+      JSON.stringify({ type: "joined", clientId: "a", peers: 1, state: { position: 1 } }),
+    ],
+    ["a state without seq", JSON.stringify({ ...state, from: "a" })],
+    ["a state without a sender", JSON.stringify({ ...state, seq: 1 })],
+    ["an out-of-range rate", JSON.stringify({ type: "state", ...roomState, rate: 99 })],
+    [
+      "a position that isn't a number",
+      JSON.stringify({ type: "state", ...roomState, position: "1" }),
+    ],
+    ["a pong without server time", JSON.stringify({ type: "pong", clientTime: 1 })],
+    ["an unknown error", JSON.stringify({ type: "error", code: "nope" })],
+  ])("rejects %s", (_, raw) => {
+    expect(parseServerMessage(raw)).toBeNull();
+  });
+});
 
 describe("parseClientMessage", () => {
   it.each([
