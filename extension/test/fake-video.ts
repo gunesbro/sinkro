@@ -10,6 +10,7 @@ export class FakeVideo extends EventTarget {
   duration = 3600;
   paused = true;
   ended = false;
+  isConnected = true;
   seeking = false;
   readyState = 4;
   autoplayAllowed = true;
@@ -68,6 +69,12 @@ export class FakeVideo extends EventTarget {
 
   userSetRate(rate: number): void {
     this.playbackRate = rate;
+  }
+
+  /** Taken out of the page, which pauses it without anyone asking. */
+  removeFromPage(): void {
+    this.isConnected = false;
+    this.pause();
   }
 
   /** The video plays to its end, which pauses it without anyone asking. */

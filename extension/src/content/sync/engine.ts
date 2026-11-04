@@ -32,6 +32,7 @@ export type SyncedVideo = Pick<
   | "currentTime"
   | "duration"
   | "ended"
+  | "isConnected"
   | "pause"
   | "paused"
   | "play"
@@ -212,6 +213,8 @@ export class SyncEngine {
   private apply(force: boolean): void {
     const { video, timeline } = this;
     if (!this.joined || !video || !timeline) return;
+    // Playing a video that's been taken out of the page would leave its sound running.
+    if (!video.isConnected) return;
     if (!force && this.hasUnreportedChange(video)) return;
 
     const target = targetPosition(timeline, this.deps.serverNow(), video.duration);
@@ -388,6 +391,8 @@ export class SyncEngine {
   private publishIfChanged(): void {
     const { video, timeline } = this;
     if (!this.joined || !video) return;
+    // Browsers pause a video when it's removed. Nobody chose that.
+    if (!video.isConnected) return;
 
     if (timeline) {
       const target = targetPosition(timeline, this.deps.serverNow(), video.duration);

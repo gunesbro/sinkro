@@ -841,6 +841,28 @@ describe("binding", () => {
     expect(sent).toEqual([]);
   });
 
+  it("doesn't take a video being removed for the viewer pausing", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { video, sent } = context;
+    video.removeFromPage();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(sent).toEqual([]);
+  });
+
+  it("doesn't restart a video that's no longer in the page", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { video } = context;
+    const playCalls = video.playCalls;
+    video.removeFromPage();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(video.playCalls).toBe(playCalls);
+    expect(video.paused).toBe(true);
+  });
+
   it("brings a swapped-in video onto the timeline", async () => {
     const context = setup();
     await joinPlaying(context);
