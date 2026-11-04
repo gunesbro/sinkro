@@ -1,7 +1,6 @@
 const SERVER_URL_KEY = "serverUrl";
 
-/** Replaced with the hosted server's address once it's deployed. */
-export const DEFAULT_SERVER_URL = "http://localhost:8787";
+export const DEFAULT_SERVER_URL = "https://sinkro.sinkro.workers.dev";
 
 /** Returns the URL without a trailing slash, or null if it can't be a Sinkro server. */
 export function normalizeServerUrl(input: string): string | null {
