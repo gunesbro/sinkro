@@ -14,7 +14,7 @@
     "build": "npm run build -w extension",
     "typecheck": "npm run typecheck --workspaces",
     "format": "prettier --write .",
-    "check": "prettier --check . && npm run typecheck && npm run check:locales -w extension && npm run build && npm run lint:firefox -w extension && npm run build -w server"
+    "check": "prettier --check . && npm run typecheck && npm run check:locales -w extension && npm run build && npm run lint:firefox -w extension && npm run build -w server && npm test -w server"
   },
   "devDependencies": {
     "prettier": "^3.9.10",
