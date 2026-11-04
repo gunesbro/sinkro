@@ -2,3 +2,12 @@ name = "sinkro"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 send_metrics = false
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+# SQLite-backed Durable Objects are the ones available on the free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
