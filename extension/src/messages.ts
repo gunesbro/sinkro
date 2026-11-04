@@ -13,15 +13,26 @@ export type SessionStatus = EngineSnapshot & {
   peers: number;
 };
 
+/** One frame's answer to "is there a video here?". Stays inside the extension. */
+export type PeekReport = {
+  score: number;
+  duration: number | null;
+  /** The page's title and address, from the top frame only. */
+  title: string | null;
+  url: string | null;
+};
+
 export type BackgroundRequest =
   // From extension pages.
   | { type: "room/create" }
+  | { type: "session/of"; tabId: number }
   | { type: "session/join"; tabId: number; code: string }
   | { type: "session/leave"; tabId: number }
   | { type: "picker/start"; tabId: number }
   // From content scripts, in every frame.
   | { type: "session/get" }
   | { type: "detect/report"; score: number }
+  | { type: "detect/peeked"; report: PeekReport }
   | { type: "picker/picked" }
   | { type: "picker/cancelled" };
 
@@ -35,5 +46,8 @@ export type TabRequest =
   /** Whether this frame should run the connection and sync engine. Sent to one frame. */
   | { type: "session/role"; active: boolean }
   | { type: "session/status" }
+  /** Sends this viewer's position to the room, moving everyone else to it. */
+  | { type: "session/bring" }
+  | { type: "detect/peek" }
   | { type: "picker/start"; messages: Messages }
   | { type: "picker/stop"; picked: boolean };
