@@ -6,3 +6,6 @@ web-ext-artifacts/
 .env
 *.log
 .claude/settings.local.json
+
+# Planning and design notes, kept local for now.
+docs/

@@ -14,7 +14,6 @@ No accounts and no analytics. Only the room code and playback state (playing or 
 | `server/`    | Cloudflare Worker that hosts rooms              |
 | `site/`      | Static invite and landing page                  |
 | `tests/`     | Playwright test pages and end-to-end tests      |
-| `docs/`      | Plan, design rules and mockups                  |
 
 ## Development
 
