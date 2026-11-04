@@ -21,17 +21,37 @@ describe("ServerClock", () => {
     expect(clock.offset).toBe(4000);
   });
 
+  it("isn't moved by one wrong reading, however fast", () => {
+    const clock = new ServerClock();
+    clock.addSample(1000, 5003, 1006); // 6 ms: 4000
+    clock.addSample(2000, 3001, 2002); // 2 ms, but from a stale server clock: 1000
+    clock.addSample(3000, 7003, 3006); // 6 ms: 4000
+    expect(clock.offset).toBe(4000);
+  });
+
+  it("replaces a slow start as soon as a fast reading arrives", () => {
+    const clock = new ServerClock();
+    clock.addSample(1000, 5500, 4000); // 3 s round trips while the page loads: 3000
+    clock.addSample(5000, 9500, 8000);
+    clock.addSample(9000, 13_500, 12_000);
+    expect(clock.offset).toBe(3000);
+
+    clock.addSample(20_000, 24_002, 20_004);
+    expect(clock.offset).toBe(4000);
+  });
+
   it("forgets old samples, so it can follow a changed clock", () => {
     const clock = new ServerClock();
     clock.addSample(1000, 5000, 1000);
-    for (let i = 1; i <= 5; i += 1) clock.addSample(i * 1000, i * 1000 + 9050, i * 1000 + 100);
+    for (let i = 1; i <= 7; i += 1) clock.addSample(i * 1000, i * 1000 + 9050, i * 1000 + 100);
     expect(clock.offset).toBe(9000);
   });
 
   it("discards a sample from a clock that went backwards", () => {
     const clock = new ServerClock();
+    clock.addSample(500, 4500, 500);
     clock.addSample(2000, 9000, 1000);
-    expect(clock.offset).toBe(0);
+    expect(clock.offset).toBe(4000);
   });
 });
 

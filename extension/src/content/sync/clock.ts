@@ -1,11 +1,14 @@
-const MAX_SAMPLES = 5;
+const MAX_SAMPLES = 7;
+/** Round trips within twice the fastest, plus this, count as equally trustworthy. */
+const SIMILAR_ROUND_TRIP_SLACK_MS = 10;
 
 type Sample = { roundTrip: number; offset: number };
 
 /**
- * Estimates server time from ping/pong round trips. The fastest recent round trip is
- * the one least distorted by queueing, so its offset wins. Old samples age out, which
- * lets the estimate follow a changed network or a corrected system clock.
+ * Estimates server time from ping/pong round trips. A slow round trip was probably
+ * queued somewhere, so only the fastest ones count, and taking their median means one
+ * odd reading can't move the estimate. Old samples age out, which lets it follow a
+ * changed network or a corrected system clock.
  */
 export class ServerClock {
   private samples: Sample[] = [];
@@ -20,10 +23,12 @@ export class ServerClock {
 
   /** Milliseconds to add to the local clock to get server time. */
   get offset(): number {
-    let best: Sample | null = null;
-    for (const sample of this.samples) {
-      if (!best || sample.roundTrip < best.roundTrip) best = sample;
-    }
-    return best?.offset ?? 0;
+    const fastest = Math.min(...this.samples.map((sample) => sample.roundTrip));
+    const limit = fastest * 2 + SIMILAR_ROUND_TRIP_SLACK_MS;
+    const offsets = this.samples
+      .filter((sample) => sample.roundTrip <= limit)
+      .map((sample) => sample.offset)
+      .sort((a, b) => a - b);
+    return offsets[Math.floor(offsets.length / 2)] ?? 0;
   }
 }

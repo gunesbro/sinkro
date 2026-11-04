@@ -339,13 +339,42 @@ describe("keepalive", () => {
     const socket = latest();
     const pingsBefore = socket.ofType("ping").length;
 
-    for (let tick = 0; tick < 3; tick += 1) {
+    for (let tick = 0; tick < 6; tick += 1) {
       vi.advanceTimersByTime(20_000);
       socket.receive("keepalive");
     }
 
-    expect(socket.sent.filter((m) => m === "keepalive")).toHaveLength(3);
+    expect(socket.sent.filter((m) => m === "keepalive")).toHaveLength(6);
+    // Three follow-ups after joining, then one for every three keepalives.
+    expect(socket.ofType("ping")).toHaveLength(pingsBefore + 3 + 2);
+  });
+
+  it("measures the clock again soon after joining", () => {
+    const { connection, handshake, latest } = setup();
+    connection.start();
+    handshake();
+    const socket = latest();
+    const pingsBefore = socket.ofType("ping").length;
+
+    vi.advanceTimersByTime(5000);
     expect(socket.ofType("ping")).toHaveLength(pingsBefore + 1);
+
+    vi.advanceTimersByTime(10_000);
+    expect(socket.ofType("ping")).toHaveLength(pingsBefore + 2);
+  });
+
+  it("drops the follow-up measurements with the connection", () => {
+    const { connection, handshake, latest } = setup();
+    connection.start();
+    handshake();
+    const socket = latest();
+    const pingsBefore = socket.ofType("ping").length;
+    socket.drop();
+    vi.advanceTimersByTime(800);
+
+    expect(socket.ofType("ping")).toHaveLength(pingsBefore);
+    connection.stop();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("reconnects when the server stops answering", () => {

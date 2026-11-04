@@ -17,6 +17,8 @@ const PINGS_EVERY_N_KEEPALIVES = 3;
 const INITIAL_PINGS = 3;
 /** Join anyway if pongs are slow: a rough clock beats not joining. */
 const INITIAL_PINGS_TIMEOUT_MS = 3000;
+/** The first pings run while the page is still loading, so measure again once it has settled. */
+const FOLLOW_UP_PINGS_MS = [5000, 15_000, 30_000];
 const MIN_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
@@ -74,6 +76,7 @@ export class RoomConnection {
   private joinTimer: ReturnType<typeof setTimeout> | null = null;
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private followUpTimers: ReturnType<typeof setTimeout>[] = [];
 
   private readonly now: () => number;
   private readonly createSocket: (url: string) => SocketLike;
@@ -209,6 +212,9 @@ export class RoomConnection {
     this.keepalivesSent = 0;
     this.lastKeepaliveAt = this.now();
     this.keepaliveTimer = setInterval(() => this.onKeepaliveTick(), KEEPALIVE_INTERVAL_MS);
+    this.followUpTimers = FOLLOW_UP_PINGS_MS.map((delay) =>
+      setTimeout(() => this.sendPing(), delay),
+    );
   }
 
   private onKeepaliveTick(): void {
@@ -240,6 +246,8 @@ export class RoomConnection {
     if (this.joinTimer !== null) clearTimeout(this.joinTimer);
     if (this.keepaliveTimer !== null) clearInterval(this.keepaliveTimer);
     if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
+    this.followUpTimers.forEach(clearTimeout);
+    this.followUpTimers = [];
     this.joinTimer = null;
     this.keepaliveTimer = null;
     this.reconnectTimer = null;
