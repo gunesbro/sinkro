@@ -151,6 +151,8 @@ describe("remote commands don't echo", () => {
     const context = setup();
     await joinPlaying(context);
     const { engine, video, sent, peerState } = context;
+    // Just after a tick, so the timeupdate ahead of pause can't put the position right first.
+    await vi.advanceTimersByTimeAsync(1100);
 
     engine.handleState(peerState({ playing: false, position: 100 }));
     video.position = 101;
@@ -274,11 +276,126 @@ describe("what the viewer does reaches the room", () => {
     await joinPlaying(context);
     const { engine, video, sent, peerState } = context;
 
+    video.seekDelayMs = 100;
     engine.handleState(peerState({ position: 500 }));
-    video.position = 800;
-    await settle();
+    await vi.advanceTimersByTimeAsync(50);
+    video.userSeek(800);
+    await vi.advanceTimersByTimeAsync(100);
 
     expect(sent).toMatchObject([{ position: 800 }]);
+  });
+});
+
+describe("seeks that don't go to plan", () => {
+  it("doesn't drag the room along when this video can't seek", async () => {
+    const context = setup();
+    const { engine, video, peerState, sent } = context;
+    video.seekable = false;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: peerState({ position: 100 }), peers: 2 });
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    expect(sent).toEqual([]);
+    expect(video.position).toBe(0);
+  });
+
+  it("doesn't take a very slow seek for the viewer's", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, video, peerState, sent } = context;
+    video.seekDelayMs = 20_000;
+    engine.handleState(peerState({ position: 900 }));
+    await vi.advanceTimersByTimeAsync(21_000);
+
+    expect(sent).toEqual([]);
+  });
+
+  it("doesn't take a replaced seek for the viewer's, on a video that can't seek", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, video, peerState, sent } = context;
+    video.seekable = false;
+    video.seekDelayMs = 100;
+    engine.handleState(peerState({ position: 500 }));
+    await vi.advanceTimersByTimeAsync(10);
+    engine.handleState(peerState({ position: 900 }));
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(sent).toEqual([]);
+  });
+});
+
+describe("a change whose event hasn't fired yet", () => {
+  it("doesn't undo the viewer's pause", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { video, sent } = context;
+    await vi.advanceTimersByTimeAsync(1300);
+
+    video.pause();
+    await settle();
+
+    expect(video.paused).toBe(true);
+    expect(video.playCalls).toBe(1);
+    expect(sent).toMatchObject([{ playing: false }]);
+  });
+
+  it("doesn't undo the viewer's play", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, video, sent, peerState } = context;
+    engine.handleState(peerState({ playing: false, position: 100 }));
+    await vi.advanceTimersByTimeAsync(1300);
+
+    video.paused = false;
+    video.dispatchEvent(new Event("timeupdate"));
+    await settle();
+    expect(video.paused).toBe(false);
+
+    video.dispatchEvent(new Event("play"));
+    await settle();
+    expect(sent).toMatchObject([{ playing: true }]);
+  });
+
+  it("doesn't undo the viewer's speed", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { video, sent } = context;
+    await vi.advanceTimersByTimeAsync(1300);
+
+    video.userSetRate(1.5);
+    video.dispatchEvent(new Event("timeupdate"));
+    await settle();
+
+    expect(video.playbackRate).toBe(1.5);
+    expect(sent).toMatchObject([{ rate: 1.5 }]);
+  });
+
+  it("stops waiting if the event never comes", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { video, sent } = context;
+
+    // Reloading a media element pauses it without firing pause.
+    video.paused = true;
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(video.paused).toBe(false);
+    expect(sent).toEqual([]);
+  });
+
+  it("doesn't mistake a blocked play for a pending change", async () => {
+    const context = setup();
+    const { engine, video, peerState } = context;
+    video.autoplayAllowed = false;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: peerState({ position: 100 }), peers: 2 });
+    await settle();
+
+    video.autoplayAllowed = true;
+    await vi.advanceTimersByTimeAsync(6000);
+
+    expect(video.paused).toBe(false);
   });
 });
 

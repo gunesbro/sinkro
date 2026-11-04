@@ -13,6 +13,10 @@ export class FakeVideo extends EventTarget {
   seeking = false;
   readyState = 4;
   autoplayAllowed = true;
+  /** False for something like a live stream: a seek runs, but lands where it started. */
+  seekable = true;
+  seekDelayMs = 0;
+  private seekId = 0;
   playCalls = 0;
   seekCalls = 0;
   private rate = 1;
@@ -48,6 +52,8 @@ export class FakeVideo extends EventTarget {
 
   pause(): void {
     this.paused = true;
+    // Browsers queue timeupdate ahead of pause, so scripts can see one before the other.
+    this.emit("timeupdate");
     this.emit("pause");
   }
 
@@ -78,14 +84,20 @@ export class FakeVideo extends EventTarget {
   }
 
   private moveTo(position: number): void {
-    this.position = position;
+    if (this.seekable) this.position = position;
     this.ended = false;
     this.seeking = true;
     this.emit("seeking");
-    queueMicrotask(() => {
+    // A new seek aborts one in flight, which then never reports seeked.
+    this.seekId += 1;
+    const id = this.seekId;
+    const finish = () => {
+      if (id !== this.seekId) return;
       this.seeking = false;
       this.emit("seeked");
-    });
+    };
+    if (this.seekDelayMs > 0) setTimeout(finish, this.seekDelayMs);
+    else queueMicrotask(finish);
   }
 
   private emit(type: string): void {

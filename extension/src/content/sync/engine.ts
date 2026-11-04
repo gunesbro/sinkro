@@ -12,16 +12,17 @@ const TICK_INTERVAL_MS = 1000;
 /** Playing video fires timeupdate even in a background tab, where timers are throttled. */
 const MIN_TICK_GAP_MS = 200;
 const PLAY_PAUSE_FLAG_MS = 2000;
-const SEEK_FLAG_MS = 15_000;
 /** Stops a slow connection from turning into a loop of seek, buffer, fall behind, seek. */
 const SEEK_COOLDOWN_MS = 5000;
 const AUTOPLAY_RETRY_MS = 5000;
 /** A local event landing this close to the timeline is player noise, not somebody's action. */
 const SAME_POSITION_SECONDS = 0.5;
-/** A seek we applied that lands further off than this was overridden by the viewer. */
+/** How far from what we asked for a seek can land and still clearly be ours. */
 const OWN_SEEK_TOLERANCE_SECONDS = 1;
 const ENDED_TOLERANCE_SECONDS = 0.5;
 const RATE_EPSILON = 0.001;
+/** How long to wait for an element change's event. Some, like a reload's pause, never fire. */
+const UNREPORTED_CHANGE_GRACE_MS = 1000;
 /** HTMLMediaElement.HAVE_FUTURE_DATA: enough is buffered to keep playing. */
 const HAVE_FUTURE_DATA = 3;
 
@@ -77,11 +78,15 @@ export class SyncEngine {
   /** The speed we last set, so our own ratechange events can be told apart. */
   private expectedRate = 1;
   private correcting = false;
+  /** Whether the video was paused the last time we changed it or heard from it. */
+  private knownPaused = true;
+  private unreportedChangeSince: number | null = null;
 
   // Echo prevention: set when a remote command is applied, consumed by the event it causes.
   private playFlagUntil = 0;
   private pauseFlagUntil = 0;
-  private pendingSeek: { position: number; until: number } | null = null;
+  private pendingSeek: { position: number; seekingExpected: number; seekingSeen: number } | null =
+    null;
 
   private lastSeekAt = Number.NEGATIVE_INFINITY;
   private lastTickAt = Number.NEGATIVE_INFINITY;
@@ -103,6 +108,8 @@ export class SyncEngine {
     if (!video) return;
 
     this.expectedRate = video.playbackRate;
+    this.knownPaused = video.paused;
+    this.unreportedChangeSince = null;
     if (!this.timeline) this.baseRate = video.playbackRate;
 
     this.listeners = new AbortController();
@@ -205,6 +212,7 @@ export class SyncEngine {
   private apply(force: boolean): void {
     const { video, timeline } = this;
     if (!this.joined || !video || !timeline) return;
+    if (!force && this.hasUnreportedChange(video)) return;
 
     const target = targetPosition(timeline, this.deps.serverNow(), video.duration);
     const drift = video.currentTime - target;
@@ -221,6 +229,7 @@ export class SyncEngine {
     if (!timeline.playing && !video.paused) {
       this.pauseFlagUntil = this.deps.now() + PLAY_PAUSE_FLAG_MS;
       video.pause();
+      this.knownPaused = true;
     }
 
     if (!force && (video.seeking || (timeline.playing && video.readyState < HAVE_FUTURE_DATA))) {
@@ -251,10 +260,37 @@ export class SyncEngine {
     }
   }
 
-  private seek(position: number): void {
+  /**
+   * Browsers change the element at once and queue the event, with timeupdate ahead of
+   * pause. Acting on the gap would undo what the viewer just did before it's reported.
+   */
+  private hasUnreportedChange(video: SyncedVideo): boolean {
+    const changed =
+      video.paused !== this.knownPaused ||
+      Math.abs(video.playbackRate - this.expectedRate) >= RATE_EPSILON;
+    if (!changed) {
+      this.unreportedChangeSince = null;
+      return false;
+    }
+
     const now = this.deps.now();
-    this.pendingSeek = { position, until: now + SEEK_FLAG_MS };
-    this.lastSeekAt = now;
+    this.unreportedChangeSince ??= now;
+    if (now - this.unreportedChangeSince < UNREPORTED_CHANGE_GRACE_MS) return true;
+
+    this.knownPaused = video.paused;
+    this.expectedRate = video.playbackRate;
+    this.unreportedChangeSince = null;
+    return false;
+  }
+
+  private seek(position: number): void {
+    // A seek replacing one in flight still has that one's seeking event on its way.
+    this.pendingSeek = {
+      position,
+      seekingExpected: (this.pendingSeek?.seekingExpected ?? 0) + 1,
+      seekingSeen: this.pendingSeek?.seekingSeen ?? 0,
+    };
+    this.lastSeekAt = this.deps.now();
     if (this.video) this.video.currentTime = position;
   }
 
@@ -270,7 +306,10 @@ export class SyncEngine {
     if (!video) return;
 
     this.playFlagUntil = this.deps.now() + PLAY_PAUSE_FLAG_MS;
-    void Promise.resolve(video.play()).then(
+    const playing = video.play();
+    // Stays true if the browser refused, because then no event will come.
+    this.knownPaused = video.paused;
+    void Promise.resolve(playing).then(
       () => {
         this.autoplayRetryAt = 0;
       },
@@ -285,6 +324,7 @@ export class SyncEngine {
   }
 
   private onPlay(): void {
+    if (this.video) this.knownPaused = this.video.paused;
     if (this.consumePlayFlag()) return;
     // The viewer's click is what the browser was waiting for. It means "let me follow",
     // not "everyone go back to where I am".
@@ -297,6 +337,7 @@ export class SyncEngine {
   }
 
   private onPause(): void {
+    if (this.video) this.knownPaused = this.video.paused;
     if (this.deps.now() < this.pauseFlagUntil) {
       this.pauseFlagUntil = 0;
       return;
@@ -305,20 +346,27 @@ export class SyncEngine {
   }
 
   private onSeeking(): void {
-    if (this.hasPendingSeek()) return;
+    if (this.pendingSeek) {
+      this.pendingSeek.seekingSeen += 1;
+      return;
+    }
     this.publishIfChanged();
   }
 
   private onSeeked(): void {
-    if (this.hasPendingSeek() && this.pendingSeek && this.video) {
-      const landedOff = Math.abs(this.video.currentTime - this.pendingSeek.position);
-      this.pendingSeek = null;
-      if (landedOff <= OWN_SEEK_TOLERANCE_SECONDS) {
-        this.tick();
-        return;
-      }
+    const { pendingSeek, video } = this;
+    if (!pendingSeek || !video) {
+      this.publishIfChanged();
+      return;
     }
-    this.publishIfChanged();
+    this.pendingSeek = null;
+
+    // Landing elsewhere isn't enough to blame the viewer: a live stream, say, can't go
+    // where we asked, and that's no reason to move everyone. It takes a seek of their own.
+    const viewerSeeked = pendingSeek.seekingSeen > pendingSeek.seekingExpected;
+    const landedOff = Math.abs(video.currentTime - pendingSeek.position);
+    if (viewerSeeked && landedOff > OWN_SEEK_TOLERANCE_SECONDS) this.publishIfChanged();
+    else this.tick();
   }
 
   private onRateChange(): void {
@@ -334,10 +382,6 @@ export class SyncEngine {
     const flagged = this.deps.now() < this.playFlagUntil;
     this.playFlagUntil = 0;
     return flagged;
-  }
-
-  private hasPendingSeek(): boolean {
-    return this.pendingSeek !== null && this.deps.now() < this.pendingSeek.until;
   }
 
   /** Second line of defence after the flags: only real differences reach the room. */
