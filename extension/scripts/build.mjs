@@ -8,6 +8,28 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
 const baseManifest = JSON.parse(await readFile(join(root, "manifest.base.json"), "utf8"));
+const modules = join(root, "..", "node_modules");
+
+// Bundled so the popup needs no network. Latin Extended carries the Turkish letters.
+const dmSans = join(modules, "@fontsource-variable/dm-sans");
+const bigShoulders = join(modules, "@fontsource/big-shoulders-display");
+const fontFiles = [
+  [join(dmSans, "files/dm-sans-latin-wght-normal.woff2"), "dm-sans-latin-wght-normal.woff2"],
+  [
+    join(dmSans, "files/dm-sans-latin-ext-wght-normal.woff2"),
+    "dm-sans-latin-ext-wght-normal.woff2",
+  ],
+  [join(dmSans, "LICENSE"), "LICENSE-dm-sans.txt"],
+  [
+    join(bigShoulders, "files/big-shoulders-display-latin-700-normal.woff2"),
+    "big-shoulders-display-latin-700-normal.woff2",
+  ],
+  [
+    join(bigShoulders, "files/big-shoulders-display-latin-800-normal.woff2"),
+    "big-shoulders-display-latin-800-normal.woff2",
+  ],
+  [join(bigShoulders, "LICENSE"), "LICENSE-big-shoulders-display.txt"],
+];
 
 const targetManifest = {
   chrome: {
@@ -47,6 +69,8 @@ for (const [target, overrides] of Object.entries(targetManifest)) {
   await cp(join(root, "_locales"), join(outdir, "_locales"), { recursive: true });
   await cp(join(root, "src/popup/popup.html"), join(outdir, "popup.html"));
   await cp(join(root, "src/popup/popup.css"), join(outdir, "popup.css"));
+  await mkdir(join(outdir, "fonts"));
+  for (const [source, name] of fontFiles) await cp(source, join(outdir, "fonts", name));
   await writeFile(
     join(outdir, "manifest.json"),
     JSON.stringify({ ...baseManifest, version, ...overrides }, null, 2) + "\n",
