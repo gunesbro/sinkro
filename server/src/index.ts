@@ -1,5 +1,6 @@
 import { generateRoomCode, normalizeRoomCode } from "./room-code";
 
+export { CreationLimiter } from "./creation-limiter";
 export { Room } from "./room";
 
 const MAX_CREATE_ATTEMPTS = 5;
@@ -19,11 +20,16 @@ function text(body: string, status: number): Response {
   return new Response(body, { status, headers: CORS_HEADERS });
 }
 
+async function hashOf(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function createRoom(request: Request, env: Cloudflare.Env): Promise<Response> {
   // Rooms cost storage and anyone can ask for one, so one address can't ask endlessly.
   const address = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  const { success } = await env.CREATE_ROOM_LIMIT.limit({ key: address });
-  if (!success) return text("Too many rooms", 429);
+  const limiter = env.CREATION_LIMITERS.getByName(await hashOf(address));
+  if (!(await limiter.allow())) return text("Too many rooms", 429);
 
   for (let attempt = 0; attempt < MAX_CREATE_ATTEMPTS; attempt += 1) {
     const code = generateRoomCode();

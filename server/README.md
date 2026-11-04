@@ -20,7 +20,7 @@ Then enter the `workers.dev` URL as the server URL in the extension's settings.
 | `POST /rooms`          | `201 {"code":"K7M-2QX"}`, or `429` past 10 rooms a minute from one address |
 | `GET /rooms/{code}/ws` | WebSocket upgrade; the code is case-insensitive and the dash is optional   |
 
-The creation limit is counted by Cloudflare's rate limiter, which works per location and is approximate. Sinkro stores no addresses. A room is deleted 24 hours after its last person leaves, or 24 hours after it's created if nobody joins.
+The creation limit keeps a hash of the address for at most a minute, then deletes it. Addresses themselves aren't stored. A room is deleted 24 hours after its last person leaves, or 24 hours after it's created if nobody joins.
 
 ## WebSocket messages
 

@@ -145,6 +145,23 @@ describe("HTTP routes", () => {
     expect((await createFrom(newAddress())).status).toBe(201);
   });
 
+  it("starts over when the window ends, and keeps nothing after it", async () => {
+    const address = newAddress();
+    for (let attempt = 0; attempt < 11; attempt += 1) await createFrom(address);
+    expect((await createFrom(address)).status).toBe(429);
+
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(address));
+    const name = [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    const limiter = env.CREATION_LIMITERS.getByName(name);
+    expect(await runDurableObjectAlarm(limiter)).toBe(true);
+    const stored = await runInDurableObject(limiter, (_, state) => state.storage.list());
+    expect(stored.size).toBe(0);
+
+    expect((await createFrom(address)).status).toBe(201);
+  });
+
   it("doesn't count joining against the limit", async () => {
     const code = await createRoom();
     for (let attempt = 0; attempt < 12; attempt += 1) {
