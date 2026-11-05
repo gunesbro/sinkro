@@ -28,6 +28,7 @@ import {
 import { VideoTracker } from "./detection/tracker";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
+import { filmOf, isSameFilm, type Film } from "./sync/same-film";
 import { SyncEngine, type PlaybackChange } from "./sync/engine";
 import { ChangeNotices, type ChangeDetails } from "./sync/notices";
 
@@ -69,6 +70,7 @@ type RoomHooks = {
   onOthersAdEnded: () => void;
   isOnOtherVideo: () => boolean;
   videoChange: () => VideoChange | null;
+  isFilmStillPlaying: () => boolean;
 };
 
 function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks: RoomHooks): Room {
@@ -142,6 +144,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       peers,
       othersOnAd,
       videoChange: hooks.videoChange(),
+      isFilmStillPlaying: hooks.isFilmStillPlaying(),
     }),
     stop: () => {
       window.removeEventListener("online", onOnline);
@@ -186,6 +189,8 @@ class FrameSession {
   private lastPageReport = "";
   private lastPageUrl: string | null = null;
   private videoChange: VideoChange | null = null;
+  /** What was playing while this tab was last on the room's video. */
+  private followedFilm: Film | null = null;
   /**
    * Questions out to the background about a new page or an announced video. Until they're
    * answered this could be the wrong film, so nothing is done to it.
@@ -242,7 +247,8 @@ class FrameSession {
         onRoomVideo: (sealed, announced) => this.onRoomVideo(sealed, announced),
         onPeopleChange: (count) => void send({ type: "room/people", count }),
         isOnOtherVideo: () => this.isOnOtherVideo(),
-        videoChange: () => this.videoChange,
+        videoChange: () => (this.isFilmStillPlaying() ? null : this.videoChange),
+        isFilmStillPlaying: () => this.isFilmStillPlaying(),
       });
       void this.startBadge();
     } else if (!active && this.room) {
@@ -291,7 +297,19 @@ class FrameSession {
   /** Looks at the address each time, so a site changing film is caught before it's touched. */
   private isOnOtherVideo(): boolean {
     this.reportPage();
+    if (this.videoChange === null && this.checksPending === 0) {
+      this.followedFilm = filmOf(this.tracker.video()) ?? this.followedFilm;
+    }
+    if (this.isFilmStillPlaying()) return false;
     return this.videoChange !== null || this.checksPending > 0;
+  }
+
+  /** Only for having moved: when the room moves, staying on the old film is the problem. */
+  private isFilmStillPlaying(): boolean {
+    return (
+      this.videoChange?.kind === "you_moved" &&
+      isSameFilm(this.followedFilm, filmOf(this.tracker.video()))
+    );
   }
 
   private whenAnswered(answer: Promise<VideoChange | null | undefined>): void {

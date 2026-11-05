@@ -14,6 +14,8 @@ export type SessionStatus = EngineSnapshot & {
   peers: number;
   /** How many others are on an ad. */
   othersOnAd: number;
+  /** The address moved on but the room's film is still playing, as in a miniplayer. */
+  isFilmStillPlaying: boolean;
   videoChange: VideoChange | null;
 };
 

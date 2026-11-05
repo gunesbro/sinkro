@@ -12,6 +12,7 @@ const connected: SessionStatus = {
   hasVideo: true,
   paused: false,
   othersOnAd: 0,
+  isFilmStillPlaying: false,
   position: 100,
   drift: 0,
   correcting: false,
