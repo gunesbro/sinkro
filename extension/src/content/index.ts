@@ -10,8 +10,10 @@ import type {
   TabRequest,
   TabSession,
 } from "../messages";
+import { INVITE_ORIGIN } from "../invite";
 import { roomSocketUrl } from "../settings";
 import { VideoPicker } from "./detection/picker";
+import { connectInvitePage } from "./invite-page";
 import {
   forgetRemembered,
   loadRemembered,
@@ -233,6 +235,10 @@ chrome.runtime.onMessage.addListener((request: TabRequest, _sender, sendResponse
       return;
   }
 });
+
+if (isTopFrame && location.origin === INVITE_ORIGIN) {
+  connectInvitePage((request) => send(request));
+}
 
 void send<SessionInfo>({ type: "session/get" }).then((info) => {
   if (!info) return;
