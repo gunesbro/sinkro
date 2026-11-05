@@ -1334,6 +1334,80 @@ describe("joining others who have nothing going yet", () => {
   });
 });
 
+describe("a click on a seek bar, which pauses, moves and plays in a moment", () => {
+  /** The room hears the pause at once, and the rest a moment later. */
+  async function clickSeekBar(context: ReturnType<typeof setup>, to = 500) {
+    const { video } = context;
+    // As measured on YouTube: separate moments, a few milliseconds apart.
+    video.pause();
+    await vi.advanceTimersByTimeAsync(8);
+    video.userSeek(to);
+    await vi.advanceTimersByTimeAsync(6);
+    video.userPlay();
+    await settle();
+  }
+
+  /** Playing video keeps firing timeupdate, which is what runs the engine in between. */
+  async function timeUpdates(video: FakeVideo, count: number) {
+    for (let i = 0; i < count; i += 1) {
+      await vi.advanceTimersByTimeAsync(210);
+      video.dispatchEvent(new Event("timeupdate"));
+      await settle();
+    }
+  }
+
+  it("lands where the viewer clicked, on the first click", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    context.video.seekDelayMs = 100;
+    await clickSeekBar(context);
+    await timeUpdates(context.video, 6);
+
+    expect(context.video.position).toBeGreaterThan(490);
+    expect(context.video.paused).toBe(false);
+  });
+
+  it("tells the room where it ended up", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    await clickSeekBar(context);
+    await timeUpdates(context.video, 3);
+
+    expect(context.sent.at(-1)).toMatchObject({ playing: true });
+    expect(context.sent.at(-1)?.position).toBeGreaterThan(490);
+  });
+
+  it("isn't pulled back by the room echoing the pause", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    await clickSeekBar(context);
+    const pause = context.sent[0];
+    if (pause) context.engine.handleState(context.peerState({ ...pause, from: ME }));
+    await timeUpdates(context.video, 6);
+
+    expect(context.video.position).toBeGreaterThan(490);
+    expect(context.video.paused).toBe(false);
+  });
+
+  it("still follows the room once that's been sent", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    await clickSeekBar(context);
+    await timeUpdates(context.video, 3);
+    for (const state of context.sent) {
+      context.engine.handleState(context.peerState({ ...state, from: ME }));
+    }
+    context.engine.handleState(context.peerState({ position: 900 }));
+    await settle();
+
+    expect(context.video.position).toBeGreaterThan(890);
+  });
+});
+
 describe("alone in a room", () => {
   /** Alone, with a timeline this viewer started. */
   async function alone() {
