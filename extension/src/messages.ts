@@ -14,6 +14,8 @@ export type SessionStatus = EngineSnapshot & {
   peers: number;
   /** How many others are on an ad. */
   othersOnAd: number;
+  /** This page is the room's video's, whether or not its player has made a video yet. */
+  isOnRoomPage: boolean;
   /** The address moved on but the room's film is still playing, as in a miniplayer. */
   isFilmStillPlaying: boolean;
   videoChange: VideoChange | null;
@@ -52,6 +54,7 @@ export type BackgroundRequest =
   | { type: "detect/report"; score: number }
   /** From the frame running the room, for the number on the toolbar icon. 0 means not connected. */
   | { type: "room/people"; count: number }
+  | { type: "video/on-room-page" }
   /** From the top frame, which is the only one that knows the page's address. */
   | { type: "page/report"; url: string; title: string }
   /** The room's video as this frame's connection heard it. Only extension pages can open it. */

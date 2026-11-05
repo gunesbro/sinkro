@@ -13,6 +13,7 @@ const connected: SessionStatus = {
   paused: false,
   othersOnAd: 0,
   isFilmStillPlaying: false,
+  isOnRoomPage: false,
   position: 100,
   drift: 0,
   correcting: false,
@@ -136,6 +137,31 @@ describe("noticeFor", () => {
   it("puts a lost connection ahead of anything the video is doing", () => {
     const status = { ...connected, connection: "reconnecting", hold: "ad" } as const;
     expect(noticeFor(status)?.titleKey).toBe("connLost");
+  });
+
+  describe("a player that hasn't made a video yet", () => {
+    const waiting = { ...connected, hasVideo: false, isOnRoomPage: true };
+
+    it("asks for a press on the site's own button", () => {
+      const notice = noticeFor(waiting);
+      expect(notice?.titleKey).toBe("startPlayer");
+      expect(notice?.bodyKey).toBe("startPlayerHelp");
+      expect(mustShowNotice(notice)).toBe(true);
+    });
+
+    it("isn't raised on any other page, so browsing isn't nagged", () => {
+      const notice = noticeFor({ ...waiting, isOnRoomPage: false });
+      expect(notice?.titleKey).toBe("noVideo");
+      expect(mustShowNotice(notice)).toBe(false);
+    });
+
+    it("isn't raised with nobody else there to catch up with", () => {
+      expect(noticeFor({ ...waiting, peers: 1 })?.titleKey).toBe("noVideo");
+    });
+
+    it("goes once the video turns up", () => {
+      expect(noticeFor({ ...waiting, hasVideo: true })).toBeNull();
+    });
   });
 
   describe("someone else on an ad", () => {

@@ -4,6 +4,7 @@ import {
   broughtHere,
   describeChange,
   destination,
+  isOnRoomPage,
   NEW_TAB_VIDEO,
   pageVisited,
   roomVideoLearned,
@@ -159,6 +160,24 @@ describe("bringing everyone", () => {
 
   it("then moving away again is noticed", () => {
     expect(visit(broughtHere(visit(watching(), OTHER)), FILM).change).toBe("you_moved");
+  });
+});
+
+describe("isOnRoomPage", () => {
+  it("is true on the room's video's page", () => {
+    expect(isOnRoomPage(room(visit(NEW_TAB_VIDEO, FILM), FILM, false))).toBe(true);
+  });
+
+  it("is true with only time or tracking different", () => {
+    expect(isOnRoomPage(room(visit(NEW_TAB_VIDEO, `${FILM}&t=9`), FILM, false))).toBe(true);
+  });
+
+  it("is false anywhere else, so browsing isn't nagged", () => {
+    expect(isOnRoomPage(room(visit(NEW_TAB_VIDEO, HOME), FILM, false))).toBe(false);
+  });
+
+  it("is false with no room video known", () => {
+    expect(isOnRoomPage(visit(NEW_TAB_VIDEO, FILM))).toBe(false);
   });
 });
 
