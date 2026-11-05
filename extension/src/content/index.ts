@@ -291,6 +291,7 @@ class FrameSession {
       onPlay: () => this.room?.engine.retryPlay(),
       onBring: () => void send({ type: "video/bring" }),
       onGo: () => void send({ type: "video/go" }),
+      onLeave: () => void send({ type: "session/leave" }),
       onPositionChange: (moved) => void saveBadgePosition(location.hostname, moved),
     });
     this.badgeTimer = setInterval(() => {

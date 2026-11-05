@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionStatus } from "../src/messages";
-import { mustShowNotice, noticeFor, statusLine } from "../src/status";
+import { isVideoChangeAction, mustShowNotice, noticeFor, statusLine } from "../src/status";
 
 const connected: SessionStatus = {
   hasVideo: true,
@@ -47,13 +47,13 @@ describe("noticeFor", () => {
   });
 
   it.each<[string, Partial<SessionStatus>, string, string | null]>([
-    ["a dead room", { connection: "closed", closeReason: "room_not_found" }, "roomGone", null],
-    ["a full room", { connection: "closed", closeReason: "room_full" }, "roomFull", null],
+    ["a dead room", { connection: "closed", closeReason: "room_not_found" }, "roomGone", "leave"],
+    ["a full room", { connection: "closed", closeReason: "room_full" }, "roomFull", "leave"],
     [
       "an old version",
       { connection: "closed", closeReason: "protocol_mismatch" },
       "updateNeeded",
-      null,
+      "leave",
     ],
     ["a lost connection", { connection: "reconnecting" }, "connLost", null],
     ["an ad", { hold: "ad" }, "adPlaying", null],
@@ -104,6 +104,17 @@ describe("noticeFor", () => {
       const status = { ...connected, connection: "reconnecting", videoChange: moved } as const;
       expect(noticeFor(status)?.titleKey).toBe("connLost");
       expect(mustShowNotice(noticeFor(status))).toBe(false);
+    });
+
+    it("doesn't offer following from a room that's gone", () => {
+      const status = {
+        ...connected,
+        connection: "closed",
+        closeReason: "room_not_found",
+        videoChange: roomMoved,
+      } as const;
+      expect(isVideoChangeAction(noticeFor(status))).toBe(false);
+      expect(mustShowNotice(noticeFor(status))).toBe(true);
     });
 
     it("comes before asking for a click, for a video this viewer has left", () => {

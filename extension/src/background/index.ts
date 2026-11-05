@@ -201,6 +201,11 @@ async function joinFromInvite(
   return { joined: true };
 }
 
+async function leaveRoom(tabId: number): Promise<void> {
+  await chrome.storage.session.remove([tabKey(tabId), framesKey(tabId), videoKey(tabId)]);
+  await sendToTab(tabId, { type: "session/changed", session: null });
+}
+
 async function handleFromExtensionPage(request: BackgroundRequest) {
   switch (request.type) {
     case "room/create":
@@ -221,12 +226,7 @@ async function handleFromExtensionPage(request: BackgroundRequest) {
       return { code };
     }
     case "session/leave":
-      await chrome.storage.session.remove([
-        tabKey(request.tabId),
-        framesKey(request.tabId),
-        videoKey(request.tabId),
-      ]);
-      await sendToTab(request.tabId, { type: "session/changed", session: null });
+      if (request.tabId !== undefined) await leaveRoom(request.tabId);
       return null;
     case "picker/start": {
       const messages = await loadMessages(await getLanguage());
@@ -276,6 +276,10 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
         return null;
       case "video/go":
         await goWhereTheNoticeLeads(tabId);
+        return null;
+      // The one room change a content script can ask for, because it only ever ends a room.
+      case "session/leave":
+        await leaveRoom(tabId);
         return null;
       case "picker/picked":
         await sendToTab(tabId, { type: "picker/stop", picked: true });

@@ -27,21 +27,21 @@ export type Notice = {
   /**
    * A one-click way out. "play" only works from the page, where the click counts. "bring"
    * offers the way back as well, and "return" only that, when there's no video to bring
-   * anyone to. "go" follows the room.
+   * anyone to. "go" follows the room, and "leave" is all that's left of a room that's gone.
    */
-  action: "pick" | "play" | "bring" | "return" | "go" | null;
+  action: "pick" | "play" | "bring" | "return" | "go" | "leave" | null;
   /** The name of a video. It comes from a web page, so it's never a message key. */
   detail?: string;
 };
 
 /** The viewer has to do something, so these show wherever the video is, or without one. */
 export function mustShowNotice(notice: Notice | null): boolean {
-  return (
-    notice?.action === "play" ||
-    notice?.action === "bring" ||
-    notice?.action === "return" ||
-    notice?.action === "go"
-  );
+  return isVideoChangeAction(notice) || notice?.action === "play" || notice?.action === "leave";
+}
+
+/** Whether this notice is about being on a different video from the room. */
+export function isVideoChangeAction(notice: Notice | null): boolean {
+  return notice?.action === "bring" || notice?.action === "return" || notice?.action === "go";
 }
 
 export function noticeFor(status: SessionStatus | null): Notice | null {
@@ -53,9 +53,9 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
     action,
   });
 
-  if (status.closeReason === "room_not_found") return notice("danger", "roomGone");
-  if (status.closeReason === "room_full") return notice("danger", "roomFull");
-  if (status.closeReason === "protocol_mismatch") return notice("danger", "updateNeeded");
+  if (status.closeReason === "room_not_found") return notice("danger", "roomGone", "leave");
+  if (status.closeReason === "room_full") return notice("danger", "roomFull", "leave");
+  if (status.closeReason === "protocol_mismatch") return notice("danger", "updateNeeded", "leave");
   if (status.connection === "reconnecting") return notice("danger", "connLost");
   if (status.videoChange?.kind === "you_moved") {
     return notice("warn", "youMoved", status.hasVideo ? "bring" : "return");

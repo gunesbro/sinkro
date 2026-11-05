@@ -20,7 +20,7 @@ import type {
 } from "../messages";
 import { openRoomVideo, sealRoomVideo } from "../room-video";
 import { getServerUrl, roomSocketUrl, setServerUrl } from "../settings";
-import { mustShowNotice, noticeFor, statusLine, type Notice, type Tone } from "../status";
+import { isVideoChangeAction, noticeFor, statusLine, type Notice, type Tone } from "../status";
 import { askRoomVideo } from "./room-link";
 
 const STATUS_POLL_MS = 500;
@@ -124,7 +124,7 @@ function renderRoom(): void {
 
   const change = status?.videoChange ?? null;
   const changeNotice = change ? noticeFor(status) : null;
-  const canFollowChange = !!changeNotice && mustShowNotice(changeNotice);
+  const canFollowChange = isVideoChangeAction(changeNotice);
   const canGoToVideo = !change && roomVideoUrl !== null && !isSamePage(pageUrl, roomVideoUrl);
   const showGoButton = (canFollowChange || canGoToVideo) && !isRoomGone;
   element("go-video").hidden = !showGoButton;

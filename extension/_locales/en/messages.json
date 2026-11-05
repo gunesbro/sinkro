@@ -310,5 +310,11 @@
   },
   "notifyYouSeeked": {
     "message": "You moved the video"
+  },
+  "badgeDragHint": {
+    "message": "Drag to move"
+  },
+  "badgeDragCancel": {
+    "message": "Esc to cancel"
   }
 }

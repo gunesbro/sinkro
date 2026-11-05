@@ -30,10 +30,10 @@ export type BackgroundRequest =
   | { type: "session/of"; tabId: number }
   /** With a url, the tab goes there too, as joining from an invite link does. */
   | { type: "session/join"; tabId: number; code: string; url?: string }
-  | { type: "session/leave"; tabId: number }
   | { type: "picker/start"; tabId: number }
   | { type: "video/page"; tabId: number }
   // From both. An extension page says which tab; a content script speaks for its own.
+  | { type: "session/leave"; tabId?: number }
   /** Makes the page this tab is on the room's video, and moves everyone to this position. */
   | { type: "video/bring"; tabId?: number }
   /** Takes the tab where the notice about a video change leads. */
