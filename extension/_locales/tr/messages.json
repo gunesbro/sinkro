@@ -343,5 +343,11 @@
   },
   "notifyAdEnded": {
     "message": "Reklam bitti"
+  },
+  "startPlayer": {
+    "message": "Burada video henüz açılmadı"
+  },
+  "startPlayerHelp": {
+    "message": "Odadakiler izliyor. Oynatıcının oynat düğmesine bas, video açılınca odaya yetişirsin."
   }
 }

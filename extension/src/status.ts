@@ -57,11 +57,18 @@ export type Notice = {
   detail?: string;
   /** The site that video is on, because the viewer is being offered a trip there. */
   host?: string;
+  /** Shows even with no video to sit on, because the viewer has to act and won't otherwise know. */
+  mustShow?: boolean;
 };
 
 /** The viewer has to do something, so these show wherever the video is, or without one. */
 export function mustShowNotice(notice: Notice | null): boolean {
-  return isVideoChangeAction(notice) || notice?.action === "play" || notice?.action === "leave";
+  return (
+    notice?.mustShow === true ||
+    isVideoChangeAction(notice) ||
+    notice?.action === "play" ||
+    notice?.action === "leave"
+  );
 }
 
 /** Whether this notice is about being on a different video from the room. */
@@ -97,6 +104,11 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
   if (status.hold === "cant_follow") return notice("warn", "cantFollow", "pick");
   if (status.needsGesture) return notice("warn", "needsGesture", "play");
   if (status.connection === "connected" && !status.hasVideo) {
+    // Many players are only a picture and a button until someone presses it, and nothing can
+    // press it for them: it's often what sets off the site's ads and pop-ups.
+    if (status.peers > 1 && status.isOnRoomPage) {
+      return { ...notice("warn", "startPlayer", "pick"), mustShow: true };
+    }
     return notice("idle", "noVideo", "pick");
   }
   if (status.othersOnAd > 0) {

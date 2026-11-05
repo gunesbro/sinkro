@@ -87,6 +87,10 @@ export function broughtHere(state: TabVideo): TabVideo {
   };
 }
 
+export function isOnRoomPage(state: TabVideo): boolean {
+  return isSamePage(state.pageUrl, state.roomUrl);
+}
+
 /** Where the button on the notice leads: the room's new video, or back where they came from. */
 export function destination(state: TabVideo): string | null {
   if (state.change === "room_moved") return state.roomUrl;

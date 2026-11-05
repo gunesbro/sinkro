@@ -17,6 +17,7 @@ import {
   broughtHere,
   describeChange,
   destination,
+  isOnRoomPage,
   NEW_TAB_VIDEO,
   pageVisited,
   roomVideoLearned,
@@ -316,6 +317,8 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
             return recordReport(tabId, frameId, request.score);
           }),
         };
+      case "video/on-room-page":
+        return isOnRoomPage(await getTabVideo(tabId));
       case "room/people":
         await showPeopleOnIcon(tabId, request.count);
         return null;

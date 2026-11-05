@@ -36,6 +36,8 @@ const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
 /** Sites change address without loading a page, and not always through anything hookable. */
 const PAGE_CHECK_MS = 1000;
+/** How often a tab with no video asks whether this is where the room's video should be. */
+const ROOM_PAGE_CHECK_MS = 2000;
 /** How soon a script left over from before an extension update notices and stops. */
 const STILL_INSTALLED_CHECK_MS = 1000;
 /** Must match the key the language switch saves under. */
@@ -71,6 +73,7 @@ type RoomHooks = {
   isOnOtherVideo: () => boolean;
   videoChange: () => VideoChange | null;
   isFilmStillPlaying: () => boolean;
+  isOnRoomPage: () => boolean;
 };
 
 function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks: RoomHooks): Room {
@@ -145,6 +148,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       othersOnAd,
       videoChange: hooks.videoChange(),
       isFilmStillPlaying: hooks.isFilmStillPlaying(),
+      isOnRoomPage: hooks.isOnRoomPage(),
     }),
     stop: () => {
       window.removeEventListener("online", onOnline);
@@ -188,6 +192,8 @@ class FrameSession {
   });
   private lastPageReport = "";
   private lastPageUrl: string | null = null;
+  private isOnRoomPage = false;
+  private lastRoomPageCheck = Number.NEGATIVE_INFINITY;
   private videoChange: VideoChange | null = null;
   /** What was playing while this tab was last on the room's video. */
   private followedFilm: Film | null = null;
@@ -249,6 +255,7 @@ class FrameSession {
         isOnOtherVideo: () => this.isOnOtherVideo(),
         videoChange: () => (this.isFilmStillPlaying() ? null : this.videoChange),
         isFilmStillPlaying: () => this.isFilmStillPlaying(),
+        isOnRoomPage: () => this.isOnRoomPage,
       });
       void this.startBadge();
     } else if (!active && this.room) {
@@ -365,8 +372,19 @@ class FrameSession {
       onPositionChange: (moved) => void saveBadgePosition(location.hostname, moved),
     });
     this.badgeTimer = setInterval(() => {
+      this.checkRoomPage();
       this.badge?.update(this.tracker.video(), this.room?.status() ?? null);
     }, BADGE_UPDATE_MS);
+  }
+
+  /** Only while it matters, since a tab with a video has no use for the answer. */
+  private checkRoomPage(): void {
+    const now = Date.now();
+    if (this.tracker.video() || now - this.lastRoomPageCheck < ROOM_PAGE_CHECK_MS) return;
+    this.lastRoomPageCheck = now;
+    void send<boolean>({ type: "video/on-room-page" }).then((answer) => {
+      this.isOnRoomPage = answer === true;
+    });
   }
 
   private stopBadge(): void {
