@@ -112,6 +112,7 @@ describe("isSamePage", () => {
   it.each([
     ["https://a.com/x?v=1", "https://a.com/x?v=1"],
     ["https://a.com/x?v=1#t=5", "https://a.com/x?v=1"],
+    ["https://a.com/x?v=1&t=5", "https://www.a.com/x?v=1"],
   ])("treats %s and %s as the same page", (a, b) => {
     expect(isSamePage(a, b)).toBe(true);
   });

@@ -24,9 +24,25 @@ export type Notice = {
   tone: Tone;
   titleKey: string;
   bodyKey: string;
-  /** A one-click way out. "play" only works from the page, where the click counts. */
-  action: "pick" | "play" | null;
+  /**
+   * A one-click way out. "play" only works from the page, where the click counts. "bring"
+   * offers the way back as well, and "return" only that, when there's no video to bring
+   * anyone to. "go" follows the room.
+   */
+  action: "pick" | "play" | "bring" | "return" | "go" | null;
+  /** The name of a video. It comes from a web page, so it's never a message key. */
+  detail?: string;
 };
+
+/** The viewer has to do something, so these show wherever the video is, or without one. */
+export function mustShowNotice(notice: Notice | null): boolean {
+  return (
+    notice?.action === "play" ||
+    notice?.action === "bring" ||
+    notice?.action === "return" ||
+    notice?.action === "go"
+  );
+}
 
 export function noticeFor(status: SessionStatus | null): Notice | null {
   if (!status) return null;
@@ -41,6 +57,12 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
   if (status.closeReason === "room_full") return notice("danger", "roomFull");
   if (status.closeReason === "protocol_mismatch") return notice("danger", "updateNeeded");
   if (status.connection === "reconnecting") return notice("danger", "connLost");
+  if (status.videoChange?.kind === "you_moved") {
+    return notice("warn", "youMoved", status.hasVideo ? "bring" : "return");
+  }
+  if (status.videoChange?.kind === "room_moved") {
+    return { ...notice("warn", "roomMoved", "go"), detail: status.videoChange.title };
+  }
   if (status.hold === "ad") {
     const ad = notice("warn", "adPlaying");
     return status.peers > 1 ? ad : { ...ad, bodyKey: "adPlayingAloneHelp" };

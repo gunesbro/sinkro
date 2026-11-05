@@ -36,7 +36,7 @@ const COPY = {
     step3Title: "Watch together",
     step3Body: "Play, pause, seek: everyone's video changes at the same moment.",
     privacyLine:
-      "Only playback state and the video's address are shared, never the video. No account, no tracking.",
+      "Only playback state and the video's address and title are shared, never the video. No account, no tracking.",
     privacy: "Privacy",
     source: "Source code",
   },
@@ -72,7 +72,7 @@ const COPY = {
     step3Title: "Birlikte izleyin",
     step3Body: "Oynat, durdur, sar: herkesin videosu aynı anda değişir.",
     privacyLine:
-      "Videonun kendisi değil, yalnızca oynatma durumu ve video adresi paylaşılır. Hesap yok, takip yok.",
+      "Videonun kendisi değil, yalnızca oynatma durumu, video adresi ve başlığı paylaşılır. Hesap yok, takip yok.",
     privacy: "Gizlilik",
     source: "Kaynak kodu",
   },

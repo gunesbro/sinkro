@@ -11,8 +11,9 @@ import type {
   TabRequest,
   TabSession,
 } from "../messages";
-import { INVITE_ORIGIN } from "../invite";
+import { INVITE_ORIGIN, isSamePage } from "../invite";
 import { roomSocketUrl } from "../settings";
+import type { VideoChange } from "../video-change";
 import { VideoBadge } from "./badge";
 import { loadBadgePosition, saveBadgePosition } from "./badge-position";
 import { VideoPicker } from "./detection/picker";
@@ -30,11 +31,14 @@ import { SyncEngine, type RemoteChange } from "./sync/engine";
 
 const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
+/** Sites change address without loading a page, and not always through anything hookable. */
+const PAGE_CHECK_MS = 1000;
 /** Must match the key the language switch saves under. */
 const LANGUAGE_KEY = "language";
 
 type Room = {
   engine: SyncEngine;
+  sendVideo: (sealed: string) => void;
   status: () => SessionStatus;
   stop: () => void;
 };
@@ -45,11 +49,14 @@ const CHANGE_MESSAGES: Record<RemoteChange, string> = {
   seeked: "notifySeeked",
 };
 
-function startRoom(
-  { code, serverUrl }: TabSession,
-  tracker: VideoTracker,
-  onRemoteChange: (change: RemoteChange) => void,
-): Room {
+type RoomHooks = {
+  onRemoteChange: (change: RemoteChange) => void;
+  onRoomVideo: (sealed: string, announced: boolean) => void;
+  isOnOtherVideo: () => boolean;
+  videoChange: () => VideoChange | null;
+};
+
+function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks: RoomHooks): Room {
   const clock = new ServerClock();
   let connectionStatus: ConnectionStatus = "connecting";
   let closeReason: CloseReason | null = null;
@@ -59,8 +66,9 @@ function startRoom(
     now: Date.now,
     serverNow: () => Date.now() + clock.offset,
     send: (state) => connection.sendState(state),
-    holdFor: (roomPosition) => tracker.holdReason(roomPosition, peers > 1),
-    onRemoteChange,
+    holdFor: (roomPosition) =>
+      hooks.isOnOtherVideo() ? "other_video" : tracker.holdReason(roomPosition, peers > 1),
+    onRemoteChange: hooks.onRemoteChange,
   });
   const connection = new RoomConnection({
     url: roomSocketUrl(serverUrl, code),
@@ -68,6 +76,7 @@ function startRoom(
     events: {
       onJoined: (message) => {
         peers = message.peers;
+        if (message.video) hooks.onRoomVideo(message.video, false);
         engine.handleJoined(message);
       },
       onState: (state) => engine.handleState(state),
@@ -75,6 +84,7 @@ function startRoom(
         peers = count;
         engine.handlePeers(count);
       },
+      onVideo: (sealed) => hooks.onRoomVideo(sealed, true),
       onRejected: () => engine.handleRejected(),
       onDisconnected: () => engine.handleDisconnected(),
       onStatus: (status, reason) => {
@@ -91,11 +101,13 @@ function startRoom(
 
   return {
     engine,
+    sendVideo: (sealed) => void connection.sendVideo(sealed),
     status: () => ({
       ...engine.snapshot(),
       connection: connectionStatus,
       closeReason,
       peers,
+      videoChange: hooks.videoChange(),
     }),
     stop: () => {
       window.removeEventListener("online", onOnline);
@@ -117,6 +129,17 @@ class FrameSession {
   private isStopped = false;
   private badge: VideoBadge | null = null;
   private badgeTimer: ReturnType<typeof setInterval> | null = null;
+  private pageTimer: ReturnType<typeof setInterval> | null = null;
+  private lastPageReport = "";
+  private lastPageUrl: string | null = null;
+  private videoChange: VideoChange | null = null;
+  /**
+   * Questions out to the background about a new page or an announced video. Until they're
+   * answered this could be the wrong film, so nothing is done to it.
+   */
+  private checksPending = 0;
+  /** Our own announcement comes back like anyone else's. */
+  private lastSealedSent: string | null = null;
   private readonly onPageHide = () => this.report(0);
   private readonly onStorageChange = (changes: Record<string, chrome.storage.StorageChange>) => {
     if (LANGUAGE_KEY in changes && this.room) {
@@ -136,6 +159,10 @@ class FrameSession {
     });
     window.addEventListener("pagehide", this.onPageHide);
     chrome.storage.onChanged.addListener(this.onStorageChange);
+    if (isTopFrame) {
+      this.reportPage();
+      this.pageTimer = setInterval(() => this.reportPage(), PAGE_CHECK_MS);
+    }
     void loadRemembered(location.hostname)
       .catch(() => null)
       .then((selector) => {
@@ -145,8 +172,14 @@ class FrameSession {
 
   setActive(active: boolean): void {
     if (active && !this.room) {
-      this.room = startRoom(this.session, this.tracker, (change) => {
-        this.badge?.flash(CHANGE_MESSAGES[change]);
+      this.room = startRoom(this.session, this.tracker, {
+        onRemoteChange: (change) => {
+          // It's about a video this viewer isn't on.
+          if (!this.isOnOtherVideo()) this.badge?.flash(CHANGE_MESSAGES[change]);
+        },
+        onRoomVideo: (sealed, announced) => this.onRoomVideo(sealed, announced),
+        isOnOtherVideo: () => this.isOnOtherVideo(),
+        videoChange: () => this.videoChange,
       });
       void this.startBadge();
     } else if (!active && this.room) {
@@ -160,7 +193,18 @@ class FrameSession {
     return this.room?.status() ?? null;
   }
 
-  bringEveryone(): void {
+  setVideoChange(change: VideoChange | null): void {
+    this.videoChange = change;
+    this.room?.engine.recheck();
+  }
+
+  /** Lifts the hold first, because the engine won't speak for a video that's on hold. */
+  bringEveryone(sealed: string | null): void {
+    this.videoChange = null;
+    if (sealed) {
+      this.lastSealedSent = sealed;
+      this.room?.sendVideo(sealed);
+    }
     this.room?.engine.bringEveryone();
   }
 
@@ -172,8 +216,50 @@ class FrameSession {
     this.isStopped = true;
     window.removeEventListener("pagehide", this.onPageHide);
     chrome.storage.onChanged.removeListener(this.onStorageChange);
+    if (this.pageTimer !== null) clearInterval(this.pageTimer);
     this.setActive(false);
     this.tracker.stop();
+  }
+
+  /** Looks at the address each time, so a site changing film is caught before it's touched. */
+  private isOnOtherVideo(): boolean {
+    this.reportPage();
+    return this.videoChange !== null || this.checksPending > 0;
+  }
+
+  private whenAnswered(answer: Promise<VideoChange | null | undefined>): void {
+    this.checksPending += 1;
+    void answer.then((change) => {
+      this.checksPending -= 1;
+      if (!this.isStopped) this.setVideoChange(change ?? null);
+    });
+  }
+
+  private onRoomVideo(sealed: string, announced: boolean): void {
+    if (sealed === this.lastSealedSent) return;
+    const answer = send<VideoChange | null>({ type: "video/seen", sealed, announced });
+    // Someone who announced a video has its state right behind it. Joining brings the state along.
+    if (announced) {
+      this.whenAnswered(answer);
+    } else {
+      void answer.then((change) => {
+        if (!this.isStopped) this.setVideoChange(change ?? null);
+      });
+    }
+  }
+
+  /** Only the top frame's address says what page this is. It stays inside the extension. */
+  private reportPage(): void {
+    const { href: url } = location;
+    const { title } = document;
+    const report = `${url} ${title}`;
+    if (!isTopFrame || report === this.lastPageReport) return;
+    this.lastPageReport = report;
+
+    const answer = send<VideoChange | null>({ type: "page/report", url, title });
+    if (isSamePage(this.lastPageUrl, url)) return;
+    this.lastPageUrl = url;
+    this.whenAnswered(answer);
   }
 
   private async startBadge(): Promise<void> {
@@ -187,6 +273,8 @@ class FrameSession {
       messages,
       position,
       onPlay: () => this.room?.engine.retryPlay(),
+      onBring: () => void send({ type: "video/bring" }),
+      onGo: () => void send({ type: "video/go" }),
       onPositionChange: (moved) => void saveBadgePosition(location.hostname, moved),
     });
     this.badgeTimer = setInterval(() => {
@@ -202,6 +290,8 @@ class FrameSession {
   }
 
   private report(score: number): void {
+    // First, so a video found on a new page isn't counted for the page it just left.
+    this.reportPage();
     void send<ReportResponse>({ type: "detect/report", score }).then((response) => {
       if (response && !this.isStopped) this.setActive(response.active);
     });
@@ -280,7 +370,10 @@ chrome.runtime.onMessage.addListener((request: TabRequest, _sender, sendResponse
       return;
     }
     case "session/bring":
-      frameSession?.bringEveryone();
+      frameSession?.bringEveryone(request.sealed);
+      return;
+    case "session/video-change":
+      frameSession?.setVideoChange(request.change);
       return;
     case "badge/move":
       frameSession?.moveBadge();
@@ -307,5 +400,6 @@ if (isTopFrame && location.origin === INVITE_ORIGIN) {
 void send<SessionInfo>({ type: "session/get" }).then((info) => {
   if (!info) return;
   applySession(info.session);
+  frameSession?.setVideoChange(info.videoChange);
   frameSession?.setActive(info.active);
 });

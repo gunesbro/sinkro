@@ -62,6 +62,7 @@ function setup() {
     onState: vi.fn(),
     onPeers: vi.fn(),
     onRejected: vi.fn(),
+    onVideo: vi.fn(),
     onDisconnected: vi.fn(),
     onStatus: vi.fn(),
   };

@@ -27,7 +27,7 @@ export type ClientMessage =
   | { type: "join"; protocol: number }
   | ({ type: "state" } & PlaybackState)
   | { type: "ping"; clientTime: number }
-  /** The sealed address of the room's video. Both work without joining. */
+  /** The room's video, sealed. Both work without joining. Setting it tells everyone who joined. */
   | { type: "video/get" }
   | { type: "video/set"; sealed: string };
 
@@ -35,7 +35,7 @@ export type ClientMessage =
 export type RoomState = PlaybackState & { seq: number; from: string };
 
 export type ServerMessage =
-  | { type: "joined"; clientId: string; state: RoomState | null; peers: number }
+  | { type: "joined"; clientId: string; state: RoomState | null; peers: number; video?: string }
   | ({ type: "state" } & RoomState)
   | { type: "peers"; count: number }
   | { type: "pong"; clientTime: number; serverTime: number }
@@ -43,8 +43,8 @@ export type ServerMessage =
   | { type: "error"; code: ErrorCode };
 
 const MAX_MESSAGE_LENGTH = 4096;
-/** Room for a sealed 2048-character address, and small enough to store for every room. */
-const MAX_SEALED_VIDEO_LENGTH = 3500;
+/** Room for a sealed 2048-character address and a title, and small enough to store for every room. */
+const MAX_SEALED_VIDEO_LENGTH = 3900;
 const MAX_POSITION_SECONDS = 7 * 24 * 60 * 60;
 // The range browsers accept for HTMLMediaElement.playbackRate.
 export const MIN_RATE = 0.0625;
@@ -130,11 +130,12 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
 
   switch (message.type) {
     case "joined": {
-      const { clientId, peers, state } = message;
+      const { clientId, peers, state, video } = message;
       if (typeof clientId !== "string" || !isFiniteNumber(peers)) return null;
-      if (state === null) return { type: "joined", clientId, state: null, peers };
       const parsed = isRecord(state) ? parseRoomState(state) : null;
-      return parsed && { type: "joined", clientId, state: parsed, peers };
+      if (state !== null && !parsed) return null;
+      const joined = { type: "joined" as const, clientId, state: parsed, peers };
+      return typeof video === "string" ? { ...joined, video } : joined;
     }
     case "state": {
       const state = parseRoomState(message);

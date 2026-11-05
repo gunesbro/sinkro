@@ -33,7 +33,7 @@
     "message": "Katıl"
   },
   "footer": {
-    "message": "Hesap yok. Yalnızca oynatma durumu ve video adresi paylaşılır."
+    "message": "Hesap yok. Yalnızca oynatma durumu, video adresi ve başlığı paylaşılır."
   },
   "live": {
     "message": "Oda açık"
@@ -65,7 +65,7 @@
     }
   },
   "bringHere": {
-    "message": "Onu buraya getir"
+    "message": "Herkesi buraya getir"
   },
   "goThere": {
     "message": "Onun bölümüne git"
@@ -268,5 +268,20 @@
   },
   "notifySeeked": {
     "message": "Video başka bir yere sarıldı"
+  },
+  "youMoved": {
+    "message": "Başka bir videodasın"
+  },
+  "youMovedHelp": {
+    "message": "Oda önceki videoda. Burada yaptıkların odaya gitmiyor."
+  },
+  "roomMoved": {
+    "message": "Oda başka bir videoya geçti"
+  },
+  "roomMovedHelp": {
+    "message": "Gitmeyi seçene kadar burada kalırsın."
+  },
+  "backToRoom": {
+    "message": "Odaya dön"
   }
 }

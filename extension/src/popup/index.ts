@@ -14,12 +14,13 @@ import type {
   JoinResponse,
   PeekReport,
   SessionStatus,
+  TabPage,
   TabRequest,
   TabSession,
 } from "../messages";
 import { openRoomVideo, sealRoomVideo } from "../room-video";
 import { getServerUrl, roomSocketUrl, setServerUrl } from "../settings";
-import { noticeFor, statusLine, type Notice, type Tone } from "../status";
+import { mustShowNotice, noticeFor, statusLine, type Notice, type Tone } from "../status";
 import { askRoomVideo } from "./room-link";
 
 const STATUS_POLL_MS = 500;
@@ -55,6 +56,7 @@ let isBusy = false;
 let noAnswerSince: number | null = null;
 let noPageAfterMs = NO_PAGE_AFTER_MS;
 let roomVideoUrl: string | null = null;
+let roomVideoTitle = "";
 let isRoomGone = false;
 
 const t = (key: string, substitutions?: string[]) => translate(messages, key, substitutions);
@@ -120,15 +122,26 @@ function renderRoom(): void {
       ? (formatTimecode(status.position) ?? "")
       : "";
 
-  const canGoToVideo = roomVideoUrl !== null && !isSamePage(pageUrl, roomVideoUrl);
-  const showGoButton = canGoToVideo && !isRoomGone;
+  const change = status?.videoChange ?? null;
+  const changeNotice = change ? noticeFor(status) : null;
+  const canFollowChange = !!changeNotice && mustShowNotice(changeNotice);
+  const canGoToVideo = !change && roomVideoUrl !== null && !isSamePage(pageUrl, roomVideoUrl);
+  const showGoButton = (canFollowChange || canGoToVideo) && !isRoomGone;
   element("go-video").hidden = !showGoButton;
-  if (showGoButton && roomVideoUrl) {
-    element("go-video").textContent = t("goToVideo", [new URL(roomVideoUrl).hostname]);
+  if (showGoButton) {
+    const host = change ? change.host : new URL(roomVideoUrl ?? "").hostname;
+    element("go-video").textContent =
+      change?.kind === "you_moved" ? t("backToRoom") : t("goToVideo", [host]);
   }
   // One main action per view: here it's getting to the video, not sharing the room.
   element("copy-link").classList.toggle("primary", !showGoButton);
   element("copy-link").classList.toggle("secondary", showGoButton);
+  // Unless they've wandered off with a video to bring everyone to.
+  const isBringMain = changeNotice?.action === "bring";
+  element("go-video").classList.toggle("primary", !isBringMain);
+  element("go-video").classList.toggle("secondary", isBringMain);
+  element("bring").classList.toggle("primary", isBringMain);
+  element("bring").classList.toggle("secondary", !isBringMain);
 
   const goneNotice: Notice = {
     tone: "danger",
@@ -148,24 +161,25 @@ function renderRoom(): void {
     titleKey: "inRoomGo",
     bodyKey: "inRoomGoHelp",
     action: null,
+    detail: roomVideoTitle,
   };
   const notice = isRoomGone
     ? goneNotice
-    : showGoButton
-      ? goNotice
-      : isWaitingForPage
-        ? waitingNotice
-        : noticeFor(status);
+    : (changeNotice ??
+      (showGoButton ? goNotice : isWaitingForPage ? waitingNotice : noticeFor(status)));
   element("alert").hidden = !notice;
   if (notice) {
     setDot("alert-dot", notice.tone);
     element("alert-title").textContent = t(notice.titleKey);
+    element("alert-detail").textContent = notice.detail ?? "";
     element("alert-body").textContent = t(notice.bodyKey);
     element("pick-room").hidden = notice.action !== "pick";
   }
   element<HTMLButtonElement>("move-badge").disabled = !status?.hasVideo;
+  // Being on another video is exactly when this button is the way out.
+  const isHeldBack = status?.hold != null && status.hold !== "other_video";
   element<HTMLButtonElement>("bring").disabled =
-    status?.connection !== "connected" || !status.hasVideo || status.hold !== null;
+    status?.connection !== "connected" || !status.hasVideo || isHeldBack;
 }
 
 function render(): void {
@@ -196,6 +210,12 @@ async function refreshStatus(): Promise<void> {
       .catch(() => null)) ?? null;
   if (status) noAnswerSince = null;
   else noAnswerSince ??= Date.now();
+  // Sites change address without loading a page, and the tab reports it to the background.
+  const page = await send<TabPage>({ type: "video/page", tabId }).catch(() => null);
+  if (page?.url) {
+    pageUrl = page.url;
+    pageTitle = page.title;
+  }
   if (view === "room") renderRoom();
 }
 
@@ -225,19 +245,24 @@ async function refreshRoomVideo(): Promise<void> {
   if (answer.status === "gone") isRoomGone = true;
   if (answer.status === "ok") {
     isRoomGone = false;
-    roomVideoUrl = answer.sealed ? await openRoomVideo(code, answer.sealed) : null;
+    const video = answer.sealed ? await openRoomVideo(code, answer.sealed) : null;
+    roomVideoUrl = video?.url ?? null;
+    roomVideoTitle = video?.title ?? "";
   }
   if (view === "room") renderRoom();
 }
 
-/** Only on purpose: creating a room or "Bring everyone to me", never just by browsing. */
+/** Only on purpose, when creating a room. Moving it later goes through the tab's connection. */
 async function shareThisVideo(): Promise<void> {
   if (!session || !pageUrl) return;
   const { code, serverUrl } = session;
-  const sealed = await sealRoomVideo(code, pageUrl);
+  const sealed = await sealRoomVideo(code, { url: pageUrl, title: pageTitle });
   if (!sealed) return;
   const answer = await askRoomVideo(roomSocketUrl(serverUrl, code), { type: "video/set", sealed });
-  if (answer.status === "ok") roomVideoUrl = pageUrl;
+  if (answer.status === "ok") {
+    roomVideoUrl = pageUrl;
+    roomVideoTitle = pageTitle;
+  }
   if (view === "room") renderRoom();
 }
 
@@ -254,6 +279,7 @@ async function enterRoom(code: string, url?: string): Promise<void> {
   noAnswerSince = null;
   noPageAfterMs = url ? NO_PAGE_AFTER_LOADING_MS : NO_PAGE_AFTER_MS;
   roomVideoUrl = null;
+  roomVideoTitle = "";
   isRoomGone = false;
   homeError = "";
   setView("room");
@@ -298,6 +324,7 @@ async function onLeave(): Promise<void> {
   await send({ type: "session/leave", tabId });
   session = null;
   roomVideoUrl = null;
+  roomVideoTitle = "";
   isRoomGone = false;
   status = null;
   setView("home");
@@ -364,18 +391,25 @@ function connectEvents(): void {
   element("pick-room").addEventListener("click", () => void startPicker());
   element("pick-any").addEventListener("click", () => void startPicker());
   element("go-video").addEventListener("click", () => {
-    if (tabId === undefined || !roomVideoUrl) return;
-    pageUrl = roomVideoUrl;
+    if (tabId === undefined) return;
     noAnswerSince = null;
     noPageAfterMs = NO_PAGE_AFTER_LOADING_MS;
+    if (status?.videoChange) {
+      void send({ type: "video/go", tabId });
+      return;
+    }
+    if (!roomVideoUrl) return;
+    pageUrl = roomVideoUrl;
     void chrome.tabs.update(tabId, { url: roomVideoUrl });
     render();
   });
   element("bring").addEventListener("click", () => {
     if (tabId === undefined) return;
-    void shareThisVideo();
-    const request: TabRequest = { type: "session/bring" };
-    void chrome.tabs.sendMessage(tabId, request).catch(() => undefined);
+    void send({ type: "video/bring", tabId });
+    if (pageUrl) {
+      roomVideoUrl = pageUrl;
+      roomVideoTitle = pageTitle;
+    }
     const button = element("bring");
     button.textContent = t("bringSent");
     setTimeout(() => {

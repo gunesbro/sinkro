@@ -45,6 +45,11 @@
   --font-body: "DM Sans", system-ui, sans-serif;
 }
 
+/* A tall view gets a scrollbar, whose width must not add a sideways one too. */
+html {
+  overflow-x: hidden;
+}
+
 body {
   box-sizing: border-box;
   display: flex;
@@ -351,6 +356,22 @@ input::placeholder {
   gap: 10px;
   font-size: 15px;
   font-weight: 700;
+}
+
+.alert-detail {
+  display: -webkit-box;
+  overflow: hidden;
+  padding-left: 17px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.alert-detail:empty {
+  display: none;
 }
 
 .alert-body {

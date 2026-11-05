@@ -38,15 +38,41 @@ export function parseJoinInput(input: string): { code: string; url: string | nul
   return hash === -1 ? null : parseInviteFragment(trimmed.slice(hash + 1));
 }
 
-/** Whether two addresses are the same page, ignoring the fragment. */
-export function isSamePage(a: string | null, b: string): boolean {
-  if (!a) return false;
+/** Address parts that say where in a video or how someone got there, not which video it is. */
+const NOT_THE_VIDEO = new Set([
+  "t",
+  "start",
+  "time_continue",
+  "si",
+  "pp",
+  "feature",
+  "ab_channel",
+  "fbclid",
+  "gclid",
+  "ref",
+  "ref_",
+  "jic",
+  "trackId",
+  "tctx",
+]);
+
+/** The same for two addresses of one video. Null for something that isn't an address. */
+export function videoPageKey(address: string): string | null {
   try {
-    const [first, second] = [new URL(a), new URL(b)];
-    first.hash = "";
-    second.hash = "";
-    return first.href === second.href;
+    const { host, pathname, searchParams } = new URL(address);
+    const params = [...searchParams]
+      .filter(([name]) => !NOT_THE_VIDEO.has(name) && !name.startsWith("utm_"))
+      .map(([name, value]) => `${name}=${value}`)
+      .sort();
+    return `${host.replace(/^www\./, "")}${pathname.replace(/\/$/, "")}?${params.join("&")}`;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** Whether two addresses are the same page, as far as which video is on it. */
+export function isSamePage(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false;
+  const key = videoPageKey(a);
+  return key !== null && key === videoPageKey(b);
 }

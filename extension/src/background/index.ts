@@ -7,10 +7,23 @@ import type {
   BackgroundRequest,
   CreateRoomResponse,
   SessionInfo,
+  TabPage,
   TabRequest,
   TabSession,
 } from "../messages";
+import { openRoomVideo, sealRoomVideo } from "../room-video";
 import { getServerUrl } from "../settings";
+import {
+  broughtHere,
+  describeChange,
+  destination,
+  NEW_TAB_VIDEO,
+  pageVisited,
+  roomVideoLearned,
+  videoFound,
+  type TabVideo,
+  type VideoChange,
+} from "../video-change";
 import { chooseFrame, TOP_FRAME_ID, type FrameReports } from "./arbiter";
 
 type TabFrames = { winner: number; reports: FrameReports };
@@ -18,6 +31,7 @@ type TabFrames = { winner: number; reports: FrameReports };
 // Session storage survives the worker sleeping and is cleared when the browser closes.
 const tabKey = (tabId: number) => `tab:${tabId}`;
 const framesKey = (tabId: number) => `frames:${tabId}`;
+const videoKey = (tabId: number) => `video:${tabId}`;
 
 async function getSession(tabId: number): Promise<TabSession | null> {
   const key = tabKey(tabId);
@@ -63,6 +77,71 @@ async function recordReport(tabId: number, frameId: number, score: number): Prom
   return winner === frameId;
 }
 
+async function getTabVideo(tabId: number): Promise<TabVideo> {
+  const key = videoKey(tabId);
+  const stored = await chrome.storage.session.get(key);
+  return (stored[key] as TabVideo | undefined) ?? NEW_TAB_VIDEO;
+}
+
+/** Tells the tab's frames if this changes what the viewer should be told. Call it in the queue. */
+async function updateTabVideo(
+  tabId: number,
+  update: (state: TabVideo) => TabVideo,
+): Promise<VideoChange | null> {
+  const before = await getTabVideo(tabId);
+  const after = update(before);
+  if (after !== before) await chrome.storage.session.set({ [videoKey(tabId)]: after });
+
+  const change = describeChange(after);
+  if (JSON.stringify(change) !== JSON.stringify(describeChange(before))) {
+    await sendToTab(tabId, { type: "session/video-change", change });
+  }
+  return change;
+}
+
+function onPageReport(tabId: number, url: string, title: string): Promise<VideoChange | null> {
+  return inTabQueue(tabId, () =>
+    updateTabVideo(tabId, (state) =>
+      /^https?:/.test(url) ? pageVisited(state, { url, title }) : state,
+    ),
+  );
+}
+
+function onRoomVideoSeen(
+  tabId: number,
+  sealed: string,
+  announced: boolean,
+): Promise<VideoChange | null> {
+  return inTabQueue(tabId, async () => {
+    const session = await getSession(tabId);
+    const video = session && (await openRoomVideo(session.code, sealed));
+    return updateTabVideo(tabId, (state) =>
+      video ? roomVideoLearned(state, video, announced) : state,
+    );
+  });
+}
+
+function bringEveryoneHere(tabId: number): Promise<void> {
+  return inTabQueue(tabId, async () => {
+    const [session, { pageUrl, pageTitle }] = await Promise.all([
+      getSession(tabId),
+      getTabVideo(tabId),
+    ]);
+    if (!session) return;
+    const sealed =
+      pageUrl && (await sealRoomVideo(session.code, { url: pageUrl, title: pageTitle }));
+    // The frame goes first: lifting the hold before it has spoken would pull this video back
+    // to the old timeline, and then that's the position everyone gets brought to.
+    await sendToTab(tabId, { type: "session/bring", sealed: sealed || null });
+    await updateTabVideo(tabId, broughtHere);
+  });
+}
+
+async function goWhereTheNoticeLeads(tabId: number): Promise<void> {
+  const address = destination(await getTabVideo(tabId));
+  if (address && /^https?:/.test(address)) await chrome.tabs.update(tabId, { url: address });
+}
+
 async function createRoom(): Promise<CreateRoomResponse> {
   try {
     const response = await fetch(`${await getServerUrl()}/rooms`, { method: "POST" });
@@ -77,8 +156,12 @@ async function createRoom(): Promise<CreateRoomResponse> {
 }
 
 async function getSessionInfo(tabId: number, frameId: number): Promise<SessionInfo> {
-  const [session, frames] = await Promise.all([getSession(tabId), getFrames(tabId)]);
-  return { session, active: frames.winner === frameId };
+  const [session, frames, video] = await Promise.all([
+    getSession(tabId),
+    getFrames(tabId),
+    getTabVideo(tabId),
+  ]);
+  return { session, active: frames.winner === frameId, videoChange: describeChange(video) };
 }
 
 /** Content scripts run inside web pages, so they don't get to choose a tab's room. */
@@ -90,7 +173,7 @@ function isExtensionPage(sender: chrome.runtime.MessageSender): boolean {
 async function joinTab(tabId: number, code: string): Promise<TabSession> {
   const session: TabSession = { code, serverUrl: await getServerUrl() };
   await chrome.storage.session.set({ [tabKey(tabId)]: session });
-  await chrome.storage.session.remove(framesKey(tabId));
+  await chrome.storage.session.remove([framesKey(tabId), videoKey(tabId)]);
   return session;
 }
 
@@ -138,7 +221,11 @@ async function handleFromExtensionPage(request: BackgroundRequest) {
       return { code };
     }
     case "session/leave":
-      await chrome.storage.session.remove([tabKey(request.tabId), framesKey(request.tabId)]);
+      await chrome.storage.session.remove([
+        tabKey(request.tabId),
+        framesKey(request.tabId),
+        videoKey(request.tabId),
+      ]);
       await sendToTab(request.tabId, { type: "session/changed", session: null });
       return null;
     case "picker/start": {
@@ -146,6 +233,16 @@ async function handleFromExtensionPage(request: BackgroundRequest) {
       await sendToTab(request.tabId, { type: "picker/start", messages });
       return null;
     }
+    case "video/page": {
+      const { pageUrl, pageTitle } = await getTabVideo(request.tabId);
+      return { url: pageUrl, title: pageTitle } satisfies TabPage;
+    }
+    case "video/bring":
+      if (request.tabId !== undefined) await bringEveryoneHere(request.tabId);
+      return null;
+    case "video/go":
+      if (request.tabId !== undefined) await goWhereTheNoticeLeads(request.tabId);
+      return null;
     default:
       return null;
   }
@@ -165,8 +262,21 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
         return joinFromInvite(tabId, request.fragment, sender);
       case "detect/report":
         return {
-          active: await inTabQueue(tabId, () => recordReport(tabId, frameId, request.score)),
+          active: await inTabQueue(tabId, async () => {
+            if (request.score > 0) await updateTabVideo(tabId, videoFound);
+            return recordReport(tabId, frameId, request.score);
+          }),
         };
+      case "page/report":
+        return frameId === TOP_FRAME_ID ? onPageReport(tabId, request.url, request.title) : null;
+      case "video/seen":
+        return onRoomVideoSeen(tabId, request.sealed, request.announced);
+      case "video/bring":
+        await bringEveryoneHere(tabId);
+        return null;
+      case "video/go":
+        await goWhereTheNoticeLeads(tabId);
+        return null;
       case "picker/picked":
         await sendToTab(tabId, { type: "picker/stop", picked: true });
         return null;
@@ -187,5 +297,5 @@ chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendRe
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabQueues.delete(tabId);
-  void chrome.storage.session.remove([tabKey(tabId), framesKey(tabId)]);
+  void chrome.storage.session.remove([tabKey(tabId), framesKey(tabId), videoKey(tabId)]);
 });

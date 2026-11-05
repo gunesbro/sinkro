@@ -90,7 +90,10 @@ export class Room extends DurableObject {
         const record = await this.readRecord();
         if (!record) return ws.close(CloseCode.RoomNotFound);
         await this.ctx.storage.put<RoomRecord>("room", { ...record, video: message.sealed });
-        return this.send(ws, { type: "video", sealed: message.sealed });
+        const video: ServerMessage = { type: "video", sealed: message.sealed };
+        this.send(ws, video);
+        this.broadcast(video, ws);
+        return;
       }
       case "state": {
         const clientId = this.clientIdOf(ws);
@@ -140,7 +143,8 @@ export class Room extends DurableObject {
     await this.ctx.storage.deleteAlarm();
 
     const peers = this.joinedSockets().length;
-    this.send(ws, { type: "joined", clientId, state: record.state, peers });
+    const video = record.video ? { video: record.video } : {};
+    this.send(ws, { type: "joined", clientId, state: record.state, peers, ...video });
     this.broadcast({ type: "peers", count: peers }, ws);
   }
 

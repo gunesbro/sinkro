@@ -33,7 +33,7 @@
     "message": "Join"
   },
   "footer": {
-    "message": "No account. Only playback state and the video's address are shared."
+    "message": "No account. Only playback state and the video's address and title are shared."
   },
   "live": {
     "message": "Room is live"
@@ -65,7 +65,7 @@
     }
   },
   "bringHere": {
-    "message": "Bring them here"
+    "message": "Bring everyone here"
   },
   "goThere": {
     "message": "Go to their episode"
@@ -268,5 +268,20 @@
   },
   "notifySeeked": {
     "message": "Video moved to another spot"
+  },
+  "youMoved": {
+    "message": "You're on a different video"
+  },
+  "youMovedHelp": {
+    "message": "The room is still on the previous one, and nothing you do here reaches it."
+  },
+  "roomMoved": {
+    "message": "The room moved to another video"
+  },
+  "roomMovedHelp": {
+    "message": "You stay here until you choose to go."
+  },
+  "backToRoom": {
+    "message": "Back to the room"
   }
 }

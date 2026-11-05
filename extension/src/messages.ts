@@ -3,6 +3,7 @@
 import type { CloseReason, ConnectionStatus } from "./content/sync/connection";
 import type { EngineSnapshot } from "./content/sync/engine";
 import type { Messages } from "./i18n";
+import type { VideoChange } from "./video-change";
 
 /** The room a tab is in. Kept by the background so it survives page loads in that tab. */
 export type TabSession = { code: string; serverUrl: string };
@@ -11,6 +12,7 @@ export type SessionStatus = EngineSnapshot & {
   connection: ConnectionStatus;
   closeReason: CloseReason | null;
   peers: number;
+  videoChange: VideoChange | null;
 };
 
 /** One frame's answer to "is there a video here?". Stays inside the extension. */
@@ -30,17 +32,32 @@ export type BackgroundRequest =
   | { type: "session/join"; tabId: number; code: string; url?: string }
   | { type: "session/leave"; tabId: number }
   | { type: "picker/start"; tabId: number }
+  | { type: "video/page"; tabId: number }
+  // From both. An extension page says which tab; a content script speaks for its own.
+  /** Makes the page this tab is on the room's video, and moves everyone to this position. */
+  | { type: "video/bring"; tabId?: number }
+  /** Takes the tab where the notice about a video change leads. */
+  | { type: "video/go"; tabId?: number }
   // From content scripts, in every frame.
   | { type: "session/get" }
   | { type: "i18n/messages" }
   /** From the invite page only, on a real click. */
   | { type: "invite/join"; fragment: string }
   | { type: "detect/report"; score: number }
+  /** From the top frame, which is the only one that knows the page's address. */
+  | { type: "page/report"; url: string; title: string }
+  /** The room's video as this frame's connection heard it. Only extension pages can open it. */
+  | { type: "video/seen"; sealed: string; announced: boolean }
   | { type: "detect/peeked"; report: PeekReport }
   | { type: "picker/picked" }
   | { type: "picker/cancelled" };
 
-export type SessionInfo = { session: TabSession | null; active: boolean };
+export type SessionInfo = {
+  session: TabSession | null;
+  active: boolean;
+  videoChange: VideoChange | null;
+};
+export type TabPage = { url: string | null; title: string };
 export type ReportResponse = { active: boolean };
 export type CreateRoomResponse = { code: string } | { error: "unreachable" | "rate_limited" };
 export type JoinResponse = { code: string } | { error: "invalid_code" };
@@ -50,8 +67,9 @@ export type TabRequest =
   /** Whether this frame should run the connection and sync engine. Sent to one frame. */
   | { type: "session/role"; active: boolean }
   | { type: "session/status" }
-  /** Sends this viewer's position to the room, moving everyone else to it. */
-  | { type: "session/bring" }
+  /** Sends this viewer's page and position to the room, moving everyone else to them. */
+  | { type: "session/bring"; sealed: string | null }
+  | { type: "session/video-change"; change: VideoChange | null }
   /** Lets the viewer drag the on-video badge somewhere else. */
   | { type: "badge/move" }
   | { type: "detect/peek" }
