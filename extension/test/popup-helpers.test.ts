@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatTimecode } from "../src/format";
-import { inviteLink, parseRoomInput } from "../src/invite";
+import { inviteLink, parseInviteFragment, parseRoomInput } from "../src/invite";
 
 describe("formatTimecode", () => {
   it.each([
@@ -36,6 +36,40 @@ describe("inviteLink", () => {
       expect(inviteLink("K7M-2QX", pageUrl)).toBe("https://sinkro.pages.dev/#room=K7M-2QX");
     },
   );
+});
+
+describe("parseInviteFragment", () => {
+  const fragmentOf = (link: string) => link.split("#").slice(1).join("#");
+
+  it("reads what inviteLink writes", () => {
+    const url = "https://example.com/watch?v=1&t=2#frag";
+    expect(parseInviteFragment(fragmentOf(inviteLink("K7M-2QX", url)))).toEqual({
+      code: "K7M-2QX",
+      url,
+    });
+  });
+
+  it("takes a room with no address", () => {
+    expect(parseInviteFragment("room=K7M-2QX")).toEqual({ code: "K7M-2QX", url: null });
+  });
+
+  it.each(["", "room=nope", "url=https%3A%2F%2Fexample.com"])(
+    "finds no invite in %j",
+    (fragment) => {
+      expect(parseInviteFragment(fragment)).toBeNull();
+    },
+  );
+
+  it.each([
+    "javascript:alert(1)",
+    "data:text/html,hi",
+    "file:///C:/secret",
+    "chrome://settings",
+    "not a url",
+  ])("won't send a tab to %s", (url) => {
+    const fragment = `room=K7M-2QX&url=${encodeURIComponent(url)}`;
+    expect(parseInviteFragment(fragment)).toEqual({ code: "K7M-2QX", url: null });
+  });
 });
 
 describe("parseRoomInput", () => {

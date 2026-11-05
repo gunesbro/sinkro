@@ -2,6 +2,7 @@
 // the sync. It holds no connections, because it goes to sleep.
 import { normalizeRoomCode } from "../../../server/src/room-code";
 import { getLanguage, loadMessages } from "../i18n";
+import { INVITE_ORIGIN, parseInviteFragment } from "../invite";
 import type {
   BackgroundRequest,
   CreateRoomResponse,
@@ -85,6 +86,38 @@ function isExtensionPage(sender: chrome.runtime.MessageSender): boolean {
   return sender.url?.startsWith(chrome.runtime.getURL("")) ?? false;
 }
 
+/** Puts a tab in a room, starting with the top frame until a frame reports a video. */
+async function joinTab(tabId: number, code: string): Promise<TabSession> {
+  const session: TabSession = { code, serverUrl: await getServerUrl() };
+  await chrome.storage.session.set({ [tabKey(tabId)]: session });
+  await chrome.storage.session.remove(framesKey(tabId));
+  return session;
+}
+
+/** Only Sinkro's own invite page may do this: any other page would be choosing a room for you. */
+async function joinFromInvite(
+  tabId: number,
+  fragment: string,
+  sender: chrome.runtime.MessageSender,
+): Promise<{ joined: boolean }> {
+  const refused = { joined: false };
+  if (sender.frameId !== TOP_FRAME_ID || !sender.url) return refused;
+  if (new URL(sender.url).origin !== INVITE_ORIGIN) return refused;
+
+  const invite = parseInviteFragment(fragment);
+  if (!invite) return refused;
+
+  const session = await joinTab(tabId, invite.code);
+  if (invite.url) {
+    // The session is stored for the tab, so the page it lands on picks it up as it loads.
+    await chrome.tabs.update(tabId, { url: invite.url });
+  } else {
+    await sendToTab(tabId, { type: "session/changed", session });
+    await sendToTab(tabId, { type: "session/role", active: true }, TOP_FRAME_ID);
+  }
+  return { joined: true };
+}
+
 async function handleFromExtensionPage(request: BackgroundRequest) {
   switch (request.type) {
     case "room/create":
@@ -94,9 +127,7 @@ async function handleFromExtensionPage(request: BackgroundRequest) {
     case "session/join": {
       const code = normalizeRoomCode(request.code);
       if (!code) return { error: "invalid_code" };
-      const session: TabSession = { code, serverUrl: await getServerUrl() };
-      await chrome.storage.session.set({ [tabKey(request.tabId)]: session });
-      await chrome.storage.session.remove(framesKey(request.tabId));
+      const session = await joinTab(request.tabId, code);
       await sendToTab(request.tabId, { type: "session/changed", session });
       await sendToTab(request.tabId, { type: "session/role", active: true }, TOP_FRAME_ID);
       return { code };
@@ -125,6 +156,8 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
         return getSessionInfo(tabId, frameId);
       case "i18n/messages":
         return loadMessages(await getLanguage());
+      case "invite/join":
+        return joinFromInvite(tabId, request.fragment, sender);
       case "detect/report":
         return {
           active: await inTabQueue(tabId, () => recordReport(tabId, frameId, request.score)),

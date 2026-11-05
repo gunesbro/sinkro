@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sinkro privacy</title>
+    <meta name="referrer" content="no-referrer" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-row">
+        <a class="wordmark" href="./" lang="en">Sinkro</a>
+      </div>
+    </header>
+
+    <main class="wrap prose">
+      <h1>Privacy</h1>
+      <p>Sinkro has no accounts, no analytics and no tracking.</p>
+
+      <h2>What reaches the server</h2>
+      <ul>
+        <li>The room code.</li>
+        <li>Playback state: playing or paused, position, speed and a timestamp.</li>
+        <li>
+          When a room is created, a hash of your IP address, kept for at most a minute to limit how
+          many rooms one address can create.
+        </li>
+      </ul>
+      <p>Video, page addresses and page titles don't reach the server.</p>
+
+      <h2>What stays with you</h2>
+      <ul>
+        <li>
+          Your language, server address, and any video you picked by hand for a site are stored in
+          your browser.
+        </li>
+        <li>
+          An invite link carries the room code and the page address in the part of the URL browsers
+          don't send to servers. Whoever you send it to can read both.
+        </li>
+      </ul>
+
+      <h2>How long it's kept</h2>
+      <p>A room's playback state is deleted 24 hours after its last person leaves.</p>
+
+      <h2>Why the extension asks to run on all sites</h2>
+      <p>
+        It has to find the video on whatever site you're watching. It connects to the server only
+        for a tab you've put in a room.
+      </p>
+
+      <h2>Who runs the infrastructure</h2>
+      <p>
+        The default server and this page run on Cloudflare, which processes connections, including
+        IP addresses, to deliver them. You can run your own server and set its address in the
+        extension's settings.
+      </p>
+
+      <h2>Check it yourself</h2>
+      <p>
+        Sinkro is open source:
+        <a href="https://github.com/gunesbro/sinkro" rel="noreferrer">read the code on GitHub</a>.
+      </p>
+    </main>
+  </body>
+</html>
