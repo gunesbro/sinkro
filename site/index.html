@@ -3,37 +3,99 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sinkro</title>
+    <title>Sinkro — Watch Party: Sync Any Video With Friends</title>
     <meta
       name="description"
       content="Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox that keeps any video on any website in sync with your friends."
     />
-    <style>
-      body {
-        margin: 0;
-        padding: 48px 24px;
-        background: #110d0c;
-        color: #f4ede6;
-        font-family: system-ui, sans-serif;
-        line-height: 1.5;
-      }
-      h1 {
-        margin: 0 0 8px;
-        color: #f2b045;
-        font-size: 28px;
-        text-transform: uppercase;
-      }
-      p {
-        max-width: 60ch;
-        margin: 0;
-      }
-    </style>
+    <meta name="referrer" content="no-referrer" />
+    <link rel="stylesheet" href="style.css" />
+    <script src="app.js" defer></script>
   </head>
   <body>
-    <h1>Sinkro</h1>
-    <p>
-      Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox that keeps
-      any video on any website in sync with your friends.
-    </p>
+    <header class="site-header">
+      <div class="wrap header-row">
+        <!-- lang="en" keeps the uppercase I undotted when the page is in Turkish. -->
+        <span class="wordmark" lang="en">Sinkro</span>
+        <div class="header-actions">
+          <a href="https://github.com/gunesbro/sinkro" rel="noreferrer" data-i18n="github"></a>
+          <div class="languages" role="group" data-i18n-aria-label="language">
+            <button type="button" data-lang="en" aria-pressed="false">EN</button>
+            <button type="button" data-lang="tr" aria-pressed="false">TR</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap hero">
+      <section class="hero-text">
+        <span class="kicker" id="kicker" data-i18n="kickerLanding"></span>
+        <h1 id="title" data-i18n="titleLanding">Same movie. Same second. Different couches.</h1>
+        <p class="lede" id="lede" data-i18n="ledeLanding">
+          Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox that
+          keeps any video on any website in sync with your friends.
+        </p>
+
+        <div class="actions">
+          <button type="button" class="primary" id="join-room" data-i18n="joinRoom" hidden></button>
+          <a
+            class="primary"
+            id="install"
+            href="https://github.com/gunesbro/sinkro#install"
+            rel="noreferrer"
+            data-i18n="install"
+            >Get Sinkro</a
+          >
+        </div>
+        <p class="note" id="install-note" data-i18n="installNote" hidden></p>
+      </section>
+
+      <aside class="room-card" id="room-card" aria-labelledby="room-label" hidden>
+        <span class="card-label" id="room-label" data-i18n="roomLabel"></span>
+        <span class="room-code" id="room-code" lang="en"></span>
+        <div class="card-row" id="destination-row" hidden>
+          <span class="card-label" data-i18n="destinationLabel"></span>
+          <span class="destination" id="destination"></span>
+          <a
+            class="destination-link"
+            id="destination-link"
+            rel="noreferrer"
+            data-i18n="openVideo"
+          ></a>
+        </div>
+        <p class="note" id="no-destination" data-i18n="noDestination" hidden></p>
+      </aside>
+    </main>
+
+    <section class="wrap steps" aria-labelledby="steps-title">
+      <h2 class="visually-hidden" id="steps-title" data-i18n="stepsTitle"></h2>
+      <ol>
+        <li>
+          <span class="step-number" aria-hidden="true">01</span>
+          <span class="step-title" data-i18n="step1Title"></span>
+          <span class="step-body" data-i18n="step1Body"></span>
+        </li>
+        <li>
+          <span class="step-number" aria-hidden="true">02</span>
+          <span class="step-title" data-i18n="step2Title"></span>
+          <span class="step-body" data-i18n="step2Body"></span>
+        </li>
+        <li>
+          <span class="step-number" aria-hidden="true">03</span>
+          <span class="step-title" data-i18n="step3Title"></span>
+          <span class="step-body" data-i18n="step3Body"></span>
+        </li>
+      </ol>
+    </section>
+
+    <footer class="site-footer">
+      <div class="wrap footer-row">
+        <span data-i18n="privacyLine"></span>
+        <span>
+          <a href="privacy.html" data-i18n="privacy"></a> ·
+          <a href="https://github.com/gunesbro/sinkro" rel="noreferrer" data-i18n="source"></a>
+        </span>
+      </div>
+    </footer>
   </body>
 </html>

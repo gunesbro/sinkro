@@ -2,11 +2,19 @@
 
 Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox that keeps any video on any website in sync with your friends.
 
-**Status:** early development. Nothing is in the stores yet and syncing doesn't work yet.
+**Status:** early development. Nothing is in the stores yet.
 
 No accounts and no analytics. Only the room code and playback state (playing or paused, position, rate, timestamp) reach the server, never the video itself.
 
-## Repository layout
+## Install
+
+Sinkro isn't in the extension stores yet. To try it now:
+
+1. Install [Node.js](https://nodejs.org/) 24, then run `npm ci` and `npm run build` in this repository.
+2. Open `chrome://extensions` or `edge://extensions` and turn on developer mode.
+3. Choose **Load unpacked** and select `extension/dist/chrome`.
+
+##
 
 | Path         | What it is                                      |
 | ------------ | ----------------------------------------------- |
