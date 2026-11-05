@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SessionStatus } from "../src/messages";
 import {
+  hasMainButton,
   isVideoChangeAction,
   mustShowNotice,
   noticeFor,
@@ -66,6 +67,25 @@ describe("statusLine", () => {
   ])("%s", (_, changes, tone, key) => {
     const status = changes === null ? null : { ...connected, ...changes };
     expect(statusLine(status)).toEqual({ tone, key });
+  });
+});
+
+describe("hasMainButton", () => {
+  const moved = { kind: "you_moved", title: "", host: "a.com" } as const;
+
+  it.each<[string, Partial<SessionStatus>, boolean]>([
+    ["joining in after a blocked start", { needsGesture: true }, true],
+    ["being on another video", { videoChange: moved }, true],
+    ["someone else's ad", { othersOnAd: 1 }, true],
+    [
+      "a closed room, which has only leaving",
+      { connection: "closed", closeReason: "room_idle" },
+      false,
+    ],
+    ["no video on this page", { hasVideo: false }, false],
+    ["this viewer's own ad", { hold: "ad" }, false],
+  ])("is right for %s", (_, changes, expected) => {
+    expect(hasMainButton(noticeFor({ ...connected, ...changes }))).toBe(expected);
   });
 });
 
@@ -147,6 +167,10 @@ describe("noticeFor", () => {
       expect(notice?.titleKey).toBe("startPlayer");
       expect(notice?.bodyKey).toBe("startPlayerHelp");
       expect(mustShowNotice(notice)).toBe(true);
+    });
+
+    it("has no button on the card, since pressing play is on the site's player", () => {
+      expect(hasMainButton(noticeFor(waiting))).toBe(false);
     });
 
     it("isn't raised on any other page, so browsing isn't nagged", () => {

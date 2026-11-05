@@ -348,6 +348,6 @@
     "message": "The video hasn't started here"
   },
   "startPlayerHelp": {
-    "message": "Others are watching. Press play on the site's player, and you'll catch up once it opens."
+    "message": "Press play on the site's player. Syncing starts once the video opens."
   }
 }
