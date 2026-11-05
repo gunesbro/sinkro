@@ -1494,6 +1494,52 @@ describe("a click on a seek bar, which pauses, moves and plays in a moment", () 
   });
 });
 
+describe("a seek of its own that the player never reports", () => {
+  async function afterLostSeek(context: ReturnType<typeof setup>) {
+    await joinPlaying(context);
+    context.video.losesNextSeek = true;
+    context.engine.handleState(context.peerState({ position: 300 }));
+    await settle();
+    await vi.advanceTimersByTimeAsync(2000);
+    context.sent.length = 0;
+  }
+
+  it("doesn't swallow the viewer's next seek", async () => {
+    const context = setup();
+    await afterLostSeek(context);
+    context.video.userSeek(900);
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(context.video.position).toBeGreaterThan(890);
+    expect(context.sent.at(-1)?.position).toBeGreaterThan(890);
+  });
+
+  it("still knows its own seek when the report is only slow", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.video.seekDelayMs = 3000;
+    context.engine.handleState(context.peerState({ position: 300 }));
+    await settle();
+    await vi.advanceTimersByTimeAsync(3500);
+
+    expect(context.sent).toEqual([]);
+  });
+
+  it("notices the viewer seeking during its own slow seek", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.video.seekDelayMs = 3000;
+    context.engine.handleState(context.peerState({ position: 300 }));
+    await settle();
+    await vi.advanceTimersByTimeAsync(1500);
+    context.video.seekDelayMs = 0;
+    context.video.userSeek(900);
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(context.sent.at(-1)?.position).toBeGreaterThan(890);
+  });
+});
+
 describe("alone in a room", () => {
   /** Alone, with a timeline this viewer started. */
   async function alone() {
