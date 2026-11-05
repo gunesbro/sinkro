@@ -19,3 +19,46 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+
+  # The built extension in a real browser, against a local copy of the server. One job per
+  # scenario, so they run side by side and a failure names its scenario.
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - sync
+          - detection
+          - popup
+          - badge
+          - other-video
+          - invite-page
+          - source-check
+          - unstarted-player
+          - network-drop
+          - people-count
+          - extension-reload
+          - extension-update
+          - page-hook
+          - toolbar-icon
+    name: browser (${{ matrix.scenario }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run build
+      - run: xvfb-run -a node tests/e2e/run.mjs ${{ matrix.scenario }}
+        env:
+          SINKRO_SHOTS: shots
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: shots-${{ matrix.scenario }}
+          path: shots
+          if-no-files-found: ignore

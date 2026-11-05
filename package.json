@@ -14,9 +14,11 @@
     "build": "npm run build -w extension",
     "typecheck": "npm run typecheck --workspaces",
     "format": "prettier --write .",
-    "check": "prettier --check . && npm run typecheck && npm run check:locales -w extension && npm run build && npm run lint:firefox -w extension && npm run build -w server && npm test --workspaces"
+    "check": "prettier --check . && npm run typecheck && npm run check:locales -w extension && npm run build && npm run lint:firefox -w extension && npm run build -w server && npm test --workspaces",
+    "test:e2e": "npm run build && node tests/e2e/run.mjs"
   },
   "devDependencies": {
+    "playwright-core": "^1.64.1",
     "prettier": "^3.9.10",
     "typescript": "^7.0.2"
   }
