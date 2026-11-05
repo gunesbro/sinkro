@@ -60,6 +60,7 @@ export type EngineDeps = {
   send: (state: PlaybackState) => boolean;
   /** Says why the video can't follow the room right now, such as an ad playing. */
   holdFor?: (roomPosition: number | null) => Hold | null;
+  onHoldChange?: (hold: Hold | null) => void;
   /** `rate` is the speed the room is at now. */
   onRemoteChange?: (change: PlaybackChange, rate: number) => void;
   /** This viewer's own action reached the others. Not called when nobody else is there. */
@@ -68,6 +69,8 @@ export type EngineDeps = {
 
 export type EngineSnapshot = {
   hasVideo: boolean;
+  /** True with no video, since nothing is playing then. */
+  paused: boolean;
   /** Seconds into the video, or null without one. */
   position: number | null;
   /** Seconds this viewer is ahead of the room, or null without a video and a timeline. */
@@ -246,6 +249,7 @@ export class SyncEngine {
     const { video, timeline } = this;
     return {
       hasVideo: video !== null,
+      paused: video?.paused ?? true,
       position: video?.currentTime ?? null,
       drift:
         video && timeline && !this.hold && !this.isAlone
@@ -287,8 +291,12 @@ export class SyncEngine {
     const roomPosition = this.timeline
       ? targetPosition(this.timeline, this.deps.serverNow(), Number.POSITIVE_INFINITY)
       : null;
-    this.hold = this.deps.holdFor?.(roomPosition) ?? null;
-    return this.hold !== null;
+    const hold = this.deps.holdFor?.(roomPosition) ?? null;
+    if (hold !== this.hold) {
+      this.hold = hold;
+      this.deps.onHoldChange?.(hold);
+    }
+    return hold !== null;
   }
 
   private tick(): void {

@@ -538,6 +538,105 @@ describe("hibernation", () => {
   });
 });
 
+describe("someone on an ad", () => {
+  it("tells the others, and not them", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "ad", watching: true });
+
+    expect(await b.next()).toEqual({ type: "ads", count: 1 });
+    expect(await a.next()).toEqual({ type: "ads", count: 0 });
+  });
+
+  it("counts them", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    const { client: c } = await join(code);
+    await a.next();
+    await a.next();
+    await b.next();
+    a.send({ type: "ad", watching: true });
+    expect(await c.next()).toEqual({ type: "ads", count: 1 });
+    b.send({ type: "ad", watching: true });
+    expect(await c.next()).toEqual({ type: "ads", count: 2 });
+  });
+
+  it("says when it ends", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "ad", watching: true });
+    await b.next();
+    a.send({ type: "ad", watching: false });
+
+    expect(await b.next()).toEqual({ type: "ads", count: 0 });
+  });
+
+  it("says nothing when nothing changed", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "ad", watching: false });
+    a.sendState();
+
+    expect((await b.next()).type).toBe("state");
+  });
+
+  it("ends when they leave", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "ad", watching: true });
+    await b.next();
+    a.close();
+
+    expect(await b.next()).toEqual({ type: "peers", count: 1 });
+    expect(await b.next()).toEqual({ type: "ads", count: 0 });
+  });
+
+  it("is told to whoever joins meanwhile", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    a.send({ type: "ad", watching: true });
+    await a.next();
+
+    const late = await connect(code);
+    late.send({ type: "join", protocol: PROTOCOL_VERSION });
+    expect(await late.next()).toMatchObject({ type: "joined", ads: 1 });
+  });
+
+  it("isn't mentioned to someone joining a room with no ads", async () => {
+    const code = await createRoom();
+    const late = await connect(code);
+    late.send({ type: "join", protocol: PROTOCOL_VERSION });
+    expect(await late.next()).not.toHaveProperty("ads");
+  });
+
+  it("isn't stored", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    a.send({ type: "ad", watching: true });
+    await a.next();
+
+    const stored = await runInDurableObject(env.ROOMS.getByName(code), (_, state) =>
+      state.storage.get("room"),
+    );
+    expect(JSON.stringify(stored)).not.toContain("onAd");
+  });
+
+  it("needs joining first", async () => {
+    const client = await connect(await createRoom());
+    client.send({ type: "ad", watching: true });
+    expect(await client.next()).toEqual({ type: "error", code: "not_joined" });
+  });
+});
+
 describe("a room nothing is happening in", () => {
   const activeAgo = (code: string, ms: number) =>
     runInDurableObject(env.ROOMS.getByName(code), async (_, state) => {

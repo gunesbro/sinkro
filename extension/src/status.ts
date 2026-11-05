@@ -38,8 +38,10 @@ export type Notice = {
    * A one-click way out. "play" only works from the page, where the click counts. "bring"
    * offers the way back as well, and "return" only that, when there's no video to bring
    * anyone to. "go" follows the room, and "leave" is all that's left of a room that's gone.
+   * "pause" is for waiting while someone else is on an ad.
    */
-  action: "pick" | "play" | "bring" | "return" | "go" | "leave" | null;
+  action: "pick" | "play" | "bring" | "return" | "go" | "leave" | "pause" | null;
+  titleSubstitutions?: string[];
   /** The name of a video. It comes from a web page, so it's never a message key. */
   detail?: string;
 };
@@ -82,6 +84,15 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
   if (status.needsGesture) return notice("warn", "needsGesture", "play");
   if (status.connection === "connected" && !status.hasVideo) {
     return notice("idle", "noVideo", "pick");
+  }
+  if (status.othersOnAd > 0) {
+    return {
+      tone: "warn",
+      titleKey: status.othersOnAd === 1 ? "oneOtherOnAd" : "othersOnAd",
+      titleSubstitutions: [String(status.othersOnAd)],
+      bodyKey: status.paused ? "othersOnAdPausedHelp" : "othersOnAdHelp",
+      action: status.paused ? null : "pause",
+    };
   }
   return null;
 }

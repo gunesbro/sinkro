@@ -31,9 +31,12 @@ export type ConnectionEvents = {
     state: RoomState | null;
     peers: number;
     video?: string;
+    ads?: number;
   }) => void;
   onState: (state: RoomState) => void;
   onPeers: (count: number) => void;
+  /** How many others are on an ad. */
+  onAds: (count: number) => void;
   /** Someone moved the room to another video. */
   onVideo: (sealed: string) => void;
   onRejected: () => void;
@@ -122,6 +125,10 @@ export class RoomConnection {
     return this.joined && this.send({ type: "state", ...state });
   }
 
+  sendAdState(watching: boolean): boolean {
+    return this.joined && this.send({ type: "ad", watching });
+  }
+
   sendVideo(sealed: string): boolean {
     return this.send({ type: "video/set", sealed });
   }
@@ -184,6 +191,9 @@ export class RoomConnection {
         return;
       case "peers":
         events.onPeers(message.count);
+        return;
+      case "ads":
+        events.onAds(message.count);
         return;
       case "video":
         if (message.sealed !== null) events.onVideo(message.sealed);

@@ -28,7 +28,8 @@ type RoomRecord = {
   /** When someone last joined, or played, paused, seeked or moved the room to another video. */
   activeAt?: number;
 };
-type Attachment = { clientId: string | null };
+/** Kept with the socket, so who's on an ad goes when they do and is never stored. */
+type Attachment = { clientId: string | null; onAd?: boolean };
 type RateWindow = { startedAt: number; count: number };
 
 /**
@@ -91,6 +92,14 @@ export class Room extends DurableObject {
           return ws.close(CloseCode.ProtocolMismatch);
         }
         return this.join(ws);
+      case "ad": {
+        const clientId = this.clientIdOf(ws);
+        if (!clientId) return this.sendError(ws, "not_joined");
+        if (this.isOnAd(ws) === message.watching) return;
+        ws.serializeAttachment({ clientId, onAd: message.watching } satisfies Attachment);
+        this.announceAds();
+        return;
+      }
       case "video/get": {
         const record = await this.readRecord();
         if (!record) return ws.close(CloseCode.RoomNotFound);
@@ -176,7 +185,9 @@ export class Room extends DurableObject {
 
     const peers = this.joinedSockets().length;
     const video = record.video ? { video: record.video } : {};
-    this.send(ws, { type: "joined", clientId, state: record.state, peers, ...video });
+    const othersOnAd = this.joinedSockets().filter((socket) => this.isOnAd(socket)).length;
+    const ads = othersOnAd > 0 ? { ads: othersOnAd } : {};
+    this.send(ws, { type: "joined", clientId, state: record.state, peers, ...video, ...ads });
     this.broadcast({ type: "peers", count: peers }, ws);
   }
 
@@ -184,8 +195,10 @@ export class Room extends DurableObject {
   private async leave(ws: WebSocket): Promise<void> {
     const remaining = this.joinedSockets().filter((socket) => socket !== ws);
     if (this.clientIdOf(ws)) {
+      const wasOnAd = this.isOnAd(ws);
       ws.serializeAttachment({ clientId: null } satisfies Attachment);
       this.broadcast({ type: "peers", count: remaining.length }, ws);
+      if (wasOnAd) this.announceAds();
     }
 
     if (remaining.length === 0 && (await this.readRecord())) {
@@ -195,6 +208,19 @@ export class Room extends DurableObject {
 
   private readRecord(): Promise<RoomRecord | undefined> {
     return this.ctx.storage.get<RoomRecord>("room");
+  }
+
+  private isOnAd(ws: WebSocket): boolean {
+    return (ws.deserializeAttachment() as Attachment | null)?.onAd === true;
+  }
+
+  /** Everyone hears about the others, so nobody is told about their own ad. */
+  private announceAds(): void {
+    const sockets = this.joinedSockets();
+    const total = sockets.filter((socket) => this.isOnAd(socket)).length;
+    for (const socket of sockets) {
+      this.send(socket, { type: "ads", count: total - (this.isOnAd(socket) ? 1 : 0) });
+    }
   }
 
   private clientIdOf(ws: WebSocket): string | null {

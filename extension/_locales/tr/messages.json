@@ -319,5 +319,29 @@
   },
   "roomIdleHelp": {
     "message": "12 saattir oynatılmadı, durdurulmadı, sarılmadı. İzlemeye devam etmek için yeni bir oda oluştur."
+  },
+  "oneOtherOnAd": {
+    "message": "Biri reklam izliyor"
+  },
+  "othersOnAd": {
+    "message": "$COUNT$ kişi reklam izliyor",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "othersOnAdHelp": {
+    "message": "Sen izlemeye devam ediyorsun. Beklemek istersen durdurabilirsin."
+  },
+  "othersOnAdPausedHelp": {
+    "message": "Video durdu. Reklam bitince haber veririz."
+  },
+  "pauseVideo": {
+    "message": "Durdur"
+  },
+  "notifyAdEnded": {
+    "message": "Reklam bitti"
   }
 }

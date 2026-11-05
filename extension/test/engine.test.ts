@@ -12,6 +12,7 @@ function setup() {
   const changes: PlaybackChange[] = [];
   const ownChanges: PlaybackChange[] = [];
   const rates: number[] = [];
+  const holdChanges: (HoldReason | "other_video" | null)[] = [];
   const sent: PlaybackState[] = [];
   const video = new FakeVideo();
   const hold: { reason: HoldReason | null; roomPosition: number | null } = {
@@ -31,6 +32,7 @@ function setup() {
       ownChanges.push(change);
       rates.push(rate);
     },
+    onHoldChange: (reason) => holdChanges.push(reason),
     holdFor: (roomPosition) => {
       hold.roomPosition = roomPosition;
       return hold.reason;
@@ -56,7 +58,19 @@ function setup() {
   const setOnline = (value: boolean) => {
     online = value;
   };
-  return { engine, video, sent, peerState, serverNow, setOnline, hold, changes, ownChanges, rates };
+  return {
+    engine,
+    video,
+    sent,
+    peerState,
+    serverNow,
+    setOnline,
+    hold,
+    changes,
+    ownChanges,
+    rates,
+    holdChanges,
+  };
 }
 
 /** Joins a room others are in, and settles on a playing timeline at `position`. */
@@ -1174,6 +1188,27 @@ describe("telling the viewer what they did themselves", () => {
     await settle();
 
     expect(context.ownChanges).toEqual([]);
+  });
+});
+
+describe("saying when a hold starts and ends", () => {
+  it("reports each change once", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.hold.reason = "ad";
+    await vi.advanceTimersByTimeAsync(3000);
+    context.hold.reason = null;
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(context.holdChanges).toEqual(["ad", null]);
+  });
+
+  it("says nothing with no hold", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(context.holdChanges).toEqual([]);
   });
 });
 

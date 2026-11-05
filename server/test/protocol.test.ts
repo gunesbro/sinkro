@@ -9,6 +9,8 @@ describe("parseServerMessage", () => {
     [{ type: "joined", clientId: "a", state: null, peers: 1 }],
     [{ type: "joined", clientId: "a", state: roomState, peers: 2 }],
     [{ type: "joined", clientId: "a", state: null, peers: 2, video: "sealed" }],
+    [{ type: "joined", clientId: "a", state: null, peers: 2, ads: 1 }],
+    [{ type: "ads", count: 2 }],
     [{ type: "state", ...roomState }],
     [{ type: "peers", count: 3 }],
     [{ type: "pong", clientTime: 1, serverTime: 2 }],
