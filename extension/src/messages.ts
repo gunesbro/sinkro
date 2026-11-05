@@ -14,6 +14,8 @@ export type SessionStatus = EngineSnapshot & {
   peers: number;
   /** How many others are on an ad. */
   othersOnAd: number;
+  /** The video is a small one pinned over the page, so the address doesn't say which it is. */
+  isFloatingPlayer: boolean;
   /** This page is the room's video's, whether or not its player has made a video yet. */
   isOnRoomPage: boolean;
   /** The address moved on but the room's film is still playing, as in a miniplayer. */

@@ -14,6 +14,7 @@ const connected: SessionStatus = {
   paused: false,
   othersOnAd: 0,
   isFilmStillPlaying: false,
+  isFloatingPlayer: false,
   isOnRoomPage: false,
   position: 100,
   drift: 0,
@@ -234,6 +235,15 @@ describe("noticeFor", () => {
       const notice = noticeFor({ ...connected, hold: "other_video", videoChange: moved });
       expect(notice).toMatchObject({ titleKey: "youMoved", action: "bring" });
       expect(mustShowNotice(notice)).toBe(true);
+    });
+
+    it("doesn't offer bringing everyone from a miniplayer, whose address isn't the film's", () => {
+      const notice = noticeFor({ ...connected, videoChange: moved, isFloatingPlayer: true });
+      expect(notice).toMatchObject({
+        titleKey: "youMoved",
+        bodyKey: "youMovedFloatingHelp",
+        action: "return",
+      });
     });
 
     it("only offers going back from a page with no video to bring anyone to", () => {

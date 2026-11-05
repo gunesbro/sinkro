@@ -25,6 +25,7 @@ import {
   saveRemembered,
   selectorFor,
 } from "./detection/remembered";
+import { isFloatingPlayer } from "./detection/floating";
 import { VideoTracker } from "./detection/tracker";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
@@ -152,6 +153,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       videoChange: hooks.videoChange(),
       isFilmStillPlaying: hooks.isFilmStillPlaying(),
       isOnRoomPage: hooks.isOnRoomPage(),
+      isFloatingPlayer: isFloatingPlayer(tracker.video()),
     }),
     stop: () => {
       window.removeEventListener("online", onOnline);

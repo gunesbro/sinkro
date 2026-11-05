@@ -96,6 +96,10 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
   if (status.closeReason === "protocol_mismatch") return notice("danger", "updateNeeded", "leave");
   if (status.connection === "reconnecting") return notice("danger", "connLost");
   if (status.videoChange?.kind === "you_moved") {
+    // This page's address isn't the film's, so bringing everyone would send them to the wrong place.
+    if (status.isFloatingPlayer) {
+      return { ...notice("warn", "youMoved", "return"), bodyKey: "youMovedFloatingHelp" };
+    }
     return notice("warn", "youMoved", status.hasVideo ? "bring" : "return");
   }
   if (status.videoChange?.kind === "room_moved") {

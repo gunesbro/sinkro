@@ -184,20 +184,28 @@ function renderRoom(): void {
       ? goneNotice
       : (changeNotice ??
         (showGoButton ? goNotice : isWaitingForPage ? waitingNotice : noticeFor(status)));
-  element("alert").hidden = !notice;
-  if (notice) {
-    setDot("alert-dot", notice.tone);
-    element("alert-title").textContent = t(notice.titleKey, notice.titleSubstitutions);
-    element("alert-detail").textContent = notice.detail ?? "";
-    element("alert-body").textContent = t(notice.bodyKey);
-    element("pick-room").hidden = notice.action !== "pick";
+  // Says why bringing everyone is off, in the popup only: on the page it would cover the film.
+  const floatingNotice: Notice = {
+    tone: "idle",
+    titleKey: "floatingPlayer",
+    bodyKey: "floatingPlayerHelp",
+    action: null,
+  };
+  const shownNotice = notice ?? (status?.isFloatingPlayer ? floatingNotice : null);
+  element("alert").hidden = !shownNotice;
+  if (shownNotice) {
+    setDot("alert-dot", shownNotice.tone);
+    element("alert-title").textContent = t(shownNotice.titleKey, shownNotice.titleSubstitutions);
+    element("alert-detail").textContent = shownNotice.detail ?? "";
+    element("alert-body").textContent = t(shownNotice.bodyKey);
+    element("pick-room").hidden = shownNotice.action !== "pick";
   }
   element<HTMLButtonElement>("move-badge").disabled = !status?.hasVideo;
   // Being on another video is exactly when this button is the way out.
   const isHeldBack = status?.hold != null && status.hold !== "other_video";
   // The page's address isn't the film's here, and that's what bringing everyone would send.
   element<HTMLButtonElement>("bring").disabled =
-    status?.connection !== "connected" || !status.hasVideo || isHeldBack || isFilmStillPlaying;
+    status?.connection !== "connected" || !status.hasVideo || isHeldBack || status.isFloatingPlayer;
 }
 
 function render(): void {
