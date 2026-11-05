@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isHoverPreview, isSmallInWindow } from "../src/content/detection/floating";
+import { isHoverPreview, isPreviewSized, isSmallInWindow } from "../src/content/detection/floating";
 
 const window = { width: 1600, height: 900 };
 
@@ -48,6 +48,31 @@ describe("isHoverPreview once it's been one", () => {
     ["made big", { isSmall: false }],
   ])("stops being one when %s", (_, change) => {
     expect(isHoverPreview({ ...was, ...change })).toBe(false);
+  });
+});
+
+describe("isPreviewSized", () => {
+  it.each([
+    ["a feed's thumbnail", { width: 400, height: 225 }, { width: 1280, height: 800 }, true],
+    [
+      "a thumbnail in a narrow window",
+      { width: 400, height: 220 },
+      { width: 950, height: 800 },
+      true,
+    ],
+    [
+      "YouTube's player on its own page",
+      { width: 873, height: 491 },
+      { width: 1280, height: 800 },
+      false,
+    ],
+    ["a modest player on a page", { width: 800, height: 450 }, { width: 1600, height: 900 }, false],
+  ])("judges %s", (_, video, size, expected) => {
+    expect(isPreviewSized(video, size)).toBe(expected);
+  });
+
+  it("has no answer in a window with no size", () => {
+    expect(isPreviewSized({ width: 10, height: 10 }, { width: 0, height: 0 })).toBe(false);
   });
 });
 

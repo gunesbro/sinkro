@@ -1,12 +1,22 @@
 // A miniplayer: a small video pinned over a page that's about something else, so the page's
 // address doesn't say which film this is. Nothing here is specific to one site.
 const MAX_SHARE_OF_WINDOW = 0.5;
+/**
+ * A feed's thumbnail is around a tenth of the window, and a page's own player around four
+ * tenths even when it's modest. A muted film opened by clicking has the pointer resting on it.
+ */
+const MAX_PREVIEW_SHARE_OF_WINDOW = 0.25;
 
 type Box = { width: number; height: number };
 
 export function isSmallInWindow(video: Box, window: Box): boolean {
   const area = window.width * window.height;
   return area > 0 && (video.width * video.height) / area < MAX_SHARE_OF_WINDOW;
+}
+
+export function isPreviewSized(video: Box, window: Box): boolean {
+  const area = window.width * window.height;
+  return area > 0 && (video.width * video.height) / area < MAX_PREVIEW_SHARE_OF_WINDOW;
 }
 
 export type PreviewSignals = {
@@ -20,8 +30,8 @@ export type PreviewSignals = {
   wasPreview: boolean;
 };
 
-/** A preview starts as the pointer arrives, so one further in than this isn't one. */
-const PREVIEW_START_SECONDS = 3;
+/** A preview starts as the pointer arrives, though a site can start one out of sight a few seconds early. Further in than this, it isn't one. */
+const PREVIEW_START_SECONDS = 10;
 
 /**
  * What a feed plays under the pointer. It isn't what anyone came to watch: it stops when the

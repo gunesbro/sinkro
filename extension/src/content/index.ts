@@ -25,7 +25,7 @@ import {
   saveRemembered,
   selectorFor,
 } from "./detection/remembered";
-import { isFloatingPlayer, isHoverPreview, isSmallInWindow } from "./detection/floating";
+import { isFloatingPlayer, isHoverPreview, isPreviewSized } from "./detection/floating";
 import { VideoTracker } from "./detection/tracker";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
@@ -344,7 +344,7 @@ class FrameSession {
     if (!video) return false;
     const isPreview = isHoverPreview({
       muted: video.muted || video.volume === 0,
-      isSmall: isSmallInWindow(video.getBoundingClientRect(), {
+      isSmall: isPreviewSized(video.getBoundingClientRect(), {
         width: window.innerWidth,
         height: window.innerHeight,
       }),
