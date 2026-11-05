@@ -26,7 +26,8 @@ export type BackgroundRequest =
   // From extension pages.
   | { type: "room/create" }
   | { type: "session/of"; tabId: number }
-  | { type: "session/join"; tabId: number; code: string }
+  /** With a url, the tab goes there too, as joining from an invite link does. */
+  | { type: "session/join"; tabId: number; code: string; url?: string }
   | { type: "session/leave"; tabId: number }
   | { type: "picker/start"; tabId: number }
   // From content scripts, in every frame.

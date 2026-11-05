@@ -138,7 +138,7 @@
     }
   },
   "pageUnavailable": {
-    "message": "Sinkro bu sayfada çalışamıyor"
+    "message": "Oda oluşturmak için bir video aç. Kodla yine de katılabilirsin."
   },
   "badCode": {
     "message": "Bu bir oda kodu veya davet linkine benzemiyor."
@@ -208,5 +208,14 @@
   },
   "onHold": {
     "message": "Beklemede"
+  },
+  "waitingForVideo": {
+    "message": "Video bekleniyor"
+  },
+  "openVideoHere": {
+    "message": "Videoyu bu sekmede aç"
+  },
+  "openVideoHereHelp": {
+    "message": "Odadasın. Bu sekmede videonun sayfasına gidince senkron başlar."
   }
 }

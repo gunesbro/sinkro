@@ -7,7 +7,7 @@ import {
   type Language,
   type Messages,
 } from "../i18n";
-import { inviteLink, parseRoomInput } from "../invite";
+import { inviteLink, isSamePage, parseJoinInput } from "../invite";
 import type {
   BackgroundRequest,
   CreateRoomResponse,
@@ -23,6 +23,10 @@ import { noticeFor, statusLine, type Tone } from "../status";
 const STATUS_POLL_MS = 500;
 const PEEK_INTERVAL_MS = 1500;
 const COPIED_MS = 1500;
+/** Without an answer from the tab for this long, it isn't on a page Sinkro can run on. */
+const NO_PAGE_AFTER_MS = 1500;
+/** Longer when the tab has just been sent to a video, which takes a moment to load. */
+const NO_PAGE_AFTER_LOADING_MS = 10_000;
 
 type View = "home" | "room" | "settings";
 
@@ -44,6 +48,8 @@ let pageUrl: string | null = null;
 let bestPeek: { score: number; duration: number | null } = { score: 0, duration: null };
 let homeError = "";
 let isBusy = false;
+let noAnswerSince: number | null = null;
+let noPageAfterMs = NO_PAGE_AFTER_MS;
 
 const t = (key: string, substitutions?: string[]) => translate(messages, key, substitutions);
 
@@ -86,14 +92,18 @@ function renderHome(): void {
 
   element<HTMLButtonElement>("pick-home").hidden = !pageReachable;
   element<HTMLButtonElement>("create").disabled = !pageReachable || isBusy;
-  element<HTMLButtonElement>("join-form").querySelector("button")!.disabled =
-    !pageReachable || isBusy;
+  // Joining works from any tab: the room is kept for the tab and starts on the next page.
+  element<HTMLButtonElement>("join-form").querySelector("button")!.disabled = isBusy;
 }
 
 function renderRoom(): void {
   element("room-code").textContent = session?.code ?? "";
 
-  const line = statusLine(status);
+  const isWaitingForPage =
+    !status && noAnswerSince !== null && Date.now() - noAnswerSince >= noPageAfterMs;
+  const line = isWaitingForPage
+    ? ({ tone: "idle", key: "waitingForVideo" } as const)
+    : statusLine(status);
   setDot("room-dot", line.tone);
   element("room-status").textContent = t(line.key);
 
@@ -104,7 +114,14 @@ function renderRoom(): void {
       ? (formatTimecode(status.position) ?? "")
       : "";
 
-  const notice = noticeFor(status);
+  const notice = isWaitingForPage
+    ? ({
+        tone: "idle",
+        titleKey: "openVideoHere",
+        bodyKey: "openVideoHereHelp",
+        action: null,
+      } as const)
+    : noticeFor(status);
   element("alert").hidden = !notice;
   if (notice) {
     setDot("alert-dot", notice.tone);
@@ -142,6 +159,8 @@ async function refreshStatus(): Promise<void> {
     (await chrome.tabs
       .sendMessage<TabRequest, SessionStatus | null>(tabId, request)
       .catch(() => null)) ?? null;
+  if (status) noAnswerSince = null;
+  else noAnswerSince ??= Date.now();
   if (view === "room") renderRoom();
 }
 
@@ -162,9 +181,9 @@ function onPeekReport(report: PeekReport): void {
   if (view === "home") renderHome();
 }
 
-async function enterRoom(code: string): Promise<void> {
+async function enterRoom(code: string, url?: string): Promise<void> {
   if (tabId === undefined) return;
-  const joined = await send<JoinResponse>({ type: "session/join", tabId, code });
+  const joined = await send<JoinResponse>({ type: "session/join", tabId, code, url });
   if ("error" in joined) {
     homeError = t("badCode");
     render();
@@ -172,6 +191,8 @@ async function enterRoom(code: string): Promise<void> {
   }
   session = await send<TabSession | null>({ type: "session/of", tabId });
   status = null;
+  noAnswerSince = null;
+  noPageAfterMs = url ? NO_PAGE_AFTER_LOADING_MS : NO_PAGE_AFTER_MS;
   homeError = "";
   setView("room");
   void refreshStatus();
@@ -194,14 +215,18 @@ async function onCreate(): Promise<void> {
 async function onJoin(event: Event): Promise<void> {
   event.preventDefault();
   const input = element<HTMLInputElement>("join-input");
-  const code = parseRoomInput(input.value);
-  if (!code) {
+  const parsed = parseJoinInput(input.value);
+  if (!parsed) {
     homeError = t("badCode");
     render();
     input.focus();
     return;
   }
-  await enterRoom(code);
+  // A link's video opens here, unless this tab is already on it.
+  await enterRoom(
+    parsed.code,
+    parsed.url && !isSamePage(pageUrl, parsed.url) ? parsed.url : undefined,
+  );
 }
 
 async function onLeave(): Promise<void> {
@@ -303,7 +328,8 @@ async function start(): Promise<void> {
   // only on the home view, where a video that's still loading can turn up.
   peek();
   setInterval(() => {
-    if (view === "home") peek();
+    // In a room, keep looking only until the address for invite links turns up.
+    if (view === "home" || !pageUrl) peek();
   }, PEEK_INTERVAL_MS);
   void refreshStatus();
   setInterval(() => void refreshStatus(), STATUS_POLL_MS);

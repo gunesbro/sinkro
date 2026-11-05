@@ -138,7 +138,7 @@
     }
   },
   "pageUnavailable": {
-    "message": "Sinkro can't run on this page"
+    "message": "Open a video to create a room. You can still join with a code."
   },
   "badCode": {
     "message": "That doesn't look like a room code or invite link."
@@ -208,5 +208,14 @@
   },
   "onHold": {
     "message": "On hold"
+  },
+  "waitingForVideo": {
+    "message": "Waiting for a video"
+  },
+  "openVideoHere": {
+    "message": "Open the video in this tab"
+  },
+  "openVideoHereHelp": {
+    "message": "You're in the room. Sync starts once this tab is on the video's page."
   }
 }

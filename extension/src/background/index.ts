@@ -128,6 +128,11 @@ async function handleFromExtensionPage(request: BackgroundRequest) {
       const code = normalizeRoomCode(request.code);
       if (!code) return { error: "invalid_code" };
       const session = await joinTab(request.tabId, code);
+      if (request.url && /^https?:/.test(request.url)) {
+        // The session is stored for the tab, so the page it lands on picks it up as it loads.
+        await chrome.tabs.update(request.tabId, { url: request.url });
+        return { code };
+      }
       await sendToTab(request.tabId, { type: "session/changed", session });
       await sendToTab(request.tabId, { type: "session/role", active: true }, TOP_FRAME_ID);
       return { code };
