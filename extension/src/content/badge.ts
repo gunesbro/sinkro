@@ -31,6 +31,8 @@ const MIN_VIDEO_HEIGHT_PX = 120;
 const QUIET_AFTER_MS = 5000;
 /** How long "Starting…" stays before offering the button again, if nothing has happened. */
 const JOIN_PRESS_MS = 5000;
+/** Long enough to read in passing, and it asks nothing of anyone. */
+const FLASH_MS = 3000;
 /** A pointer on the badge in move mode must never reach the player underneath. */
 const SWALLOWED_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick"];
 
@@ -60,6 +62,7 @@ export class VideoBadge {
   private readonly pill = document.createElement("div");
   private readonly dot = document.createElement("span");
   private readonly pillText = document.createElement("span");
+  private readonly flashMessage = document.createElement("div");
   private readonly card = document.createElement("div");
   private readonly cardDot = document.createElement("span");
   private readonly cardTitle = document.createElement("span");
@@ -79,6 +82,7 @@ export class VideoBadge {
   private lastChangeAt = 0;
   private lastPillText = "";
   private lastPillLabel = "";
+  private flashTimer: ReturnType<typeof setTimeout> | null = null;
   private joinPressedAt = Number.NEGATIVE_INFINITY;
 
   constructor(options: BadgeOptions) {
@@ -148,7 +152,19 @@ export class VideoBadge {
     this.pill.focus();
   }
 
+  /** A brief word about what someone else just did. */
+  flash(key: string): void {
+    this.flashMessage.textContent = translate(this.messages, key);
+    this.flashMessage.style.display = "block";
+    if (this.flashTimer !== null) clearTimeout(this.flashTimer);
+    this.flashTimer = setTimeout(() => {
+      this.flashMessage.style.display = "none";
+      this.flashTimer = null;
+    }, FLASH_MS);
+  }
+
   stop(): void {
+    if (this.flashTimer !== null) clearTimeout(this.flashTimer);
     if (this.frameRequest !== null) cancelAnimationFrame(this.frameRequest);
     this.listeners.abort();
     this.host.remove();
@@ -356,6 +372,11 @@ export class VideoBadge {
     this.dot.style.cssText = "width: 8px; height: 8px; border-radius: 50%; flex: none;";
     this.pill.append(this.dot, this.pillText);
 
+    this.flashMessage.setAttribute("role", "status");
+    this.flashMessage.style.cssText = `display: none; padding: 8px 12px; border-radius: 12px;
+      background: ${OVERLAY_BACKGROUND}; border: 1px solid ${OVERLAY_BORDER}; font-size: 13px;
+      font-weight: 500;`;
+
     this.card.setAttribute("role", "alert");
     this.card.style.cssText = `display: none; flex-direction: column; gap: 4px; padding: 12px 14px;
       border-radius: 14px; background: ${OVERLAY_BACKGROUND}; border: 1px solid ${OVERLAY_BORDER};`;
@@ -392,7 +413,7 @@ export class VideoBadge {
     );
     this.movePanel.append(hint, buttons);
 
-    this.stack.append(this.pill, this.card, this.movePanel);
+    this.stack.append(this.pill, this.flashMessage, this.card, this.movePanel);
     root.append(this.stack);
   }
 }

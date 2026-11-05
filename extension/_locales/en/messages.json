@@ -259,5 +259,14 @@
   },
   "starting": {
     "message": "Starting…"
+  },
+  "notifyPlayed": {
+    "message": "Video started"
+  },
+  "notifyPaused": {
+    "message": "Video paused"
+  },
+  "notifySeeked": {
+    "message": "Video moved to another spot"
   }
 }
