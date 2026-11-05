@@ -283,5 +283,14 @@
   },
   "backToRoom": {
     "message": "Odaya dön"
+  },
+  "notifyYouPlayed": {
+    "message": "Videoyu başlattın"
+  },
+  "notifyYouPaused": {
+    "message": "Videoyu durdurdun"
+  },
+  "notifyYouSeeked": {
+    "message": "Videoyu sardın"
   }
 }

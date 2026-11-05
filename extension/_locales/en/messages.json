@@ -283,5 +283,14 @@
   },
   "backToRoom": {
     "message": "Back to the room"
+  },
+  "notifyYouPlayed": {
+    "message": "You started the video"
+  },
+  "notifyYouPaused": {
+    "message": "You paused the video"
+  },
+  "notifyYouSeeked": {
+    "message": "You moved the video"
   }
 }

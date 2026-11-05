@@ -47,8 +47,8 @@ export type SyncedVideo = Pick<
 /** Why a video isn't following the room right now. */
 export type Hold = HoldReason | "other_video";
 
-/** What someone else just did, for telling the viewer. */
-export type RemoteChange = "played" | "paused" | "seeked";
+/** What someone just did to the room's video, for telling the viewer. */
+export type PlaybackChange = "played" | "paused" | "seeked";
 
 /** A jump smaller than this is drift being settled, not someone seeking. */
 const SEEK_NOTICE_SECONDS = 2;
@@ -60,7 +60,9 @@ export type EngineDeps = {
   send: (state: PlaybackState) => boolean;
   /** Says why the video can't follow the room right now, such as an ad playing. */
   holdFor?: (roomPosition: number | null) => Hold | null;
-  onRemoteChange?: (change: RemoteChange) => void;
+  onRemoteChange?: (change: PlaybackChange) => void;
+  /** This viewer's own action reached the others. Not called when nobody else is there. */
+  onOwnChange?: (change: PlaybackChange) => void;
 };
 
 export type EngineSnapshot = {
@@ -191,7 +193,7 @@ export class SyncEngine {
     if (change) this.deps.onRemoteChange?.(change);
   }
 
-  private describeChange(next: PlaybackState): RemoteChange | null {
+  private describeChange(next: PlaybackState): PlaybackChange | null {
     const { timeline } = this;
     if (!timeline) return null;
     if (timeline.playing !== next.playing) return next.playing ? "played" : "paused";
@@ -500,7 +502,7 @@ export class SyncEngine {
       // Pressing play on a video that loads only then is the one clear wish.
       if (timeline && !timeline.playing && !video.paused) {
         const position = targetPosition(timeline, this.deps.serverNow(), Number.POSITIVE_INFINITY);
-        this.publish(position);
+        this.publish(position, true);
       }
       return;
     }
@@ -516,14 +518,14 @@ export class SyncEngine {
 
     const wait = this.lastPublishAt + PUBLISH_INTERVAL_MS - this.deps.now();
     if (wait <= 0) {
-      this.publish();
+      this.publish(undefined, true);
     } else if (this.publishTimer === null) {
       // Trailing edge: dragging the seek bar sends where it ended up, not every stop.
-      this.publishTimer = setTimeout(() => this.publish(), wait);
+      this.publishTimer = setTimeout(() => this.publish(undefined, true), wait);
     }
   }
 
-  private publish(position?: number): void {
+  private publish(position?: number, isViewersAction = false): void {
     this.cancelPublish();
     const { video } = this;
     if (!this.joined || !video) return;
@@ -537,10 +539,12 @@ export class SyncEngine {
     };
     if (!this.deps.send(state)) return;
 
+    const change = isViewersAction && !this.isAlone ? this.describeChange(state) : null;
     this.unacked += 1;
     this.lastPublishAt = this.deps.now();
     this.timeline = state;
     this.finishCorrection();
+    if (change) this.deps.onOwnChange?.(change);
   }
 
   private cancelPublish(): void {
