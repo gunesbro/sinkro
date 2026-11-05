@@ -11,6 +11,7 @@ import type {
   TabRequest,
   TabSession,
 } from "../messages";
+import { formatRate } from "../format";
 import { INVITE_ORIGIN, isSamePage } from "../invite";
 import { roomSocketUrl } from "../settings";
 import type { VideoChange } from "../video-change";
@@ -27,7 +28,7 @@ import {
 import { VideoTracker } from "./detection/tracker";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
-import { SyncEngine, type RemoteChange } from "./sync/engine";
+import { SyncEngine, type PlaybackChange } from "./sync/engine";
 
 const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
@@ -43,14 +44,23 @@ type Room = {
   stop: () => void;
 };
 
-const CHANGE_MESSAGES: Record<RemoteChange, string> = {
+const REMOTE_CHANGE_MESSAGES: Record<PlaybackChange, string> = {
   played: "notifyPlayed",
   paused: "notifyPaused",
   seeked: "notifySeeked",
+  rate: "notifyRate",
+};
+
+const OWN_CHANGE_MESSAGES: Record<PlaybackChange, string> = {
+  played: "notifyYouPlayed",
+  paused: "notifyYouPaused",
+  seeked: "notifyYouSeeked",
+  rate: "notifyYouRate",
 };
 
 type RoomHooks = {
-  onRemoteChange: (change: RemoteChange) => void;
+  onRemoteChange: (change: PlaybackChange, rate: number) => void;
+  onOwnChange: (change: PlaybackChange, rate: number) => void;
   onRoomVideo: (sealed: string, announced: boolean) => void;
   isOnOtherVideo: () => boolean;
   videoChange: () => VideoChange | null;
@@ -69,6 +79,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     holdFor: (roomPosition) =>
       hooks.isOnOtherVideo() ? "other_video" : tracker.holdReason(roomPosition, peers > 1),
     onRemoteChange: hooks.onRemoteChange,
+    onOwnChange: hooks.onOwnChange,
   });
   const connection = new RoomConnection({
     url: roomSocketUrl(serverUrl, code),
@@ -173,9 +184,14 @@ class FrameSession {
   setActive(active: boolean): void {
     if (active && !this.room) {
       this.room = startRoom(this.session, this.tracker, {
-        onRemoteChange: (change) => {
+        onRemoteChange: (change, rate) => {
           // It's about a video this viewer isn't on.
-          if (!this.isOnOtherVideo()) this.badge?.flash(CHANGE_MESSAGES[change]);
+          if (!this.isOnOtherVideo()) {
+            this.badge?.flash(REMOTE_CHANGE_MESSAGES[change], [formatRate(rate)]);
+          }
+        },
+        onOwnChange: (change, rate) => {
+          this.badge?.flash(OWN_CHANGE_MESSAGES[change], [formatRate(rate)]);
         },
         onRoomVideo: (sealed, announced) => this.onRoomVideo(sealed, announced),
         isOnOtherVideo: () => this.isOnOtherVideo(),

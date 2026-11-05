@@ -269,6 +269,24 @@
   "notifySeeked": {
     "message": "Video başka bir yere sarıldı"
   },
+  "notifyRate": {
+    "message": "Video hızı $RATE$ oldu",
+    "placeholders": {
+      "rate": {
+        "content": "$1",
+        "example": "1.5x"
+      }
+    }
+  },
+  "notifyYouRate": {
+    "message": "Video hızını $RATE$ yaptın",
+    "placeholders": {
+      "rate": {
+        "content": "$1",
+        "example": "1.5x"
+      }
+    }
+  },
   "youMoved": {
     "message": "Başka bir videodasın"
   },
@@ -283,5 +301,14 @@
   },
   "backToRoom": {
     "message": "Odaya dön"
+  },
+  "notifyYouPlayed": {
+    "message": "Videoyu başlattın"
+  },
+  "notifyYouPaused": {
+    "message": "Videoyu durdurdun"
+  },
+  "notifyYouSeeked": {
+    "message": "Videoyu sardın"
   }
 }

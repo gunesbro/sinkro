@@ -167,8 +167,8 @@ export class VideoBadge {
   }
 
   /** A brief word about what someone else just did. */
-  flash(key: string): void {
-    this.flashMessage.textContent = translate(this.messages, key);
+  flash(key: string, substitutions?: string[]): void {
+    this.flashMessage.textContent = translate(this.messages, key, substitutions);
     this.flashMessage.style.display = "block";
     if (this.flashTimer !== null) clearTimeout(this.flashTimer);
     this.flashTimer = setTimeout(() => {

@@ -269,6 +269,24 @@
   "notifySeeked": {
     "message": "Video moved to another spot"
   },
+  "notifyRate": {
+    "message": "Speed is now $RATE$",
+    "placeholders": {
+      "rate": {
+        "content": "$1",
+        "example": "1.5x"
+      }
+    }
+  },
+  "notifyYouRate": {
+    "message": "You set the speed to $RATE$",
+    "placeholders": {
+      "rate": {
+        "content": "$1",
+        "example": "1.5x"
+      }
+    }
+  },
   "youMoved": {
     "message": "You're on a different video"
   },
@@ -283,5 +301,14 @@
   },
   "backToRoom": {
     "message": "Back to the room"
+  },
+  "notifyYouPlayed": {
+    "message": "You started the video"
+  },
+  "notifyYouPaused": {
+    "message": "You paused the video"
+  },
+  "notifyYouSeeked": {
+    "message": "You moved the video"
   }
 }
