@@ -174,7 +174,7 @@
     "message": "Sinkro’nun güncellenmesi gerekiyor"
   },
   "updateNeededHelp": {
-    "message": "Bu oda daha yeni bir sürüm kullanıyor. Katılmak için eklentiyi güncelle."
+    "message": "Bu sunucu farklı bir sürüm kullanıyor. Eklentiyi güncellemek genelde çözer."
   },
   "serverLabel": {
     "message": "Sunucu adresi"

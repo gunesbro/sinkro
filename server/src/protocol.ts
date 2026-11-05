@@ -2,6 +2,8 @@
 // This file has no runtime dependencies so the extension can import it too.
 
 export const PROTOCOL_VERSION = 1;
+/** The oldest version the server still works with. Raising it locks out existing installs. */
+export const MIN_PROTOCOL_VERSION = 1;
 
 /** WebSocket close codes the client can act on. */
 export const CloseCode = {

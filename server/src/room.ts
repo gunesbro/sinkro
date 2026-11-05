@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   CloseCode,
+  MIN_PROTOCOL_VERSION,
   PROTOCOL_VERSION,
   parseClientMessage,
   type ErrorCode,
@@ -76,7 +77,9 @@ export class Room extends DurableObject {
           serverTime: Date.now(),
         });
       case "join":
-        if (message.protocol !== PROTOCOL_VERSION) return ws.close(CloseCode.ProtocolMismatch);
+        if (message.protocol < MIN_PROTOCOL_VERSION || message.protocol > PROTOCOL_VERSION) {
+          return ws.close(CloseCode.ProtocolMismatch);
+        }
         return this.join(ws);
       case "state": {
         const clientId = this.clientIdOf(ws);
