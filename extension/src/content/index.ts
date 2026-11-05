@@ -2,8 +2,10 @@
 // videos and reports its best one, and the background picks one frame to run the room
 // connection and sync engine. Pages that aren't in a room get no socket and no timers.
 import type { Messages } from "../i18n";
+import type { RoomState } from "../../../server/src/protocol";
 import type {
   BackgroundRequest,
+  SourceMismatch,
   PeekReport,
   ReportResponse,
   SessionInfo,
@@ -35,6 +37,8 @@ import { ChangeNotices, type ChangeDetails } from "./sync/notices";
 
 const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
+/** Two lengths further apart than this are two different cuts of the film. */
+const SAME_LENGTH_SECONDS = 2;
 /** Sites change address without loading a page, and not always through anything hookable. */
 const PAGE_CHECK_MS = 1000;
 /** How often a tab with no video asks whether this is where the room's video should be. */
@@ -76,6 +80,10 @@ type RoomHooks = {
   isFilmStillPlaying: () => boolean;
   isOnRoomPage: () => boolean;
   isHoverPreview: () => boolean;
+  /** Someone else's state, for what it says about their film. */
+  onOthersState: (state: RoomState) => void;
+  filmDetails: () => Pick<RoomState, "duration" | "source">;
+  sourceMismatch: () => SourceMismatch | null;
 };
 
 function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks: RoomHooks): Room {
@@ -84,6 +92,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   let closeReason: CloseReason | null = null;
   let peers = 0;
   let othersOnAd = 0;
+  let ownId: string | null = null;
   let isOnAd = false;
 
   const engine = new SyncEngine({
@@ -94,6 +103,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       hooks.isOnOtherVideo() ? "other_video" : tracker.holdReason(roomPosition, peers > 1),
     onRemoteChange: hooks.onRemoteChange,
     onOwnChange: hooks.onOwnChange,
+    filmDetails: hooks.filmDetails,
     onHoldChange: (hold) => {
       isOnAd = hold === "ad";
       connection.sendAdState(isOnAd);
@@ -105,6 +115,8 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     events: {
       onJoined: (message) => {
         peers = message.peers;
+        ownId = message.clientId;
+        if (message.state && message.state.from !== ownId) hooks.onOthersState(message.state);
         hooks.onPeopleChange(peers);
         othersOnAd = message.ads ?? 0;
         if (message.video) hooks.onRoomVideo(message.video, false);
@@ -112,7 +124,10 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         // The room forgot this along with the old connection.
         if (isOnAd) connection.sendAdState(true);
       },
-      onState: (state) => engine.handleState(state),
+      onState: (state) => {
+        if (state.from !== ownId) hooks.onOthersState(state);
+        engine.handleState(state);
+      },
       onPeers: (count) => {
         peers = count;
         hooks.onPeopleChange(count);
@@ -153,6 +168,8 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       closeReason,
       peers,
       othersOnAd,
+      // An ad has a length of its own, which says nothing about the source.
+      sourceMismatch: engine.snapshot().hold ? null : hooks.sourceMismatch(),
       videoChange: hooks.videoChange(),
       isFilmStillPlaying: hooks.isFilmStillPlaying(),
       isOnRoomPage: hooks.isOnRoomPage(),
@@ -205,6 +222,15 @@ class FrameSession {
   private readonly previews = new WeakSet<HTMLVideoElement>();
   private readonly pointerListeners = new AbortController();
   private isOnRoomPage = false;
+  /** The length and sealed player of the film others last said they're on. */
+  private othersFilm: { duration: number | null; source: string | null } = {
+    duration: null,
+    source: null,
+  };
+  private readonly openedSources = new Map<string, string | null>();
+  private ownSource: { host: string; sealed: string } | null = null;
+  private isSealingSource = false;
+  private dismissedMismatch: string | null = null;
   private lastRoomPageCheck = Number.NEGATIVE_INFINITY;
   private videoChange: VideoChange | null = null;
   /** What was playing while this tab was last on the room's video. */
@@ -286,6 +312,9 @@ class FrameSession {
         isFilmStillPlaying: () => this.isFilmStillPlaying(),
         isOnRoomPage: () => this.isOnRoomPage,
         isHoverPreview: () => this.isHoverPreview(),
+        onOthersState: (state) => this.onOthersState(state),
+        filmDetails: () => this.filmDetails(),
+        sourceMismatch: () => this.sourceMismatch(),
       });
       void this.startBadge();
     } else if (!active && this.room) {
@@ -358,6 +387,50 @@ class FrameSession {
     return isPreview;
   }
 
+  private onOthersState(state: RoomState): void {
+    const source = state.source ?? null;
+    this.othersFilm = { duration: state.duration ?? null, source };
+    if (!source || this.openedSources.has(source)) return;
+    this.openedSources.set(source, null);
+    void send<string | null>({ type: "source/open", sealed: source }).then((host) => {
+      this.openedSources.set(source, host ?? null);
+    });
+  }
+
+  /** The player's site is this frame's, since it's the one holding the video. */
+  private filmDetails(): Pick<RoomState, "duration" | "source"> {
+    const host = location.hostname;
+    if (this.ownSource?.host !== host && !this.isSealingSource && host) {
+      this.isSealingSource = true;
+      void send<string | null>({ type: "source/seal", host }).then((sealed) => {
+        this.isSealingSource = false;
+        if (sealed) this.ownSource = { host, sealed };
+      });
+    }
+    const duration = this.tracker.video()?.duration;
+    return {
+      ...(duration !== undefined && Number.isFinite(duration) && duration > 0 ? { duration } : {}),
+      ...(this.ownSource?.host === host ? { source: this.ownSource.sealed } : {}),
+    };
+  }
+
+  private mismatchKey(): string {
+    const mine = this.tracker.video()?.duration ?? 0;
+    return `${Math.round(mine)}|${Math.round(this.othersFilm.duration ?? 0)}`;
+  }
+
+  /** Same length means the same moments line up, whichever source it is, so that's fine. */
+  private sourceMismatch(): SourceMismatch | null {
+    const mine = this.tracker.video()?.duration;
+    const room = this.othersFilm.duration;
+    if (mine === undefined || !Number.isFinite(mine) || mine <= 0 || room === null) return null;
+    if (this.isHoverPreview() || this.videoChange) return null;
+    if (Math.abs(mine - room) <= SAME_LENGTH_SECONDS) return null;
+    if (this.mismatchKey() === this.dismissedMismatch) return null;
+    const { source } = this.othersFilm;
+    return { mine, room, host: source ? (this.openedSources.get(source) ?? null) : null };
+  }
+
   /** Looks at the address each time, so a site changing film is caught before it's touched. */
   private isOnOtherVideo(): boolean {
     this.reportPage();
@@ -427,6 +500,9 @@ class FrameSession {
       onGo: () => void send({ type: "video/go" }),
       onLeave: () => void send({ type: "session/leave" }),
       onPause: () => this.tracker.video()?.pause(),
+      onDismiss: () => {
+        this.dismissedMismatch = this.mismatchKey();
+      },
       onPositionChange: (moved) => void saveBadgePosition(location.hostname, moved),
     });
     this.badgeTimer = setInterval(() => {

@@ -1,9 +1,43 @@
 import { describe, expect, it } from "vitest";
 import { parseClientMessage } from "../../server/src/protocol";
-import { openRoomVideo, sealRoomVideo } from "../src/room-video";
+import { openPlayerHost, openRoomVideo, sealPlayerHost, sealRoomVideo } from "../src/room-video";
 
 const VIDEO = { url: "https://www.example.com/watch?v=1&t=2#frag", title: "Uzun Gece: Çığlık" };
 const withAddress = (url: string) => ({ url, title: "" });
+
+describe("the sealed name of a player's site", () => {
+  it("opens with the same room code", async () => {
+    const sealed = (await sealPlayerHost("K7M-2QX", "video.Example.com")) ?? "";
+    expect(await openPlayerHost("K7M-2QX", sealed)).toBe("video.example.com");
+  });
+
+  it("doesn't show the name", async () => {
+    const sealed = (await sealPlayerHost("K7M-2QX", "video.example.com")) ?? "";
+    expect(atob(sealed)).not.toContain("example");
+  });
+
+  it("doesn't open with another code", async () => {
+    const sealed = (await sealPlayerHost("K7M-2QX", "video.example.com")) ?? "";
+    expect(await openPlayerHost("K7M-2QY", sealed)).toBeNull();
+  });
+
+  it("can't be passed off as a room's video, or the other way round", async () => {
+    const host = (await sealPlayerHost("K7M-2QX", "video.example.com")) ?? "";
+    const video = (await sealRoomVideo("K7M-2QX", VIDEO)) ?? "";
+    expect(await openRoomVideo("K7M-2QX", host)).toBeNull();
+    expect(await openPlayerHost("K7M-2QX", video)).toBeNull();
+  });
+
+  it.each(["", "a b", "x".repeat(254), "evil.com/path", "<b>"])("won't seal %j", async (host) => {
+    expect(await sealPlayerHost("K7M-2QX", host)).toBeNull();
+  });
+
+  it("fits what the server accepts, at the longest name", async () => {
+    const sealed = (await sealPlayerHost("K7M-2QX", "a".repeat(253))) ?? "";
+    expect(sealed.length).toBeGreaterThan(0);
+    expect(sealed.length).toBeLessThanOrEqual(400);
+  });
+});
 
 describe("the sealed address of a room's video", () => {
   it("opens with the same room code", async () => {

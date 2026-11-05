@@ -361,5 +361,41 @@
   },
   "youLeftPage": {
     "message": "Başka bir sayfadasın"
+  },
+  "sourceMismatch": {
+    "message": "Farklı bir kaynak olabilir"
+  },
+  "sourceMismatchHelp": {
+    "message": "Senin videon $MINE$, odanınki $ROOM$. Herkes aynı oynatıcıyı seçmeli.",
+    "placeholders": {
+      "mine": {
+        "content": "$1",
+        "example": "24:31"
+      },
+      "room": {
+        "content": "$2",
+        "example": "23:58"
+      }
+    }
+  },
+  "sourceMismatchHostHelp": {
+    "message": "Senin videon $MINE$, odanınki $ROOM$ ve $HOST$ oynatıcısından. Herkes aynı oynatıcıyı seçmeli.",
+    "placeholders": {
+      "mine": {
+        "content": "$1",
+        "example": "24:31"
+      },
+      "room": {
+        "content": "$2",
+        "example": "23:58"
+      },
+      "host": {
+        "content": "$3",
+        "example": "video.example.com"
+      }
+    }
+  },
+  "gotIt": {
+    "message": "Tamam"
   }
 }

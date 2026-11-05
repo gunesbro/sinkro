@@ -8,12 +8,16 @@ import type { VideoChange } from "./video-change";
 /** The room a tab is in. Kept by the background so it survives page loads in that tab. */
 export type TabSession = { code: string; serverUrl: string };
 
+/** The room's film is a different length from this viewer's: likely another source. */
+export type SourceMismatch = { mine: number; room: number; host: string | null };
+
 export type SessionStatus = EngineSnapshot & {
   connection: ConnectionStatus;
   closeReason: CloseReason | null;
   peers: number;
   /** How many others are on an ad. */
   othersOnAd: number;
+  sourceMismatch: SourceMismatch | null;
   /** The video is a small one pinned over the page, so the address doesn't say which it is. */
   isFloatingPlayer: boolean;
   /** This page is the room's video's, whether or not its player has made a video yet. */
@@ -57,6 +61,9 @@ export type BackgroundRequest =
   /** From the frame running the room, for the number on the toolbar icon. 0 means not connected. */
   | { type: "room/people"; count: number }
   | { type: "video/on-room-page" }
+  /** Sealing needs the room code and a secure context, which a content script may not have. */
+  | { type: "source/seal"; host: string }
+  | { type: "source/open"; sealed: string }
   /** From the top frame, which is the only one that knows the page's address. */
   | { type: "page/report"; url: string; title: string }
   /** The room's video as this frame's connection heard it. Only extension pages can open it. */

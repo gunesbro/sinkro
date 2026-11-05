@@ -1227,6 +1227,29 @@ describe("telling the viewer what they did themselves", () => {
   });
 });
 
+describe("sending what the film is", () => {
+  it("adds the film's details to what it sends", async () => {
+    const sent: PlaybackState[] = [];
+    const video = new FakeVideo();
+    const engine = new SyncEngine({
+      now: Date.now,
+      serverNow: Date.now,
+      send: (state) => {
+        sent.push(state);
+        return true;
+      },
+      filmDetails: () => ({ duration: 1471, source: "sealed" }),
+    });
+    video.position = 10;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: null, peers: 1 });
+    await settle();
+
+    expect(sent[0]).toMatchObject({ duration: 1471, source: "sealed" });
+    engine.stop();
+  });
+});
+
 describe("saying when a hold starts and ends", () => {
   it("reports each change once", async () => {
     const context = setup();

@@ -361,5 +361,41 @@
   },
   "youLeftPage": {
     "message": "You're on another page"
+  },
+  "sourceMismatch": {
+    "message": "This may be a different source"
+  },
+  "sourceMismatchHelp": {
+    "message": "Yours is $MINE$ long and the room's is $ROOM$. Everyone should pick the same player.",
+    "placeholders": {
+      "mine": {
+        "content": "$1",
+        "example": "24:31"
+      },
+      "room": {
+        "content": "$2",
+        "example": "23:58"
+      }
+    }
+  },
+  "sourceMismatchHostHelp": {
+    "message": "Yours is $MINE$ long and the room's is $ROOM$, from $HOST$. Everyone should pick the same player.",
+    "placeholders": {
+      "mine": {
+        "content": "$1",
+        "example": "24:31"
+      },
+      "room": {
+        "content": "$2",
+        "example": "23:58"
+      },
+      "host": {
+        "content": "$3",
+        "example": "video.example.com"
+      }
+    }
+  },
+  "gotIt": {
+    "message": "Got it"
   }
 }

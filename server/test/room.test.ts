@@ -538,6 +538,21 @@ describe("hibernation", () => {
   });
 });
 
+describe("a state's film details", () => {
+  it("reach the others and whoever joins later", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.sendState({ duration: 1471, source: "sealed" });
+
+    expect(await b.next()).toMatchObject({ type: "state", duration: 1471, source: "sealed" });
+    const late = await connect(code);
+    late.send({ type: "join", protocol: PROTOCOL_VERSION });
+    expect(await late.next()).toMatchObject({ state: { duration: 1471, source: "sealed" } });
+  });
+});
+
 describe("moving the room to a different film", () => {
   const stateAt = async (code: string) => {
     const late = await connect(code);

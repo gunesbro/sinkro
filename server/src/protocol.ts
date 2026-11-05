@@ -23,6 +23,10 @@ export type PlaybackState = {
   rate: number;
   /** Sender's estimate of server time, in milliseconds since the epoch. */
   sentAt: number;
+  /** The film's length in seconds, so others can tell they're on a different source. */
+  duration?: number;
+  /** The site its player comes from, sealed with the room code. Opaque to the server. */
+  source?: string;
 };
 
 export type ClientMessage =
@@ -66,6 +70,8 @@ const MAX_VIEWER_LENGTH = 64;
 /** Room for a sealed 2048-character address and a title, and small enough to store for every room. */
 const MAX_SEALED_VIDEO_LENGTH = 3900;
 const MAX_POSITION_SECONDS = 7 * 24 * 60 * 60;
+/** Room for a sealed host name of up to 253 characters. */
+const MAX_SOURCE_LENGTH = 400;
 // The range browsers accept for HTMLMediaElement.playbackRate.
 export const MIN_RATE = 0.0625;
 export const MAX_RATE = 16;
@@ -98,7 +104,20 @@ function parsePlayback(value: Record<string, unknown>): PlaybackState | null {
   if (!isFiniteNumber(position) || position < 0 || position > MAX_POSITION_SECONDS) return null;
   if (!isFiniteNumber(rate) || rate < MIN_RATE || rate > MAX_RATE) return null;
   if (!isFiniteNumber(sentAt)) return null;
-  return { playing, position, rate, sentAt };
+  // Optional, so a bad one is dropped rather than costing the whole state.
+  const { duration, source } = value;
+  return {
+    playing,
+    position,
+    rate,
+    sentAt,
+    ...(isFiniteNumber(duration) && duration > 0 && duration <= MAX_POSITION_SECONDS
+      ? { duration }
+      : {}),
+    ...(typeof source === "string" && source.length > 0 && source.length <= MAX_SOURCE_LENGTH
+      ? { source }
+      : {}),
+  };
 }
 
 function parseRoomState(value: Record<string, unknown>): RoomState | null {

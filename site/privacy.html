@@ -30,6 +30,12 @@
           than hiding them from whoever runs the server.
         </li>
         <li>
+          The length of the video you're watching, and the name of the site its player comes from,
+          encrypted with a key made from the room code. Others are told when theirs is a different
+          length, so everyone can pick the same player. They're kept with the room's playback state
+          and deleted with it.
+        </li>
+        <li>
           A random number made when a page connects, so reconnecting after a network drop doesn't
           count you twice. It says nothing about you, and it isn't stored or used anywhere else.
         </li>
