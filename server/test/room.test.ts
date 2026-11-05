@@ -9,7 +9,8 @@ import {
 } from "../src/protocol";
 
 const BASE = "https://sinkro.test";
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 const open: TestClient[] = [];
 
 /** A WebSocket with its incoming frames queued, so tests can read them in order. */
@@ -537,6 +538,100 @@ describe("hibernation", () => {
   });
 });
 
+describe("a room nothing is happening in", () => {
+  const activeAgo = (code: string, ms: number) =>
+    runInDurableObject(env.ROOMS.getByName(code), async (_, state) => {
+      const record = await state.storage.get<object>("room");
+      await state.storage.put("room", { ...record, activeAt: Date.now() - ms });
+    });
+  const check = (code: string) => runDurableObjectAlarm(env.ROOMS.getByName(code));
+
+  it("closes after 12 hours, saying why", async () => {
+    const code = await createRoom();
+    const a = await join(code);
+    const b = await join(code);
+    await activeAgo(code, 12 * HOUR_MS + 1);
+    await check(code);
+
+    expect(await a.client.closed).toBe(CloseCode.RoomIdle);
+    expect(await b.client.closed).toBe(CloseCode.RoomIdle);
+  });
+
+  it("takes everything it held with it", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    client.send({ type: "video/set", sealed: "abc" });
+    await client.next();
+    await activeAgo(code, 12 * HOUR_MS + 1);
+    await check(code);
+    await client.closed;
+
+    expect(await runInDurableObject(env.ROOMS.getByName(code), (_, s) => s.storage.list())).toEqual(
+      new Map(),
+    );
+    const late = await connect(code);
+    expect(await late.closed).toBe(CloseCode.RoomNotFound);
+  });
+
+  it("stays open before that, and checks again later", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    await activeAgo(code, 11 * HOUR_MS);
+    await check(code);
+
+    expect(await getAlarm(code)).toBeGreaterThan(Date.now());
+    client.send({ type: "ping", clientTime: 1 });
+    expect((await client.next()).type).toBe("pong");
+  });
+
+  it("counts a change of playback as something happening", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    await activeAgo(code, 12 * HOUR_MS + 1);
+    client.sendState();
+    await client.next();
+    await check(code);
+
+    client.send({ type: "ping", clientTime: 1 });
+    expect((await client.next()).type).toBe("pong");
+  });
+
+  it("counts moving the room to another video", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    await activeAgo(code, 12 * HOUR_MS + 1);
+    client.send({ type: "video/set", sealed: "abc" });
+    await client.next();
+    await check(code);
+
+    client.send({ type: "ping", clientTime: 1 });
+    expect((await client.next()).type).toBe("pong");
+  });
+
+  it("counts someone joining", async () => {
+    const code = await createRoom();
+    const a = await join(code);
+    await activeAgo(code, 12 * HOUR_MS + 1);
+    await join(code);
+    await a.client.next();
+    await check(code);
+
+    a.client.send({ type: "ping", clientTime: 1 });
+    expect((await a.client.next()).type).toBe("pong");
+  });
+
+  it("doesn't count keeping the connection alive", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    await activeAgo(code, 12 * HOUR_MS + 1);
+    client.send("keepalive");
+    expect(await client.nextFrame()).toBe("keepalive");
+    await check(code);
+
+    expect(await client.closed).toBe(CloseCode.RoomIdle);
+  });
+});
+
 describe("expiry", () => {
   it("schedules a room nobody joins for deletion", async () => {
     const before = Date.now();
@@ -544,10 +639,14 @@ describe("expiry", () => {
     expect(alarm).toBeGreaterThanOrEqual(before + DAY_MS - 5000);
   });
 
-  it("cancels the deletion while someone is in the room", async () => {
+  it("puts off the deletion while someone is in the room", async () => {
     const code = await createRoom();
     await join(code);
-    expect(await getAlarm(code)).toBeNull();
+    expect(await getAlarm(code)).toBeLessThan(Date.now() + 2 * HOUR_MS);
+    expect(await runDurableObjectAlarm(env.ROOMS.getByName(code))).toBe(true);
+    const late = await connect(code);
+    late.send({ type: "join", protocol: PROTOCOL_VERSION });
+    expect((await late.next()).type).toBe("joined");
   });
 
   it("schedules deletion when the last person leaves, and only then", async () => {
@@ -558,10 +657,10 @@ describe("expiry", () => {
 
     b.client.close();
     await a.client.next();
-    expect(await getAlarm(code)).toBeNull();
+    expect(await getAlarm(code)).toBeLessThan(Date.now() + 2 * HOUR_MS);
 
     a.client.close();
-    await expect.poll(() => getAlarm(code)).toBeGreaterThan(Date.now());
+    await expect.poll(() => getAlarm(code)).toBeGreaterThan(Date.now() + 23 * HOUR_MS);
   });
 
   it("deletes an expired room so its code stops working", async () => {

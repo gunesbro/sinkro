@@ -10,6 +10,8 @@ export const CloseCode = {
   ProtocolMismatch: 4400,
   RoomNotFound: 4404,
   RoomFull: 4409,
+  /** Nothing happened in the room for too long. Clients that don't know it reconnect and get RoomNotFound. */
+  RoomIdle: 4408,
 } as const;
 
 export type ErrorCode = "invalid_message" | "not_joined" | "rate_limited";

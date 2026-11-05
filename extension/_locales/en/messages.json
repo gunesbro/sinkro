@@ -159,7 +159,7 @@
     "message": "This room no longer exists"
   },
   "roomGoneHelp": {
-    "message": "Rooms close a day after everyone leaves. Ask for a new link, or create a room."
+    "message": "Rooms close a day after everyone leaves, or after 12 quiet hours. Ask for a new link, or create a room."
   },
   "roomFull": {
     "message": "This room is full"
@@ -313,5 +313,11 @@
   },
   "badgeDragCancel": {
     "message": "Esc to cancel"
+  },
+  "roomIdle": {
+    "message": "The room was closed"
+  },
+  "roomIdleHelp": {
+    "message": "Nothing was played, paused or moved for 12 hours. Create a new room to keep watching."
   }
 }

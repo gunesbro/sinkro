@@ -20,7 +20,7 @@ Then enter the `workers.dev` URL as the server URL in the extension's settings.
 | `POST /rooms`          | `201 {"code":"K7M-2QX"}`, or `429` past 10 rooms a minute from one address |
 | `GET /rooms/{code}/ws` | WebSocket upgrade; the code is case-insensitive and the dash is optional   |
 
-The creation limit keeps a hash of the address for at most a minute, then deletes it. Addresses themselves aren't stored. A room is deleted 24 hours after its last person leaves, or 24 hours after it's created if nobody joins.
+The creation limit keeps a hash of the address for at most a minute, then deletes it. Addresses themselves aren't stored. A room is deleted 24 hours after its last person leaves, or 24 hours after it's created if nobody joins. A room with people in it closes with code `4408` and is deleted after 12 hours with no one joining and no change of playback or video. It's checked once an hour, so this can run an hour late.
 
 ## The room's video
 

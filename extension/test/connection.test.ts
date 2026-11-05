@@ -217,6 +217,7 @@ describe("closing", () => {
   it.each([
     [4404, "room_not_found"],
     [4409, "room_full"],
+    [4408, "room_idle"],
     [4400, "protocol_mismatch"],
   ])("gives up on close code %i", (code, reason) => {
     const { connection, sockets, latest, events } = setup();

@@ -1,4 +1,5 @@
 // What to tell the viewer about a room, shared by the popup and the on-video badge.
+import type { CloseReason } from "./content/sync/connection";
 import type { SessionStatus } from "./messages";
 
 export type Tone = "ok" | "warn" | "danger" | "idle";
@@ -8,8 +9,17 @@ const IN_SYNC_SECONDS = 0.3;
 
 export type StatusLine = { tone: Tone; key: string };
 
+/** Why a room can't be used, in the words of the notice that explains it. */
+const CLOSED_ROOM_KEYS: Record<CloseReason, string> = {
+  room_idle: "roomIdle",
+  room_not_found: "roomGone",
+  room_full: "roomFull",
+  protocol_mismatch: "updateNeeded",
+};
+
 export function statusLine(status: SessionStatus | null): StatusLine {
   if (!status || status.connection === "connecting") return { tone: "warn", key: "connecting" };
+  if (status.closeReason) return { tone: "danger", key: CLOSED_ROOM_KEYS[status.closeReason] };
   if (status.connection !== "connected") return { tone: "danger", key: "connLost" };
   if (!status.hasVideo) return { tone: "ok", key: "live" };
   // Waiting on an ad or a click isn't catching up, whatever the drift says.
@@ -53,6 +63,7 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
     action,
   });
 
+  if (status.closeReason === "room_idle") return notice("danger", "roomIdle", "leave");
   if (status.closeReason === "room_not_found") return notice("danger", "roomGone", "leave");
   if (status.closeReason === "room_full") return notice("danger", "roomFull", "leave");
   if (status.closeReason === "protocol_mismatch") return notice("danger", "updateNeeded", "leave");

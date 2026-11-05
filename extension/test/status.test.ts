@@ -21,6 +21,25 @@ describe("statusLine", () => {
     ["connecting", { connection: "connecting" }, "warn", "connecting"],
     ["reconnecting", { connection: "reconnecting" }, "danger", "connLost"],
     ["closed", { connection: "closed" }, "danger", "connLost"],
+    [
+      "closed for being idle",
+      { connection: "closed", closeReason: "room_idle" },
+      "danger",
+      "roomIdle",
+    ],
+    [
+      "a room that's gone",
+      { connection: "closed", closeReason: "room_not_found" },
+      "danger",
+      "roomGone",
+    ],
+    ["a full room", { connection: "closed", closeReason: "room_full" }, "danger", "roomFull"],
+    [
+      "an old version",
+      { connection: "closed", closeReason: "protocol_mismatch" },
+      "danger",
+      "updateNeeded",
+    ],
     ["no video", { hasVideo: false, drift: null }, "ok", "live"],
     ["an ad", { hold: "ad", drift: null }, "warn", "onHold"],
     ["a video that can't follow", { hold: "cant_follow", drift: null }, "warn", "onHold"],
@@ -47,6 +66,12 @@ describe("noticeFor", () => {
   });
 
   it.each<[string, Partial<SessionStatus>, string, string | null]>([
+    [
+      "a room closed for being idle",
+      { connection: "closed", closeReason: "room_idle" },
+      "roomIdle",
+      "leave",
+    ],
     ["a dead room", { connection: "closed", closeReason: "room_not_found" }, "roomGone", "leave"],
     ["a full room", { connection: "closed", closeReason: "room_full" }, "roomFull", "leave"],
     [
