@@ -41,6 +41,7 @@ docs/                 PLAN.md, DESIGN.md, design-reference/
 
 - Keep the WebSocket in the content script or an offscreen document — the MV3 service worker goes to sleep.
 - Protocol messages: `join`, `state` (playing/paused, position, rate, sender timestamp), `ping`/`pong` (clock offset), `chat` (v1).
+- **Mixed versions**: people in a room can run different extension versions, and the hosted server updates separately from all of them. New optional fields don't bump `PROTOCOL_VERSION`, because both sides ignore what they don't know. Bump it only for a change old clients can't work with, and keep `MIN_PROTOCOL_VERSION` as low as possible so existing installs keep working.
 - **Echo loop prevention**: every remotely applied command sets a pending-event flag; flagged local events are not re-broadcast.
 - **Drift**: ignore < 0.3 s; 0.3–2 s correct with `playbackRate` 0.95–1.05; > 2 s seek.
 
@@ -52,8 +53,8 @@ Scoring picks one winner across all frames: + visible area, playing, unmuted, du
 
 ## MVP scope (phase 1)
 
-Create/join room by code or link · play/pause/seek/rate sync · drift correction · detection engine (layers 1–5, scoring, manual picker) · ad detection · configurable server URL · invite page · EN + TR.
-Later: same-source comparison for sites that serve one episode from several video hosts (to be evaluated), participants list with "who did what" (v1), chat + reactions (v1), host-only control (v1), site adapters (v1), "everyone ready" wait (v1), voice chat (v2), local-file mode (last).
+Create/join room by code or link · play/pause/seek/rate sync · drift correction · detection engine (layers 1–5, scoring, manual picker) · ad detection · on-video badge with a position the viewer sets · configurable server URL · invite page · EN + TR.
+Later: big-screen mode that fills the window through temporary CSS, off by default and with no moving of the site's DOM (after real-site testing), same-source comparison for sites that serve one episode from several video hosts (to be evaluated), participants list with "who did what" (v1), chat + reactions (v1), host-only control (v1), site adapters (v1), "everyone ready" wait (v1), voice chat (v2), local-file mode (last).
 
 Phase gate for MVP: 3 people, a 1-hour video, drift stays under 0.5 s.
 

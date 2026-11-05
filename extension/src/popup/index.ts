@@ -262,6 +262,8 @@ async function copyWithFeedback(button: HTMLElement, text: string): Promise<void
 async function openSettings(): Promise<void> {
   element<HTMLInputElement>("server-input").value = await getServerUrl();
   element("server-error").textContent = "";
+  // People compare this when something only happens for one of them.
+  element("version").textContent = `Sinkro ${chrome.runtime.getManifest().version}`;
   setView("settings");
   element("server-input").focus();
 }
