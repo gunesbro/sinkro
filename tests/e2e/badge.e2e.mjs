@@ -280,7 +280,9 @@ try {
   await shot(a.tab, "notice-rate");
   const withRate = await a.tab.screenshot({ clip });
   check("someone else's change of speed shows a notice", pixelsDiffer(beforeRate, withRate));
-  check("and the video follows it", (await a.tab.evaluate(() => window.v.playbackRate)) === 1.5);
+  // A seek that lands a little off is then corrected through speed, up to 5% either way.
+  const followed = await a.tab.evaluate(() => window.v.playbackRate);
+  check("and the video follows it", Math.abs(followed - 1.5) <= 1.5 * 0.05 + 1e-9, followed);
   await wait(3600);
   const beforeOwnRate = await a.tab.screenshot({ clip });
   await a.tab.evaluate(() => {
