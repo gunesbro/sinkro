@@ -1248,6 +1248,92 @@ describe("saying when a hold starts and ends", () => {
   });
 });
 
+describe("bringing everyone to a different film", () => {
+  /** Well along the old film, then on a new one from its start, as a real move goes. */
+  async function onNewFilm(context: ReturnType<typeof setup>) {
+    await joinPlaying(context, 1800);
+    context.video.position = 5;
+    context.hold.reason = "ad";
+    await vi.advanceTimersByTimeAsync(1100);
+    context.sent.length = 0;
+  }
+
+  it("doesn't send the new film to where the old one had got to, after an ad", async () => {
+    const context = setup();
+    await onNewFilm(context);
+    context.engine.bringEveryone(true);
+    context.hold.reason = null;
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(context.video.position).toBeLessThan(100);
+  });
+
+  it("gives the room the new film's position once the ad ends", async () => {
+    const context = setup();
+    await onNewFilm(context);
+    context.engine.bringEveryone(true);
+    expect(context.sent).toEqual([]);
+    context.hold.reason = null;
+    await vi.advanceTimersByTimeAsync(1100);
+
+    expect(context.sent).toHaveLength(1);
+    expect(context.sent[0]?.position).toBeLessThan(100);
+    expect(context.sent[0]?.playing).toBe(true);
+  });
+
+  it("gives it straight away with no ad", async () => {
+    const context = setup();
+    await joinPlaying(context, 1800);
+    context.video.position = 5;
+    context.engine.bringEveryone(true);
+
+    expect(context.sent).toHaveLength(1);
+    expect(context.sent[0]?.position).toBe(5);
+  });
+
+  it("keeps the timeline for bringing everyone within the same film", async () => {
+    const context = setup();
+    await joinPlaying(context, 1800);
+    context.hold.reason = "ad";
+    await vi.advanceTimersByTimeAsync(1100);
+    context.engine.bringEveryone();
+    context.video.position = 5;
+    context.hold.reason = null;
+    await vi.advanceTimersByTimeAsync(1100);
+
+    expect(context.video.position).toBeGreaterThan(1700);
+  });
+
+  it("follows someone else's position in the new film, for whoever hears of the move", async () => {
+    const context = setup();
+    await joinPlaying(context, 1800);
+    context.engine.forgetTimeline();
+    context.video.position = 3;
+    context.engine.handleState(context.peerState({ position: 40 }));
+    await settle();
+
+    expect(context.video.position).toBeCloseTo(40, 0);
+    expect(context.changes).toEqual([]);
+  });
+
+  it("drops what it was about to say about the old film", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    context.video.pause();
+    await settle();
+    context.video.userPlay();
+    await settle();
+    context.engine.forgetTimeline();
+    const sentBefore = context.sent.length;
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(context.sent.filter((s, i) => i >= sentBefore && s.position > 50 && !s.playing)).toEqual(
+      [],
+    );
+  });
+});
+
 describe("joining others who have nothing going yet", () => {
   async function joinEmptyRoom(context: ReturnType<typeof setup>) {
     context.engine.bind(context.video.asVideo());

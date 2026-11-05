@@ -538,6 +538,67 @@ describe("hibernation", () => {
   });
 });
 
+describe("moving the room to a different film", () => {
+  const stateAt = async (code: string) => {
+    const late = await connect(code);
+    late.send({ type: "join", protocol: PROTOCOL_VERSION });
+    return ((await late.next()) as { state: unknown }).state;
+  };
+
+  it("forgets the old film's position", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    client.sendState();
+    await client.next();
+    client.send({ type: "video/set", sealed: "new", fresh: true });
+    await client.next();
+
+    expect(await stateAt(code)).toBeNull();
+  });
+
+  it("keeps it when it's the same film", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    client.sendState();
+    await client.next();
+    client.send({ type: "video/set", sealed: "same" });
+    await client.next();
+
+    expect(await stateAt(code)).not.toBeNull();
+  });
+
+  it("tells the others to forget it", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "video/set", sealed: "new", fresh: true });
+
+    expect(await b.next()).toEqual({ type: "video", sealed: "new", fresh: true });
+  });
+
+  it("doesn't tell the one moving it, whose position is already the new one", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    client.send({ type: "video/set", sealed: "new", fresh: true });
+
+    expect(await client.next()).toEqual({ type: "video", sealed: "new" });
+  });
+
+  it("keeps counting from where it was, so newer states still win", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    client.sendState();
+    const first = (await client.next()) as { seq: number };
+    client.send({ type: "video/set", sealed: "new", fresh: true });
+    await client.next();
+    client.sendState();
+    const next = (await client.next()) as { seq: number };
+
+    expect(next.seq).toBeGreaterThan(first.seq);
+  });
+});
+
 describe("a viewer reconnecting", () => {
   const joinAs = async (code: string, viewer?: string) => {
     const client = await connect(code);

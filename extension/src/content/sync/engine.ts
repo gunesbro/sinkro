@@ -241,8 +241,24 @@ export class SyncEngine {
     this.syncWithRoom();
   }
 
-  /** Makes this viewer's position the room's, for "Bring everyone to me". */
-  bringEveryone(): void {
+  /**
+   * The room moved to a different film, so its position means nothing any more. Following it
+   * would send the new film to wherever the old one had got to. Whoever is watching first
+   * starts the new timeline.
+   */
+  forgetTimeline(): void {
+    this.cancelPublish();
+    this.unacked = 0;
+    this.finishCorrection();
+    this.timeline = null;
+  }
+
+  /**
+   * Makes this viewer's position the room's, for "Bring everyone to me". On an ad it has none
+   * to give, so the timeline starts when the ad ends. `isNewFilm` is for arriving from another.
+   */
+  bringEveryone(isNewFilm = false): void {
+    if (isNewFilm) this.forgetTimeline();
     if (!this.refreshHold()) this.publish();
   }
 

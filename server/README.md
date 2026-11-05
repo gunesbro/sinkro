@@ -32,7 +32,7 @@ A client that has joined can send `{"type":"ad","watching":true}`. Everyone who 
 
 ## The room's video
 
-Without joining, a client can send `{"type":"video/get"}` or `{"type":"video/set","sealed":"..."}`, and the room answers `{"type":"video","sealed":...}`. Setting it also sends that answer to everyone who has joined, and whoever joins later gets it in `joined` as `video`. The value is opaque to the server and deleted with the room.
+Without joining, a client can send `{"type":"video/get"}` or `{"type":"video/set","sealed":"..."}`, and the room answers `{"type":"video","sealed":...}`. With `"fresh":true` it's a different film, so the room forgets its playback state and tells the others with `fresh` too. Setting it also sends that answer to everyone who has joined, and whoever joins later gets it in `joined` as `video`. The value is opaque to the server and deleted with the room.
 
 ## WebSocket messages
 

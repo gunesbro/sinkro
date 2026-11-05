@@ -45,7 +45,7 @@ const LANGUAGE_KEY = "language";
 
 type Room = {
   engine: SyncEngine;
-  sendVideo: (sealed: string) => void;
+  sendVideo: (sealed: string, fresh: boolean) => void;
   status: () => SessionStatus;
   stop: () => void;
 };
@@ -121,7 +121,10 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         othersOnAd = count;
         if (hadAny && count === 0) hooks.onOthersAdEnded();
       },
-      onVideo: (sealed) => hooks.onRoomVideo(sealed, true),
+      onVideo: (sealed, fresh) => {
+        if (fresh) engine.forgetTimeline();
+        hooks.onRoomVideo(sealed, true);
+      },
       onRejected: () => engine.handleRejected(),
       onDisconnected: () => engine.handleDisconnected(),
       onStatus: (status, reason) => {
@@ -139,7 +142,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
 
   return {
     engine,
-    sendVideo: (sealed) => void connection.sendVideo(sealed),
+    sendVideo: (sealed, fresh) => void connection.sendVideo(sealed, fresh),
     status: () => ({
       ...engine.snapshot(),
       connection: connectionStatus,
@@ -277,13 +280,13 @@ class FrameSession {
   }
 
   /** Lifts the hold first, because the engine won't speak for a video that's on hold. */
-  bringEveryone(sealed: string | null): void {
+  bringEveryone(sealed: string | null, isNewFilm: boolean): void {
     this.videoChange = null;
     if (sealed) {
       this.lastSealedSent = sealed;
-      this.room?.sendVideo(sealed);
+      this.room?.sendVideo(sealed, isNewFilm);
     }
-    this.room?.engine.bringEveryone();
+    this.room?.engine.bringEveryone(isNewFilm);
   }
 
   moveBadge(): void {
@@ -476,7 +479,7 @@ function start(): void {
         return;
       }
       case "session/bring":
-        frameSession?.bringEveryone(request.sealed);
+        frameSession?.bringEveryone(request.sealed, request.isNewFilm);
         return;
       case "session/video-change":
         frameSession?.setVideoChange(request.change);

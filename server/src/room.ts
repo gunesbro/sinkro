@@ -117,10 +117,12 @@ export class Room extends DurableObject {
           ...record,
           video: message.sealed,
           activeAt: Date.now(),
+          // Someone joining the new film mustn't be sent to where the old one had got to.
+          state: message.fresh ? null : record.state,
         });
         const video: ServerMessage = { type: "video", sealed: message.sealed };
         this.send(ws, video);
-        this.broadcast(video, ws);
+        this.broadcast(message.fresh ? { ...video, fresh: true } : video, ws);
         return;
       }
       case "state": {
