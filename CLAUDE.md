@@ -9,7 +9,7 @@ Full background and reasoning: `docs/PLAN.md`. Visual design: `docs/DESIGN.md` a
 
 ## Decisions already made (don't relitigate without asking)
 
-- **Product**: browser extension + a static invite/landing page. No accounts, no analytics. Only room code, playback state (playing/paused, position, rate, timestamp) and the page address and title of the room's video ever reach the server — never video content. Those two are sent only on creating a room or bringing everyone to a video, sealed with a key from the room code, so joining by code can show the video's name and offer a button to it.
+- **Product**: browser extension + a static invite/landing page. No accounts, no analytics. Only room code, playback state (playing/paused, position, rate, timestamp) the page address and title of the room's video, and whether someone is on an ad, ever reach the server — never video content. The ad flag lives only with the connection and is never stored. Those two are sent only on creating a room or bringing everyone to a video, sealed with a key from the room code, so joining by code can show the video's name and offer a button to it.
 - **Languages**: English is the default, Turkish is the second language, both in the MVP. Use the WebExtension `_locales/en` and `_locales/tr` message files; the popup has an EN/TR switch that overrides the browser language. Every user-facing string goes through i18n from day one — no hard-coded copy.
 - **Server**: Cloudflare Workers + Durable Objects (one Durable Object per room, WebSocket hibernation). Free tier. The server URL is configurable in extension settings so anyone can self-host.
 - **Hosting for the invite page**: Cloudflare Pages at `sinkro.pages.dev` for now. A real domain comes later.
@@ -40,7 +40,7 @@ docs/                 PLAN.md, DESIGN.md, design-reference/
 ```
 
 - Keep the WebSocket in the content script or an offscreen document — the MV3 service worker goes to sleep.
-- Protocol messages: `join`, `state` (playing/paused, position, rate, sender timestamp), `ping`/`pong` (clock offset), `chat` (v1).
+- Protocol messages: `join`, `state` (playing/paused, position, rate, sender timestamp), `ping`/`pong` (clock offset), `video/get`/`video/set`/`video` (the room's video, sealed), `ad`/`ads` (who's on an ad), `chat` (v1).
 - **Mixed versions**: people in a room can run different extension versions, and the hosted server updates separately from all of them. New optional fields don't bump `PROTOCOL_VERSION`, because both sides ignore what they don't know. Bump it only for a change old clients can't work with, and keep `MIN_PROTOCOL_VERSION` as low as possible so existing installs keep working.
 - **Echo loop prevention**: every remotely applied command sets a pending-event flag; flagged local events are not re-broadcast.
 - **Drift**: ignore < 0.3 s; 0.3–2 s correct with `playbackRate` 0.95–1.05; > 2 s seek.

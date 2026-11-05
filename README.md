@@ -4,7 +4,7 @@ Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox
 
 **Status:** early development. Nothing is in the stores yet.
 
-No accounts and no analytics. Only the room code, playback state (playing or paused, position, rate, timestamp) and, when someone creates a room or brings everyone to their video, that page's address and title encrypted with the room code reach the server. The video itself never does.
+No accounts and no analytics. Only the room code, playback state (playing or paused, position, rate, timestamp), whether someone is on an ad and, when someone creates a room or brings everyone to their video, that page's address and title encrypted with the room code reach the server. The video itself never does.
 
 ## Install
 

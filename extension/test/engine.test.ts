@@ -12,6 +12,7 @@ function setup() {
   const changes: PlaybackChange[] = [];
   const ownChanges: PlaybackChange[] = [];
   const rates: number[] = [];
+  const holdChanges: (HoldReason | "other_video" | null)[] = [];
   const sent: PlaybackState[] = [];
   const video = new FakeVideo();
   const hold: { reason: HoldReason | null; roomPosition: number | null } = {
@@ -31,6 +32,7 @@ function setup() {
       ownChanges.push(change);
       rates.push(rate);
     },
+    onHoldChange: (reason) => holdChanges.push(reason),
     holdFor: (roomPosition) => {
       hold.roomPosition = roomPosition;
       return hold.reason;
@@ -56,7 +58,19 @@ function setup() {
   const setOnline = (value: boolean) => {
     online = value;
   };
-  return { engine, video, sent, peerState, serverNow, setOnline, hold, changes, ownChanges, rates };
+  return {
+    engine,
+    video,
+    sent,
+    peerState,
+    serverNow,
+    setOnline,
+    hold,
+    changes,
+    ownChanges,
+    rates,
+    holdChanges,
+  };
 }
 
 /** Joins a room others are in, and settles on a playing timeline at `position`. */
@@ -1174,6 +1188,113 @@ describe("telling the viewer what they did themselves", () => {
     await settle();
 
     expect(context.ownChanges).toEqual([]);
+  });
+});
+
+describe("saying when a hold starts and ends", () => {
+  it("reports each change once", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.hold.reason = "ad";
+    await vi.advanceTimersByTimeAsync(3000);
+    context.hold.reason = null;
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(context.holdChanges).toEqual(["ad", null]);
+  });
+
+  it("says nothing with no hold", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(context.holdChanges).toEqual([]);
+  });
+});
+
+describe("joining others who have nothing going yet", () => {
+  async function joinEmptyRoom(context: ReturnType<typeof setup>) {
+    context.engine.bind(context.video.asVideo());
+    context.engine.handleJoined({ clientId: ME, state: null, peers: 2 });
+    await settle();
+  }
+
+  it("starts the video, rather than telling the room it's paused", async () => {
+    const context = setup();
+    await joinEmptyRoom(context);
+
+    expect(context.video.paused).toBe(false);
+    expect(context.sent.filter((state) => !state.playing)).toEqual([]);
+  });
+
+  it("then starts the room's timeline, with the video playing", async () => {
+    const context = setup();
+    await joinEmptyRoom(context);
+    await vi.advanceTimersByTimeAsync(1100);
+
+    expect(context.sent).toHaveLength(1);
+    expect(context.sent[0]?.playing).toBe(true);
+  });
+
+  it("asks for a click when the browser blocks it, and doesn't pause the room", async () => {
+    const context = setup();
+    context.video.autoplayAllowed = false;
+    await joinEmptyRoom(context);
+
+    expect(context.engine.snapshot().needsGesture).toBe(true);
+    expect(context.sent).toEqual([]);
+  });
+
+  it("starts when the viewer clicks", async () => {
+    const context = setup();
+    context.video.autoplayAllowed = false;
+    await joinEmptyRoom(context);
+    context.video.autoplayAllowed = true;
+    context.engine.retryPlay();
+    await settle();
+
+    expect(context.video.paused).toBe(false);
+    expect(context.engine.snapshot().needsGesture).toBe(false);
+  });
+
+  it("doesn't retry on every tick while the browser is refusing", async () => {
+    const context = setup();
+    context.video.autoplayAllowed = false;
+    await joinEmptyRoom(context);
+    const play = vi.spyOn(context.video, "play");
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("leaves alone a viewer with nobody else there", async () => {
+    const context = setup();
+    context.engine.bind(context.video.asVideo());
+    context.engine.handleJoined({ clientId: ME, state: null, peers: 1 });
+    await settle();
+
+    expect(context.video.paused).toBe(true);
+    expect(context.sent[0]?.playing).toBe(false);
+  });
+
+  it("respects a viewer who pauses it themselves afterwards", async () => {
+    const context = setup();
+    await joinEmptyRoom(context);
+    await vi.advanceTimersByTimeAsync(1100);
+    context.video.pause();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(context.video.paused).toBe(true);
+    expect(context.sent.at(-1)?.playing).toBe(false);
+  });
+
+  it("waits while this viewer is on an ad of their own", async () => {
+    const context = setup();
+    context.hold.reason = "ad";
+    await joinEmptyRoom(context);
+
+    expect(context.video.paused).toBe(true);
+    expect(context.sent).toEqual([]);
   });
 });
 

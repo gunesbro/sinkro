@@ -60,6 +60,7 @@ export type EngineDeps = {
   send: (state: PlaybackState) => boolean;
   /** Says why the video can't follow the room right now, such as an ad playing. */
   holdFor?: (roomPosition: number | null) => Hold | null;
+  onHoldChange?: (hold: Hold | null) => void;
   /** `rate` is the speed the room is at now. */
   onRemoteChange?: (change: PlaybackChange, rate: number) => void;
   /** This viewer's own action reached the others. Not called when nobody else is there. */
@@ -68,6 +69,8 @@ export type EngineDeps = {
 
 export type EngineSnapshot = {
   hasVideo: boolean;
+  /** True with no video, since nothing is playing then. */
+  paused: boolean;
   /** Seconds into the video, or null without one. */
   position: number | null;
   /** Seconds this viewer is ahead of the room, or null without a video and a timeline. */
@@ -222,7 +225,7 @@ export class SyncEngine {
   retryPlay(): void {
     // If the browser still says no, the refusal puts the notice back.
     this.autoplayRetryAt = 0;
-    this.apply(true);
+    this.syncWithRoom();
   }
 
   /** Something outside the engine changed whether this video should follow the room. */
@@ -246,6 +249,7 @@ export class SyncEngine {
     const { video, timeline } = this;
     return {
       hasVideo: video !== null,
+      paused: video?.paused ?? true,
       position: video?.currentTime ?? null,
       drift:
         video && timeline && !this.hold && !this.isAlone
@@ -266,8 +270,20 @@ export class SyncEngine {
   /** After joining or binding: follow the room if it has a timeline, otherwise start one. */
   private syncWithRoom(): void {
     if (!this.joined || !this.video) return;
-    if (this.timeline) this.apply(true);
-    else if (this.video.readyState >= HAVE_METADATA && !this.refreshHold()) this.publish();
+    if (this.timeline) {
+      this.apply(true);
+      return;
+    }
+    if (this.video.readyState < HAVE_METADATA || this.refreshHold()) return;
+
+    // Others are here with nothing going yet, like someone sitting through an ad. A paused
+    // video here usually means the browser blocked the site's autoplay, not that anyone chose
+    // to stop, so it mustn't pause the room. Trying is also what gets the viewer asked to click.
+    if (!this.isAlone && this.video.paused) {
+      if (this.autoplayRetryAt <= this.deps.now()) this.startPlaying();
+      return;
+    }
+    this.publish();
   }
 
   /** Returns whether the video is on hold. Asks each time, since an ad can end at any moment. */
@@ -275,8 +291,12 @@ export class SyncEngine {
     const roomPosition = this.timeline
       ? targetPosition(this.timeline, this.deps.serverNow(), Number.POSITIVE_INFINITY)
       : null;
-    this.hold = this.deps.holdFor?.(roomPosition) ?? null;
-    return this.hold !== null;
+    const hold = this.deps.holdFor?.(roomPosition) ?? null;
+    if (hold !== this.hold) {
+      this.hold = hold;
+      this.deps.onHoldChange?.(hold);
+    }
+    return hold !== null;
   }
 
   private tick(): void {

@@ -65,6 +65,7 @@ type RoomHooks = {
   onOwnChange: (change: PlaybackChange, rate: number) => void;
   onRoomVideo: (sealed: string, announced: boolean) => void;
   onPeopleChange: (count: number) => void;
+  onOthersAdEnded: () => void;
   isOnOtherVideo: () => boolean;
   videoChange: () => VideoChange | null;
 };
@@ -74,6 +75,8 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   let connectionStatus: ConnectionStatus = "connecting";
   let closeReason: CloseReason | null = null;
   let peers = 0;
+  let othersOnAd = 0;
+  let isOnAd = false;
 
   const engine = new SyncEngine({
     now: Date.now,
@@ -83,6 +86,10 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       hooks.isOnOtherVideo() ? "other_video" : tracker.holdReason(roomPosition, peers > 1),
     onRemoteChange: hooks.onRemoteChange,
     onOwnChange: hooks.onOwnChange,
+    onHoldChange: (hold) => {
+      isOnAd = hold === "ad";
+      connection.sendAdState(isOnAd);
+    },
   });
   const connection = new RoomConnection({
     url: roomSocketUrl(serverUrl, code),
@@ -91,14 +98,22 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       onJoined: (message) => {
         peers = message.peers;
         hooks.onPeopleChange(peers);
+        othersOnAd = message.ads ?? 0;
         if (message.video) hooks.onRoomVideo(message.video, false);
         engine.handleJoined(message);
+        // The room forgot this along with the old connection.
+        if (isOnAd) connection.sendAdState(true);
       },
       onState: (state) => engine.handleState(state),
       onPeers: (count) => {
         peers = count;
         hooks.onPeopleChange(count);
         engine.handlePeers(count);
+      },
+      onAds: (count) => {
+        const hadAny = othersOnAd > 0;
+        othersOnAd = count;
+        if (hadAny && count === 0) hooks.onOthersAdEnded();
       },
       onVideo: (sealed) => hooks.onRoomVideo(sealed, true),
       onRejected: () => engine.handleRejected(),
@@ -124,6 +139,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       connection: connectionStatus,
       closeReason,
       peers,
+      othersOnAd,
       videoChange: hooks.videoChange(),
     }),
     stop: () => {
@@ -219,6 +235,7 @@ class FrameSession {
         onOwnChange: (change, rate) => {
           this.badge?.flash(OWN_CHANGE_MESSAGES[change], [formatRate(rate)]);
         },
+        onOthersAdEnded: () => this.badge?.flash("notifyAdEnded"),
         onRoomVideo: (sealed, announced) => this.onRoomVideo(sealed, announced),
         onPeopleChange: (count) => void send({ type: "room/people", count }),
         isOnOtherVideo: () => this.isOnOtherVideo(),
@@ -321,6 +338,7 @@ class FrameSession {
       onBring: () => void send({ type: "video/bring" }),
       onGo: () => void send({ type: "video/go" }),
       onLeave: () => void send({ type: "session/leave" }),
+      onPause: () => this.tracker.video()?.pause(),
       onPositionChange: (moved) => void saveBadgePosition(location.hostname, moved),
     });
     this.badgeTimer = setInterval(() => {

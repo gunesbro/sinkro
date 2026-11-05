@@ -4,6 +4,8 @@ import { isVideoChangeAction, mustShowNotice, noticeFor, statusLine } from "../s
 
 const connected: SessionStatus = {
   hasVideo: true,
+  paused: false,
+  othersOnAd: 0,
   position: 100,
   drift: 0,
   correcting: false,
@@ -21,6 +23,25 @@ describe("statusLine", () => {
     ["connecting", { connection: "connecting" }, "warn", "connecting"],
     ["reconnecting", { connection: "reconnecting" }, "danger", "connLost"],
     ["closed", { connection: "closed" }, "danger", "connLost"],
+    [
+      "closed for being idle",
+      { connection: "closed", closeReason: "room_idle" },
+      "danger",
+      "roomIdle",
+    ],
+    [
+      "a room that's gone",
+      { connection: "closed", closeReason: "room_not_found" },
+      "danger",
+      "roomGone",
+    ],
+    ["a full room", { connection: "closed", closeReason: "room_full" }, "danger", "roomFull"],
+    [
+      "an old version",
+      { connection: "closed", closeReason: "protocol_mismatch" },
+      "danger",
+      "updateNeeded",
+    ],
     ["no video", { hasVideo: false, drift: null }, "ok", "live"],
     ["an ad", { hold: "ad", drift: null }, "warn", "onHold"],
     ["a video that can't follow", { hold: "cant_follow", drift: null }, "warn", "onHold"],
@@ -47,6 +68,12 @@ describe("noticeFor", () => {
   });
 
   it.each<[string, Partial<SessionStatus>, string, string | null]>([
+    [
+      "a room closed for being idle",
+      { connection: "closed", closeReason: "room_idle" },
+      "roomIdle",
+      "leave",
+    ],
     ["a dead room", { connection: "closed", closeReason: "room_not_found" }, "roomGone", "leave"],
     ["a full room", { connection: "closed", closeReason: "room_full" }, "roomFull", "leave"],
     [
@@ -76,6 +103,44 @@ describe("noticeFor", () => {
   it("puts a lost connection ahead of anything the video is doing", () => {
     const status = { ...connected, connection: "reconnecting", hold: "ad" } as const;
     expect(noticeFor(status)?.titleKey).toBe("connLost");
+  });
+
+  describe("someone else on an ad", () => {
+    it("offers waiting for them", () => {
+      expect(noticeFor({ ...connected, othersOnAd: 1 })).toMatchObject({
+        titleKey: "oneOtherOnAd",
+        bodyKey: "othersOnAdHelp",
+        action: "pause",
+      });
+    });
+
+    it("says how many", () => {
+      expect(noticeFor({ ...connected, othersOnAd: 3 })).toMatchObject({
+        titleKey: "othersOnAd",
+        titleSubstitutions: ["3"],
+      });
+    });
+
+    it("stops offering once the video is paused", () => {
+      expect(noticeFor({ ...connected, othersOnAd: 1, paused: true })).toMatchObject({
+        bodyKey: "othersOnAdPausedHelp",
+        action: null,
+      });
+    });
+
+    it("doesn't push itself in front of the video being off screen", () => {
+      expect(mustShowNotice(noticeFor({ ...connected, othersOnAd: 1 }))).toBe(false);
+    });
+
+    it("gives way to the viewer's own ad", () => {
+      const status = { ...connected, othersOnAd: 1, hold: "ad" } as const;
+      expect(noticeFor(status)?.titleKey).toBe("adPlaying");
+    });
+
+    it("gives way to the viewer having moved to another video", () => {
+      const videoChange = { kind: "you_moved", title: "", host: "a.com" } as const;
+      expect(noticeFor({ ...connected, othersOnAd: 1, videoChange })?.titleKey).toBe("youMoved");
+    });
   });
 
   describe("another video", () => {

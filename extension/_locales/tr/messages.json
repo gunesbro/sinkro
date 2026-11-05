@@ -159,7 +159,7 @@
     "message": "Bu oda artık yok"
   },
   "roomGoneHelp": {
-    "message": "Odalar herkes çıktıktan bir gün sonra kapanır. Yeni bir link iste ya da oda oluştur."
+    "message": "Odalar herkes çıktıktan bir gün sonra ya da 12 saat hareketsiz kalınca kapanır. Yeni bir link iste ya da oda oluştur."
   },
   "roomFull": {
     "message": "Bu oda dolu"
@@ -313,5 +313,35 @@
   },
   "badgeDragCancel": {
     "message": "Esc ile vazgeç"
+  },
+  "roomIdle": {
+    "message": "Oda kapatıldı"
+  },
+  "roomIdleHelp": {
+    "message": "12 saattir oynatılmadı, durdurulmadı, sarılmadı. İzlemeye devam etmek için yeni bir oda oluştur."
+  },
+  "oneOtherOnAd": {
+    "message": "Biri reklam izliyor"
+  },
+  "othersOnAd": {
+    "message": "$COUNT$ kişi reklam izliyor",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "othersOnAdHelp": {
+    "message": "Sen izlemeye devam ediyorsun. Beklemek istersen durdurabilirsin."
+  },
+  "othersOnAdPausedHelp": {
+    "message": "Video durdu. Reklam bitince haber veririz."
+  },
+  "pauseVideo": {
+    "message": "Durdur"
+  },
+  "notifyAdEnded": {
+    "message": "Reklam bitti"
   }
 }

@@ -23,7 +23,7 @@ const MIN_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "closed";
-export type CloseReason = "room_not_found" | "room_full" | "protocol_mismatch";
+export type CloseReason = "room_not_found" | "room_full" | "protocol_mismatch" | "room_idle";
 
 export type ConnectionEvents = {
   onJoined: (message: {
@@ -31,9 +31,12 @@ export type ConnectionEvents = {
     state: RoomState | null;
     peers: number;
     video?: string;
+    ads?: number;
   }) => void;
   onState: (state: RoomState) => void;
   onPeers: (count: number) => void;
+  /** How many others are on an ad. */
+  onAds: (count: number) => void;
   /** Someone moved the room to another video. */
   onVideo: (sealed: string) => void;
   onRejected: () => void;
@@ -65,6 +68,7 @@ const CLOSE_REASONS: Record<number, CloseReason> = {
   [CloseCode.ProtocolMismatch]: "protocol_mismatch",
   [CloseCode.RoomNotFound]: "room_not_found",
   [CloseCode.RoomFull]: "room_full",
+  [CloseCode.RoomIdle]: "room_idle",
 };
 
 /**
@@ -119,6 +123,10 @@ export class RoomConnection {
 
   sendState(state: PlaybackState): boolean {
     return this.joined && this.send({ type: "state", ...state });
+  }
+
+  sendAdState(watching: boolean): boolean {
+    return this.joined && this.send({ type: "ad", watching });
   }
 
   sendVideo(sealed: string): boolean {
@@ -183,6 +191,9 @@ export class RoomConnection {
         return;
       case "peers":
         events.onPeers(message.count);
+        return;
+      case "ads":
+        events.onAds(message.count);
         return;
       case "video":
         if (message.sealed !== null) events.onVideo(message.sealed);

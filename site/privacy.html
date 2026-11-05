@@ -30,6 +30,10 @@
           than hiding them from whoever runs the server.
         </li>
         <li>
+          Whether you're watching an ad, so others in the room can choose to wait. No one's name
+          goes with it, and it isn't stored.
+        </li>
+        <li>
           When a room is created, a hash of your IP address, kept for at most a minute to limit how
           many rooms one address can create.
         </li>
@@ -55,7 +59,8 @@
       <h2>How long it's kept</h2>
       <p>
         A room's playback state and video address and title are deleted 24 hours after its last
-        person leaves.
+        person leaves, or after about 12 hours with people still in it but nothing played, paused or
+        moved.
       </p>
 
       <h2>Why the extension asks to run on all sites</h2>

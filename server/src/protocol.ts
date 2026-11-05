@@ -10,6 +10,8 @@ export const CloseCode = {
   ProtocolMismatch: 4400,
   RoomNotFound: 4404,
   RoomFull: 4409,
+  /** Nothing happened in the room for too long. Clients that don't know it reconnect and get RoomNotFound. */
+  RoomIdle: 4408,
 } as const;
 
 export type ErrorCode = "invalid_message" | "not_joined" | "rate_limited";
@@ -29,13 +31,25 @@ export type ClientMessage =
   | { type: "ping"; clientTime: number }
   /** The room's video, sealed. Both work without joining. Setting it tells everyone who joined. */
   | { type: "video/get" }
-  | { type: "video/set"; sealed: string };
+  | { type: "video/set"; sealed: string }
+  /** Whether this viewer is sitting through an ad, so the others can choose to wait. */
+  | { type: "ad"; watching: boolean };
 
 /** A playback state as accepted by the room. `seq` orders states; higher wins. */
 export type RoomState = PlaybackState & { seq: number; from: string };
 
 export type ServerMessage =
-  | { type: "joined"; clientId: string; state: RoomState | null; peers: number; video?: string }
+  | {
+      type: "joined";
+      clientId: string;
+      state: RoomState | null;
+      peers: number;
+      video?: string;
+      /** How many others are on an ad, when any are. */
+      ads?: number;
+    }
+  /** How many people other than the one receiving this are on an ad. */
+  | { type: "ads"; count: number }
   | ({ type: "state" } & RoomState)
   | { type: "peers"; count: number }
   | { type: "pong"; clientTime: number; serverTime: number }
@@ -105,6 +119,10 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
       const playback = parsePlayback(message);
       return playback && { type: "state", ...playback };
     }
+    case "ad":
+      return typeof message.watching === "boolean"
+        ? { type: "ad", watching: message.watching }
+        : null;
     case "video/get":
       return { type: "video/get" };
     case "video/set":
@@ -130,12 +148,16 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
 
   switch (message.type) {
     case "joined": {
-      const { clientId, peers, state, video } = message;
+      const { clientId, peers, state, video, ads } = message;
       if (typeof clientId !== "string" || !isFiniteNumber(peers)) return null;
       const parsed = isRecord(state) ? parseRoomState(state) : null;
       if (state !== null && !parsed) return null;
       const joined = { type: "joined" as const, clientId, state: parsed, peers };
-      return typeof video === "string" ? { ...joined, video } : joined;
+      return {
+        ...joined,
+        ...(typeof video === "string" ? { video } : {}),
+        ...(isFiniteNumber(ads) ? { ads } : {}),
+      };
     }
     case "state": {
       const state = parseRoomState(message);
@@ -143,6 +165,8 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
     }
     case "peers":
       return isFiniteNumber(message.count) ? { type: "peers", count: message.count } : null;
+    case "ads":
+      return isFiniteNumber(message.count) ? { type: "ads", count: message.count } : null;
     case "video":
       return typeof message.sealed === "string" || message.sealed === null
         ? { type: "video", sealed: message.sealed }
