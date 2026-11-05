@@ -31,6 +31,7 @@ export type BackgroundRequest =
   | { type: "picker/start"; tabId: number }
   // From content scripts, in every frame.
   | { type: "session/get" }
+  | { type: "i18n/messages" }
   | { type: "detect/report"; score: number }
   | { type: "detect/peeked"; report: PeekReport }
   | { type: "picker/picked" }

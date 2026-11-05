@@ -1,6 +1,7 @@
 // Content script, in every frame. While the tab is in a room, each frame looks for
 // videos and reports its best one, and the background picks one frame to run the room
 // connection and sync engine. Pages that aren't in a room get no socket and no timers.
+import type { Messages } from "../i18n";
 import type {
   BackgroundRequest,
   PeekReport,
@@ -11,6 +12,7 @@ import type {
   TabSession,
 } from "../messages";
 import { roomSocketUrl } from "../settings";
+import { VideoBadge } from "./badge";
 import { VideoPicker } from "./detection/picker";
 import {
   forgetRemembered,
@@ -24,6 +26,9 @@ import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/
 import { SyncEngine } from "./sync/engine";
 
 const isTopFrame = window === window.top;
+const BADGE_UPDATE_MS = 250;
+/** Must match the key the language switch saves under. */
+const LANGUAGE_KEY = "language";
 
 type Room = {
   engine: SyncEngine;
@@ -95,7 +100,15 @@ class FrameSession {
   readonly tracker: VideoTracker;
   private room: Room | null = null;
   private isStopped = false;
+  private badge: VideoBadge | null = null;
+  private badgeTimer: ReturnType<typeof setInterval> | null = null;
   private readonly onPageHide = () => this.report(0);
+  private readonly onStorageChange = (changes: Record<string, chrome.storage.StorageChange>) => {
+    if (LANGUAGE_KEY in changes && this.room) {
+      this.stopBadge();
+      void this.startBadge();
+    }
+  };
 
   constructor(readonly session: TabSession) {
     this.tracker = new VideoTracker({
@@ -107,6 +120,7 @@ class FrameSession {
       onReport: (score) => this.report(score),
     });
     window.addEventListener("pagehide", this.onPageHide);
+    chrome.storage.onChanged.addListener(this.onStorageChange);
     void loadRemembered(location.hostname)
       .catch(() => null)
       .then((selector) => {
@@ -117,7 +131,9 @@ class FrameSession {
   setActive(active: boolean): void {
     if (active && !this.room) {
       this.room = startRoom(this.session, this.tracker);
+      void this.startBadge();
     } else if (!active && this.room) {
+      this.stopBadge();
       this.room.stop();
       this.room = null;
     }
@@ -134,8 +150,26 @@ class FrameSession {
   stop(): void {
     this.isStopped = true;
     window.removeEventListener("pagehide", this.onPageHide);
+    chrome.storage.onChanged.removeListener(this.onStorageChange);
     this.setActive(false);
     this.tracker.stop();
+  }
+
+  private async startBadge(): Promise<void> {
+    const messages = await send<Messages>({ type: "i18n/messages" });
+    if (!messages || !this.room || this.badge) return;
+
+    this.badge = new VideoBadge(messages, () => this.room?.engine.retryPlay());
+    this.badgeTimer = setInterval(() => {
+      this.badge?.update(this.tracker.video(), this.room?.status() ?? null);
+    }, BADGE_UPDATE_MS);
+  }
+
+  private stopBadge(): void {
+    if (this.badgeTimer !== null) clearInterval(this.badgeTimer);
+    this.badgeTimer = null;
+    this.badge?.stop();
+    this.badge = null;
   }
 
   private report(score: number): void {

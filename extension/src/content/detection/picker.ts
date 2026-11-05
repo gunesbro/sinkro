@@ -1,21 +1,23 @@
 import { formatTimecode } from "../../format";
 import type { Messages } from "../../i18n";
 import { translate } from "../../i18n";
+import {
+  ACCENT,
+  BACKGROUND,
+  BORDER,
+  BUTTON_BORDER,
+  FONT,
+  MUTED,
+  ON_ACCENT,
+  TEXT,
+  TOP_LAYER,
+} from "../theme";
 import { markOwnElement, VideoDiscovery } from "./discovery";
 
 const REPOSITION_INTERVAL_MS = 200;
 /** A page changing its DOM constantly shouldn't turn into constant layout reads. */
 const MIN_REFRESH_GAP_MS = 50;
 const MIN_SIDE_PX = 40;
-const ACCENT = "#F2B045";
-const ON_ACCENT = "#1A1208";
-const TEXT = "#F4EDE6";
-const MUTED = "#A39589";
-const BACKGROUND = "#110D0C";
-const BORDER = "#3A2F2A";
-const BUTTON_BORDER = "#4A3C35";
-const FONT = "'DM Sans', system-ui, sans-serif";
-const TOP_LAYER = "2147483647";
 
 export type PickerEvents = {
   onPick: (video: HTMLVideoElement) => void;
