@@ -11,6 +11,7 @@ const mainVideo: VideoSignals = {
   screenArea: SCREEN,
   visibleRatio: 1,
   rendered: true,
+  hasSource: true,
   playing: true,
   muted: false,
   duration: 5400,
@@ -188,6 +189,16 @@ describe("isAdHost", () => {
       expect(isAdHost(host)).toBe(false);
     },
   );
+});
+
+describe("an empty video element", () => {
+  it("isn't a candidate, since there's nothing in it to sync", () => {
+    expect(score({ hasSource: false })).toBe(0);
+  });
+
+  it("counts when the viewer picked it anyway", () => {
+    expect(score({ hasSource: false, picked: true })).toBeGreaterThan(0);
+  });
 });
 
 describe("pickBest", () => {

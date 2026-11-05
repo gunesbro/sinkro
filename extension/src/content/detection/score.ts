@@ -8,6 +8,8 @@ export type VideoSignals = {
   visibleRatio: number;
   /** False for display: none and the like. */
   rendered: boolean;
+  /** False for an empty element waiting to be given something, as feeds keep for previews. */
+  hasSource: boolean;
   playing: boolean;
   muted: boolean;
   /** Seconds. NaN before metadata arrives, Infinity for live streams. */
@@ -46,7 +48,7 @@ const BONUS_PICKED = 1000;
 /** Zero means "not a candidate". Higher is more likely the video people came to watch. */
 export function scoreVideo(video: VideoSignals): number {
   if (video.picked) return BONUS_PICKED;
-  if (!video.rendered) return 0;
+  if (!video.rendered || !video.hasSource) return 0;
   if (video.width < MIN_SIDE_PX || video.height < MIN_SIDE_PX) return 0;
   if (video.visibleRatio <= 0) return Number.isNaN(video.duration) ? 0 : OFF_SCREEN_SCORE;
 

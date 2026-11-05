@@ -169,6 +169,7 @@ export class VideoTracker {
       // Assume visible until the observer's first callback, which takes a moment.
       visibleRatio: this.visibleRatios.get(video) ?? 1,
       rendered: video.checkVisibility(),
+      hasSource: Boolean(video.currentSrc || video.src || video.querySelector("source")),
       playing: !video.paused && !video.ended,
       muted: video.muted || video.volume === 0,
       duration: video.duration,
