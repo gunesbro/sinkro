@@ -21,6 +21,8 @@ const AUTOPLAY_RETRY_MS = 5000;
 const SAME_POSITION_SECONDS = 0.5;
 /** How far from what we asked for a seek can land and still clearly be ours. */
 const OWN_SEEK_TOLERANCE_SECONDS = 1;
+/** A seek's first event comes right away however slow the network is. Past this it's been lost. */
+const OWN_SEEKING_EVENT_MS = 1000;
 const ENDED_TOLERANCE_SECONDS = 0.5;
 const RATE_EPSILON = 0.001;
 /** How long to wait for an element change's event. Some, like a reload's pause, never fire. */
@@ -115,8 +117,12 @@ export class SyncEngine {
   // Echo prevention: set when a remote command is applied, consumed by the event it causes.
   private playFlagUntil = 0;
   private pauseFlagUntil = 0;
-  private pendingSeek: { position: number; seekingExpected: number; seekingSeen: number } | null =
-    null;
+  private pendingSeek: {
+    position: number;
+    seekingExpected: number;
+    seekingSeen: number;
+    at: number;
+  } | null = null;
 
   private lastSeekAt = Number.NEGATIVE_INFINITY;
   private lastTickAt = Number.NEGATIVE_INFINITY;
@@ -433,6 +439,7 @@ export class SyncEngine {
       position,
       seekingExpected: (this.pendingSeek?.seekingExpected ?? 0) + 1,
       seekingSeen: this.pendingSeek?.seekingSeen ?? 0,
+      at: this.deps.now(),
     };
     this.lastSeekAt = this.deps.now();
     if (this.video) this.video.currentTime = position;
@@ -490,6 +497,16 @@ export class SyncEngine {
   }
 
   private onSeeking(): void {
+    const { pendingSeek } = this;
+    // Players can drop a seek while reloading. Waiting on its report for good would take the
+    // viewer's next seek for it, and pull them back to the room.
+    if (
+      pendingSeek &&
+      pendingSeek.seekingSeen < pendingSeek.seekingExpected &&
+      this.deps.now() - pendingSeek.at > OWN_SEEKING_EVENT_MS
+    ) {
+      this.pendingSeek = null;
+    }
     if (this.pendingSeek) {
       this.pendingSeek.seekingSeen += 1;
       return;

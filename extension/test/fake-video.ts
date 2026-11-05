@@ -17,6 +17,8 @@ export class FakeVideo extends EventTarget {
   /** False for something like a live stream: a seek runs, but lands where it started. */
   seekable = true;
   seekDelayMs = 0;
+  /** A player that takes the engine's next seek and never reports it, as one reloading can. */
+  losesNextSeek = false;
   private seekId = 0;
   playCalls = 0;
   seekCalls = 0;
@@ -28,6 +30,11 @@ export class FakeVideo extends EventTarget {
 
   set currentTime(value: number) {
     this.seekCalls += 1;
+    if (this.losesNextSeek) {
+      this.losesNextSeek = false;
+      this.position = value;
+      return;
+    }
     this.moveTo(value);
   }
 
