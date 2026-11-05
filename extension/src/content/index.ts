@@ -34,6 +34,8 @@ const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
 /** Sites change address without loading a page, and not always through anything hookable. */
 const PAGE_CHECK_MS = 1000;
+/** How soon a script left over from before an extension update notices and stops. */
+const STILL_INSTALLED_CHECK_MS = 1000;
 /** Must match the key the language switch saves under. */
 const LANGUAGE_KEY = "language";
 
@@ -128,9 +130,18 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   };
 }
 
+/** Browsers leave content scripts running when their extension is updated or reloaded. */
+function isStillInstalled(): boolean {
+  return chrome.runtime?.id !== undefined;
+}
+
 function send<T>(request: BackgroundRequest): Promise<T | undefined> {
-  // A rejection means the extension was updated and this script is left over from before.
-  return chrome.runtime.sendMessage<BackgroundRequest, T>(request).catch(() => undefined);
+  // Failing, by throwing or rejecting, means this script is left over from before an update.
+  try {
+    return chrome.runtime.sendMessage<BackgroundRequest, T>(request).catch(() => undefined);
+  } catch {
+    return Promise.resolve(undefined);
+  }
 }
 
 /** This frame's part in a room: always looking for videos, sometimes running the sync. */
@@ -141,6 +152,7 @@ class FrameSession {
   private badge: VideoBadge | null = null;
   private badgeTimer: ReturnType<typeof setInterval> | null = null;
   private pageTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly installedTimer: ReturnType<typeof setInterval>;
   private lastPageReport = "";
   private lastPageUrl: string | null = null;
   private videoChange: VideoChange | null = null;
@@ -151,7 +163,14 @@ class FrameSession {
   private checksPending = 0;
   /** Our own announcement comes back like anyone else's. */
   private lastSealedSent: string | null = null;
-  private readonly onPageHide = () => this.report(0);
+  /**
+   * The page may be kept frozen for the back button, sockets and all, and a frozen page
+   * would go on counting as someone in the room. Coming back asks for its role again.
+   */
+  private readonly onPageHide = () => {
+    this.report(0);
+    this.setActive(false);
+  };
   private readonly onStorageChange = (changes: Record<string, chrome.storage.StorageChange>) => {
     if (LANGUAGE_KEY in changes && this.room) {
       this.stopBadge();
@@ -170,6 +189,9 @@ class FrameSession {
     });
     window.addEventListener("pagehide", this.onPageHide);
     chrome.storage.onChanged.addListener(this.onStorageChange);
+    this.installedTimer = setInterval(() => {
+      if (!isStillInstalled()) this.stop();
+    }, STILL_INSTALLED_CHECK_MS);
     if (isTopFrame) {
       this.reportPage();
       this.pageTimer = setInterval(() => this.reportPage(), PAGE_CHECK_MS);
@@ -230,11 +252,13 @@ class FrameSession {
 
   stop(): void {
     this.isStopped = true;
+    clearInterval(this.installedTimer);
     window.removeEventListener("pagehide", this.onPageHide);
-    chrome.storage.onChanged.removeListener(this.onStorageChange);
     if (this.pageTimer !== null) clearInterval(this.pageTimer);
     this.setActive(false);
     this.tracker.stop();
+    // Last, because it can throw in a script left over from before an update.
+    if (isStillInstalled()) chrome.storage.onChanged.removeListener(this.onStorageChange);
   }
 
   /** Looks at the address each time, so a site changing film is caught before it's touched. */
@@ -414,9 +438,18 @@ if (isTopFrame && location.origin === INVITE_ORIGIN) {
   connectInvitePage((request) => send(request));
 }
 
-void send<SessionInfo>({ type: "session/get" }).then((info) => {
-  if (!info) return;
-  applySession(info.session);
-  frameSession?.setVideoChange(info.videoChange);
-  frameSession?.setActive(info.active);
+function syncWithBackground(): void {
+  void send<SessionInfo>({ type: "session/get" }).then((info) => {
+    if (!info) return;
+    applySession(info.session);
+    frameSession?.setVideoChange(info.videoChange);
+    frameSession?.setActive(info.active);
+  });
+}
+
+syncWithBackground();
+
+// Back from being kept for the back button. The room may have changed meanwhile.
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) syncWithBackground();
 });
