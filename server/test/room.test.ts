@@ -106,6 +106,82 @@ afterEach(async () => {
   for (const client of open.splice(0)) client.close();
 });
 
+describe("the room's video", () => {
+  const videoOf = async (code: string) => {
+    const client = await connect(code);
+    client.send({ type: "video/get" });
+    return client.next();
+  };
+
+  it("starts with none", async () => {
+    expect(await videoOf(await createRoom())).toEqual({ type: "video", sealed: null });
+  });
+
+  it("is kept for whoever asks later, without anyone joining", async () => {
+    const code = await createRoom();
+    const setter = await connect(code);
+    setter.send({ type: "video/set", sealed: "abc" });
+    expect(await setter.next()).toEqual({ type: "video", sealed: "abc" });
+    setter.close();
+
+    expect(await videoOf(code)).toEqual({ type: "video", sealed: "abc" });
+  });
+
+  it("can be replaced", async () => {
+    const code = await createRoom();
+    const setter = await connect(code);
+    setter.send({ type: "video/set", sealed: "one" });
+    await setter.next();
+    setter.send({ type: "video/set", sealed: "two" });
+    await setter.next();
+
+    expect(await videoOf(code)).toEqual({ type: "video", sealed: "two" });
+  });
+
+  it("survives playback changes", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    client.send({ type: "video/set", sealed: "abc" });
+    await client.next();
+    client.sendState();
+    await client.next();
+
+    expect(await videoOf(code)).toEqual({ type: "video", sealed: "abc" });
+  });
+
+  it("doesn't count anyone asking as a person in the room", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    await videoOf(code);
+    const other = await join(code);
+
+    const peers = await client.next();
+    expect(peers).toEqual({ type: "peers", count: 2 });
+    other.client.close();
+  });
+
+  it("goes when the room does", async () => {
+    const code = await createRoom();
+    const setter = await connect(code);
+    setter.send({ type: "video/set", sealed: "abc" });
+    await setter.next();
+    setter.close();
+
+    const room = env.ROOMS.getByName(code);
+    await expect
+      .poll(async () => {
+        await runDurableObjectAlarm(room);
+        return (await runInDurableObject(room, (_, state) => state.storage.list())).size;
+      })
+      .toBe(0);
+  });
+
+  it("tells someone asking about a room that doesn't exist", async () => {
+    const client = await connect("K7M-2QX");
+    expect(await client.closed).toBe(CloseCode.RoomNotFound);
+  });
+});
+
 describe("protocol versions", () => {
   it.each([
     ["newer than the server knows", PROTOCOL_VERSION + 1],

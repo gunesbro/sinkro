@@ -17,7 +17,7 @@ const RATE_LIMIT_WINDOW_MS = 10_000;
 /** Answered by the runtime without waking the room, so idle connections cost nothing. */
 const KEEPALIVE = "keepalive";
 
-type RoomRecord = { state: RoomState | null; seq: number };
+type RoomRecord = { state: RoomState | null; seq: number; video?: string };
 type Attachment = { clientId: string | null };
 type RateWindow = { startedAt: number; count: number };
 
@@ -81,6 +81,17 @@ export class Room extends DurableObject {
           return ws.close(CloseCode.ProtocolMismatch);
         }
         return this.join(ws);
+      case "video/get": {
+        const record = await this.readRecord();
+        if (!record) return ws.close(CloseCode.RoomNotFound);
+        return this.send(ws, { type: "video", sealed: record.video ?? null });
+      }
+      case "video/set": {
+        const record = await this.readRecord();
+        if (!record) return ws.close(CloseCode.RoomNotFound);
+        await this.ctx.storage.put<RoomRecord>("room", { ...record, video: message.sealed });
+        return this.send(ws, { type: "video", sealed: message.sealed });
+      }
       case "state": {
         const clientId = this.clientIdOf(ws);
         if (!clientId) return this.sendError(ws, "not_joined");
@@ -98,7 +109,7 @@ export class Room extends DurableObject {
           seq: record.seq + 1,
           from: clientId,
         };
-        await this.ctx.storage.put<RoomRecord>("room", { state, seq: state.seq });
+        await this.ctx.storage.put<RoomRecord>("room", { ...record, state, seq: state.seq });
         this.broadcast({ type: "state", ...state });
         return;
       }

@@ -26,7 +26,10 @@ export type PlaybackState = {
 export type ClientMessage =
   | { type: "join"; protocol: number }
   | ({ type: "state" } & PlaybackState)
-  | { type: "ping"; clientTime: number };
+  | { type: "ping"; clientTime: number }
+  /** The sealed address of the room's video. Both work without joining. */
+  | { type: "video/get" }
+  | { type: "video/set"; sealed: string };
 
 /** A playback state as accepted by the room. `seq` orders states; higher wins. */
 export type RoomState = PlaybackState & { seq: number; from: string };
@@ -36,9 +39,12 @@ export type ServerMessage =
   | ({ type: "state" } & RoomState)
   | { type: "peers"; count: number }
   | { type: "pong"; clientTime: number; serverTime: number }
+  | { type: "video"; sealed: string | null }
   | { type: "error"; code: ErrorCode };
 
-const MAX_MESSAGE_LENGTH = 512;
+const MAX_MESSAGE_LENGTH = 4096;
+/** Room for a sealed 2048-character address, and small enough to store for every room. */
+const MAX_SEALED_VIDEO_LENGTH = 3500;
 const MAX_POSITION_SECONDS = 7 * 24 * 60 * 60;
 // The range browsers accept for HTMLMediaElement.playbackRate.
 export const MIN_RATE = 0.0625;
@@ -99,6 +105,14 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
       const playback = parsePlayback(message);
       return playback && { type: "state", ...playback };
     }
+    case "video/get":
+      return { type: "video/get" };
+    case "video/set":
+      return typeof message.sealed === "string" &&
+        message.sealed.length > 0 &&
+        message.sealed.length <= MAX_SEALED_VIDEO_LENGTH
+        ? { type: "video/set", sealed: message.sealed }
+        : null;
     default:
       return null;
   }
@@ -128,6 +142,10 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
     }
     case "peers":
       return isFiniteNumber(message.count) ? { type: "peers", count: message.count } : null;
+    case "video":
+      return typeof message.sealed === "string" || message.sealed === null
+        ? { type: "video", sealed: message.sealed }
+        : null;
     case "pong":
       return isFiniteNumber(message.clientTime) && isFiniteNumber(message.serverTime)
         ? { type: "pong", clientTime: message.clientTime, serverTime: message.serverTime }
