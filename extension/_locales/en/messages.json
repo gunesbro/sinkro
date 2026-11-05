@@ -319,5 +319,29 @@
   },
   "roomIdleHelp": {
     "message": "Nothing was played, paused or moved for 12 hours. Create a new room to keep watching."
+  },
+  "oneOtherOnAd": {
+    "message": "Someone is watching an ad"
+  },
+  "othersOnAd": {
+    "message": "$COUNT$ people are watching an ad",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "othersOnAdHelp": {
+    "message": "You're still watching. Pause if you'd like to wait for them."
+  },
+  "othersOnAdPausedHelp": {
+    "message": "The video is paused. You'll hear when the ad ends."
+  },
+  "pauseVideo": {
+    "message": "Pause"
+  },
+  "notifyAdEnded": {
+    "message": "The ad ended"
   }
 }

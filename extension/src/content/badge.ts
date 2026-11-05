@@ -69,6 +69,7 @@ export type BadgeOptions = {
   onBring: () => void;
   onGo: () => void;
   onLeave: () => void;
+  onPause: () => void;
   onPositionChange: (position: BadgePosition | null) => void;
 };
 
@@ -183,6 +184,8 @@ export class VideoBadge {
         options.onBring();
       } else if (this.actionShown === "go" || this.actionShown === "return") {
         options.onGo();
+      } else if (this.actionShown === "pause") {
+        options.onPause();
       } else {
         // Answer the click at once: playback can take a moment to start.
         this.joinPressedAt = Date.now();
@@ -357,7 +360,10 @@ export class VideoBadge {
     if (!notice) return;
 
     this.cardDot.style.background = TONE_COLORS[notice.tone];
-    this.setText(this.cardTitle, translate(this.messages, notice.titleKey));
+    this.setText(
+      this.cardTitle,
+      translate(this.messages, notice.titleKey, notice.titleSubstitutions),
+    );
     this.setText(this.cardDetail, notice.detail ?? "");
     this.cardDetail.style.display = notice.detail ? "block" : "none";
     this.setText(this.cardBody, translate(this.messages, notice.bodyKey));
@@ -366,7 +372,10 @@ export class VideoBadge {
     const show = (button: HTMLElement, isShown: boolean) => {
       button.style.display = isShown ? "block" : "none";
     };
-    show(this.action, mustShowNotice(notice) && notice.action !== "leave");
+    show(
+      this.action,
+      (mustShowNotice(notice) && notice.action !== "leave") || notice.action === "pause",
+    );
     show(this.returnAction, notice.action === "bring");
     show(this.bringAction, notice.action === "go" && status.hasVideo);
     show(this.leaveAction, isVideoChangeAction(notice) || notice.action === "leave");
@@ -382,6 +391,8 @@ export class VideoBadge {
         return translate(this.messages, "bring");
       case "return":
         return translate(this.messages, "backToRoom");
+      case "pause":
+        return translate(this.messages, "pauseVideo");
       case "go":
         return translate(this.messages, "goToVideo", [status.videoChange?.host ?? ""]);
       default:

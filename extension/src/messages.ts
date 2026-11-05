@@ -12,6 +12,8 @@ export type SessionStatus = EngineSnapshot & {
   connection: ConnectionStatus;
   closeReason: CloseReason | null;
   peers: number;
+  /** How many others are on an ad. */
+  othersOnAd: number;
   videoChange: VideoChange | null;
 };
 

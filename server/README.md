@@ -22,6 +22,10 @@ Then enter the `workers.dev` URL as the server URL in the extension's settings.
 
 The creation limit keeps a hash of the address for at most a minute, then deletes it. Addresses themselves aren't stored. A room is deleted 24 hours after its last person leaves, or 24 hours after it's created if nobody joins. A room with people in it closes with code `4408` and is deleted after 12 hours with no one joining and no change of playback or video. It's checked once an hour, so this can run an hour late.
 
+## Someone on an ad
+
+A client that has joined can send `{"type":"ad","watching":true}`. Everyone who has joined gets `{"type":"ads","count":n}`, counting the others on an ad, and someone joining gets it in `joined` as `ads`, when any are. It's kept with the connection, not in storage.
+
 ## The room's video
 
 Without joining, a client can send `{"type":"video/get"}` or `{"type":"video/set","sealed":"..."}`, and the room answers `{"type":"video","sealed":...}`. Setting it also sends that answer to everyone who has joined, and whoever joins later gets it in `joined` as `video`. The value is opaque to the server and deleted with the room.

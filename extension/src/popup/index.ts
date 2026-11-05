@@ -174,7 +174,7 @@ function renderRoom(): void {
   element("alert").hidden = !notice;
   if (notice) {
     setDot("alert-dot", notice.tone);
-    element("alert-title").textContent = t(notice.titleKey);
+    element("alert-title").textContent = t(notice.titleKey, notice.titleSubstitutions);
     element("alert-detail").textContent = notice.detail ?? "";
     element("alert-body").textContent = t(notice.bodyKey);
     element("pick-room").hidden = notice.action !== "pick";
