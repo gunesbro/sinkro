@@ -123,6 +123,8 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
     switch (request.type) {
       case "session/get":
         return getSessionInfo(tabId, frameId);
+      case "i18n/messages":
+        return loadMessages(await getLanguage());
       case "detect/report":
         return {
           active: await inTabQueue(tabId, () => recordReport(tabId, frameId, request.score)),

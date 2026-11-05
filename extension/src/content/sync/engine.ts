@@ -181,6 +181,11 @@ export class SyncEngine {
     this.finishCorrection();
   }
 
+  /** The viewer clicked to get past an autoplay block, and a click is what the browser wants. */
+  retryPlay(): void {
+    this.apply(true);
+  }
+
   /** Makes this viewer's position the room's, for "Bring everyone to me". */
   bringEveryone(): void {
     if (!this.refreshHold()) this.publish();
