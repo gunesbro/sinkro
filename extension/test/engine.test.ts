@@ -829,6 +829,26 @@ describe("autoplay", () => {
   });
 });
 
+describe("the join button on the page", () => {
+  it("plays straight away once the browser allows it, without telling the room", async () => {
+    const context = setup();
+    const { engine, video, peerState, sent } = context;
+    video.autoplayAllowed = false;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: peerState({ position: 100 }), peers: 2 });
+    await settle();
+    expect(engine.snapshot().needsGesture).toBe(true);
+
+    video.autoplayAllowed = true;
+    engine.retryPlay();
+    await settle();
+
+    expect(video.paused).toBe(false);
+    expect(engine.snapshot().needsGesture).toBe(false);
+    expect(sent).toEqual([]);
+  });
+});
+
 describe("end of the video", () => {
   it("tells the room, without restarting", async () => {
     const context = setup();

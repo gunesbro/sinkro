@@ -154,6 +154,8 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
     switch (request.type) {
       case "session/get":
         return getSessionInfo(tabId, frameId);
+      case "i18n/messages":
+        return loadMessages(await getLanguage());
       case "invite/join":
         return joinFromInvite(tabId, request.fragment, sender);
       case "detect/report":

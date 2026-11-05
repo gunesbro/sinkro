@@ -31,6 +31,7 @@ export type BackgroundRequest =
   | { type: "picker/start"; tabId: number }
   // From content scripts, in every frame.
   | { type: "session/get" }
+  | { type: "i18n/messages" }
   /** From the invite page only, on a real click. */
   | { type: "invite/join"; fragment: string }
   | { type: "detect/report"; score: number }
