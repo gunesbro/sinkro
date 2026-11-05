@@ -49,7 +49,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker): Room
     now: Date.now,
     serverNow: () => Date.now() + clock.offset,
     send: (state) => connection.sendState(state),
-    holdFor: (roomPosition) => tracker.holdReason(roomPosition),
+    holdFor: (roomPosition) => tracker.holdReason(roomPosition, peers > 1),
   });
   const connection = new RoomConnection({
     url: roomSocketUrl(serverUrl, code),
@@ -62,6 +62,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker): Room
       onState: (state) => engine.handleState(state),
       onPeers: (count) => {
         peers = count;
+        engine.handlePeers(count);
       },
       onRejected: () => engine.handleRejected(),
       onDisconnected: () => engine.handleDisconnected(),

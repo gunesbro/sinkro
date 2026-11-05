@@ -1,7 +1,13 @@
 import { translate, type Messages } from "../i18n";
 import type { SessionStatus } from "../messages";
 import { noticeFor, statusLine, type Tone } from "../status";
-import { nudge, placeBadge, positionAt, type BadgePosition } from "./badge-position";
+import {
+  isVideoOnScreen,
+  nudge,
+  placeBadge,
+  positionAt,
+  type BadgePosition,
+} from "./badge-position";
 import { markOwnElement } from "./detection/discovery";
 import {
   ACCENT,
@@ -62,6 +68,8 @@ export class VideoBadge {
   private readonly messages: Messages;
   private readonly onPositionChange: (position: BadgePosition | null) => void;
   private video: HTMLVideoElement | null = null;
+  private status: SessionStatus | null = null;
+  private frameRequest: number | null = null;
   private position: BadgePosition | null;
   private positionBeforeMove: BadgePosition | null = null;
   private isMoving = false;
@@ -90,14 +98,23 @@ export class VideoBadge {
     document.addEventListener("fullscreenchange", () => this.attach(), {
       signal: this.listeners.signal,
     });
+    // The regular update is too slow for this, and the badge would trail behind its video.
+    const followNextFrame = () => this.followNextFrame();
+    const passive = { capture: true, passive: true, signal: this.listeners.signal };
+    window.addEventListener("scroll", followNextFrame, passive);
+    window.addEventListener("resize", followNextFrame, passive);
     this.attach();
   }
 
   update(video: HTMLVideoElement | null, status: SessionStatus | null): void {
     this.video = video;
+    this.status = status;
     const box = video?.getBoundingClientRect();
     const fits = box && box.width >= MIN_VIDEO_WIDTH_PX && box.height >= MIN_VIDEO_HEIGHT_PX;
-    if (!box || !fits || !status) {
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    // A viewer who has to click can't be left without the button, wherever the video is.
+    const mustShow = status !== null && noticeFor(status)?.action === "play";
+    if (!box || !fits || !status || !(mustShow || isVideoOnScreen(box, viewport))) {
       this.stack.style.display = "none";
       return;
     }
@@ -126,8 +143,17 @@ export class VideoBadge {
   }
 
   stop(): void {
+    if (this.frameRequest !== null) cancelAnimationFrame(this.frameRequest);
     this.listeners.abort();
     this.host.remove();
+  }
+
+  private followNextFrame(): void {
+    if (this.frameRequest !== null) return;
+    this.frameRequest = requestAnimationFrame(() => {
+      this.frameRequest = null;
+      this.update(this.video, this.status);
+    });
   }
 
   /** Only a fullscreen element's descendants are drawn, so the badge has to move inside it. */

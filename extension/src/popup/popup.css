@@ -368,6 +368,8 @@ input::placeholder {
 }
 
 .room-more {
+  display: flex;
+  gap: 20px;
   padding: 4px 24px 0;
 }
 

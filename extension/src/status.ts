@@ -41,8 +41,11 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
   if (status.closeReason === "room_full") return notice("danger", "roomFull");
   if (status.closeReason === "protocol_mismatch") return notice("danger", "updateNeeded");
   if (status.connection === "reconnecting") return notice("danger", "connLost");
-  if (status.hold === "ad") return notice("warn", "adPlaying");
-  if (status.hold === "past_end") return notice("warn", "pastEnd", "pick");
+  if (status.hold === "ad") {
+    const ad = notice("warn", "adPlaying");
+    return status.peers > 1 ? ad : { ...ad, bodyKey: "adPlayingAloneHelp" };
+  }
+  if (status.hold === "cant_follow") return notice("warn", "cantFollow", "pick");
   if (status.needsGesture) return notice("warn", "needsGesture", "play");
   if (status.connection === "connected" && !status.hasVideo) {
     return notice("idle", "noVideo", "pick");

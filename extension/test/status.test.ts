@@ -22,7 +22,7 @@ describe("statusLine", () => {
     ["closed", { connection: "closed" }, "danger", "connLost"],
     ["no video", { hasVideo: false, drift: null }, "ok", "live"],
     ["an ad", { hold: "ad", drift: null }, "warn", "onHold"],
-    ["past the end", { hold: "past_end", drift: null }, "warn", "onHold"],
+    ["a video that can't follow", { hold: "cant_follow", drift: null }, "warn", "onHold"],
     [
       "waiting for a click, however far behind",
       { needsGesture: true, drift: -30 },
@@ -56,7 +56,7 @@ describe("noticeFor", () => {
     ],
     ["a lost connection", { connection: "reconnecting" }, "connLost", null],
     ["an ad", { hold: "ad" }, "adPlaying", null],
-    ["a video that ends too soon", { hold: "past_end" }, "pastEnd", "pick"],
+    ["a video that can't follow", { hold: "cant_follow" }, "cantFollow", "pick"],
     ["blocked autoplay", { needsGesture: true }, "needsGesture", "play"],
     ["no video", { hasVideo: false }, "noVideo", "pick"],
   ])("explains %s", (_, changes, titleKey, action) => {
@@ -65,6 +65,11 @@ describe("noticeFor", () => {
       bodyKey: `${titleKey}Help`,
       action,
     });
+  });
+
+  it("doesn't mention other people when there aren't any", () => {
+    expect(noticeFor({ ...connected, hold: "ad", peers: 1 })?.bodyKey).toBe("adPlayingAloneHelp");
+    expect(noticeFor({ ...connected, hold: "ad", peers: 2 })?.bodyKey).toBe("adPlayingHelp");
   });
 
   it("puts a lost connection ahead of anything the video is doing", () => {

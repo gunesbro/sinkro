@@ -9,6 +9,8 @@ export type Size = { width: number; height: number };
 
 const INSET_PX = 12;
 const KEY_STEP = 0.02;
+/** With less of its video on screen than this, a badge would seem to belong to something else. */
+const MIN_VISIBLE_SHARE = 0.3;
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -44,6 +46,14 @@ export function placeBadge(
       ? { side: "bottom", px: Math.max(INSET_PX, viewport.height - top - pill.height) }
       : { side: "top", px: Math.max(INSET_PX, top) },
   };
+}
+
+/** Whether enough of the video is on screen for the badge to sit on it. */
+export function isVideoOnScreen(video: Box, viewport: Size): boolean {
+  const width = Math.min(video.left + video.width, viewport.width) - Math.max(video.left, 0);
+  const height = Math.min(video.top + video.height, viewport.height) - Math.max(video.top, 0);
+  if (width <= 0 || height <= 0) return false;
+  return (width * height) / (video.width * video.height) >= MIN_VISIBLE_SHARE;
 }
 
 /** The position that puts the pill's top left corner at this point, as near as it can. */

@@ -35,14 +35,20 @@ const BONUS_INTERACTION = 20;
 const PENALTY_SHORT = 15;
 const PENALTY_PREVIEW = 30;
 const PENALTY_THUMBNAIL = 20;
+/**
+ * Below any video on screen, so it only ever wins when there's nothing else. Players park
+ * a loaded video out of view until it starts, and YouTube's waits above its own player.
+ */
+const OFF_SCREEN_SCORE = 0.5;
 /** Beats anything scoring can add up to, so the viewer's choice always wins. */
 const BONUS_PICKED = 1000;
 
 /** Zero means "not a candidate". Higher is more likely the video people came to watch. */
 export function scoreVideo(video: VideoSignals): number {
   if (video.picked) return BONUS_PICKED;
-  if (!video.rendered || video.visibleRatio <= 0) return 0;
+  if (!video.rendered) return 0;
   if (video.width < MIN_SIDE_PX || video.height < MIN_SIDE_PX) return 0;
+  if (video.visibleRatio <= 0) return Number.isNaN(video.duration) ? 0 : OFF_SCREEN_SCORE;
 
   const share = Math.min(1, (video.width * video.height) / Math.max(1, video.screenArea));
   const isShort = Number.isFinite(video.duration) && video.duration <= LONG_VIDEO_SECONDS;
@@ -79,6 +85,7 @@ export function pickBest<T>(candidates: Candidate<T>[], current: T | null): Cand
     if (!best || candidate.score > best.score) best = candidate;
     if (candidate.item === current) held = candidate;
   }
-  if (best && held && best.score < held.score + SWITCH_MARGIN) return held;
+  // Nothing is worth staying with once it's off screen, which is how a feed gets scrolled.
+  if (best && held && held.score >= 1 && best.score < held.score + SWITCH_MARGIN) return held;
   return best;
 }

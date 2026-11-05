@@ -1,4 +1,4 @@
-import { hasAdMarker, holdReason, type HoldReason } from "./ads";
+import { hasAdEvidence, holdReason, type HoldReason } from "./ads";
 import { VideoDiscovery } from "./discovery";
 import { pickBest, scoreVideo, type Candidate } from "./score";
 
@@ -9,6 +9,14 @@ const REPORT_HEARTBEAT_MS = 5000;
 /** Smaller score changes aren't worth waking the background for. */
 const REPORT_SCORE_CHANGE = 5;
 const HOVER_SAMPLE_MS = 500;
+/**
+ * More than one step, or the ratio goes stale. A video sitting exactly on its container's
+ * edge counts as intersecting at ratio 0, and moving fully into view from there crosses
+ * no threshold at 0 alone, so it would read as invisible for good. YouTube's starts so.
+ */
+const VISIBILITY_THRESHOLDS = [0, 0.01, 0.1, 0.25, 0.5, 0.75, 1];
+/** Looking for ad evidence reads the player's controls, and this gets asked several times a second. */
+const AD_CHECK_MS = 1000;
 
 /** What makes a video "the same video": a new one means a different film in the element. */
 function fingerprintOf(video: HTMLVideoElement): string {
@@ -38,6 +46,9 @@ export class VideoTracker {
   /** The longest video synced on this page, which is how a short one gets noticed as an ad. */
   private longestSeen = 0;
   private longestSeenOn = location.href;
+  private adEvidence = false;
+  private adEvidenceFor: HTMLVideoElement | null = null;
+  private adEvidenceAt = Number.NEGATIVE_INFINITY;
   private rememberedSelector: string | null = null;
   private lastEvaluateAt = Number.NEGATIVE_INFINITY;
   private lastHoverAt = Number.NEGATIVE_INFINITY;
@@ -46,11 +57,14 @@ export class VideoTracker {
 
   constructor(private readonly events: TrackerEvents) {
     this.discovery = new VideoDiscovery(() => this.evaluate());
-    this.visibility = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        this.visibleRatios.set(entry.target as HTMLVideoElement, entry.intersectionRatio);
-      }
-    });
+    this.visibility = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          this.visibleRatios.set(entry.target as HTMLVideoElement, entry.intersectionRatio);
+        }
+      },
+      { threshold: VISIBILITY_THRESHOLDS },
+    );
   }
 
   start(rememberedSelector: string | null): void {
@@ -87,7 +101,7 @@ export class VideoTracker {
   }
 
   /** Why the current video can't follow the room at `roomPosition`, if it can't. */
-  holdReason(roomPosition: number | null): HoldReason | null {
+  holdReason(roomPosition: number | null, hasOthers: boolean): HoldReason | null {
     const video = this.current;
     if (!video) return null;
 
@@ -100,14 +114,26 @@ export class VideoTracker {
       duration: video.duration,
       longestSeen: this.longestSeen,
       roomPosition,
-      hasAdMarker: hasAdMarker(video),
+      hasAdEvidence: this.checkAdEvidence(video),
+      hasOthers,
       picked: video === this.picked || this.matchesRemembered(video),
     });
     // Ads don't get to set the bar, and neither does a video still being measured against it.
     if (!reason && Number.isFinite(video.duration)) {
-      this.longestSeen = Math.max(this.longestSeen, video.duration);
+      // Alone, whatever this viewer watches is the room's video, however short.
+      this.longestSeen = hasOthers ? Math.max(this.longestSeen, video.duration) : video.duration;
     }
     return reason;
+  }
+
+  private checkAdEvidence(video: HTMLVideoElement): boolean {
+    const now = Date.now();
+    if (video !== this.adEvidenceFor || now - this.adEvidenceAt >= AD_CHECK_MS) {
+      this.adEvidence = hasAdEvidence(video);
+      this.adEvidenceFor = video;
+      this.adEvidenceAt = now;
+    }
+    return this.adEvidence;
   }
 
   /** The viewer chose this one, or chose a video in another frame (null). */

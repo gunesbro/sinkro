@@ -89,6 +89,8 @@ export class SyncEngine {
   private expectedRate = 1;
   private correcting = false;
   private hold: HoldReason | null = null;
+  /** Nobody else is in the room, so this viewer's video is the room's timeline. */
+  private isAlone = false;
   /** Whether the video was paused the last time we changed it or heard from it. */
   private knownPaused = true;
   private unreportedChangeSince: number | null = null;
@@ -141,12 +143,22 @@ export class SyncEngine {
     this.joined = true;
     this.clientId = message.clientId;
     this.unacked = 0;
+    this.isAlone = message.peers <= 1;
     this.lastSeq = message.state?.seq ?? 0;
     // A room that was left empty still remembers its last state, but nobody is on that
     // timeline any more. Extrapolating it would jump the video ahead by the time away.
     const isLive = message.state !== null && message.peers > 1;
     this.setTimeline(isLive ? message.state : null);
     this.syncWithRoom();
+  }
+
+  handlePeers(count: number): void {
+    const wasAlone = this.isAlone;
+    this.isAlone = count <= 1;
+    // Whoever just arrived got a timeline this viewer wasn't being held to. Give them the truth.
+    if (wasAlone && !this.isAlone && this.joined && this.video && !this.refreshHold()) {
+      this.publish();
+    }
   }
 
   handleState(state: RoomState): void {
@@ -204,11 +216,12 @@ export class SyncEngine {
       hasVideo: video !== null,
       position: video?.currentTime ?? null,
       drift:
-        video && timeline && !this.hold
+        video && timeline && !this.hold && !this.isAlone
           ? video.currentTime - targetPosition(timeline, this.deps.serverNow(), video.duration)
           : null,
       correcting: this.correcting,
-      needsGesture: this.autoplayRetryAt !== 0,
+      // A play the browser accepted can take a while to finish while the video loads.
+      needsGesture: this.autoplayRetryAt !== 0 && (video?.paused ?? false),
       hold: this.hold,
     };
   }
@@ -256,6 +269,10 @@ export class SyncEngine {
       this.clearFlags();
       this.knownPaused = video.paused;
       this.expectedRate = video.playbackRate;
+      return;
+    }
+    if (this.isAlone) {
+      this.finishCorrection();
       return;
     }
     // Coming back from an ad can't wait for a cooldown any more than a new state can.

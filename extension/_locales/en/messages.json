@@ -200,12 +200,6 @@
   "adPlayingHelp": {
     "message": "Everyone else carries on. You'll jump to the room's spot when it ends."
   },
-  "pastEnd": {
-    "message": "This video ends before the room's spot"
-  },
-  "pastEndHelp": {
-    "message": "You may be on a different video or source. Sinkro won't move it until the room is back in range."
-  },
   "onHold": {
     "message": "On hold"
   },
@@ -218,6 +212,21 @@
   "openVideoHereHelp": {
     "message": "You're in the room. Sync starts once this tab is on the video's page."
   },
+  "adPlayingAloneHelp": {
+    "message": "Sync picks up again when it ends."
+  },
+  "cantFollow": {
+    "message": "This video can't follow the room"
+  },
+  "cantFollowHelp": {
+    "message": "It may be an ad, or a different video or source. You'll jump to the room's spot when the room's video is back."
+  },
+  "pastEnd": {
+    "message": "This video ends before the room's spot"
+  },
+  "pastEndHelp": {
+    "message": "You may be on a different video or source. Sinkro won't move it until the room is back in range."
+  },
   "badgeMove": {
     "message": "Move the badge"
   },
@@ -229,5 +238,8 @@
   },
   "badgeReset": {
     "message": "Reset"
+  },
+  "bringSent": {
+    "message": "Sent"
   }
 }
