@@ -7,6 +7,12 @@ export type BadgePosition = { x: number; y: number };
 export type Box = { left: number; top: number; width: number; height: number };
 export type Size = { width: number; height: number };
 
+/**
+ * The chip with nothing showing but its dot and count. Places are worked out from this size,
+ * so the chip keeps its spot when it opens up, instead of shifting away from the pointer.
+ */
+export const CHIP_AT_REST: Size = { width: 50, height: 32 };
+
 const INSET_PX = 12;
 const KEY_STEP = 0.02;
 /** With less of its video on screen than this, a badge would seem to belong to something else. */
@@ -21,19 +27,39 @@ export type Placement = {
   vertical: { side: "top" | "bottom"; px: number };
 };
 
-/** Keeps the card on the side with room for it, and everything inside the viewport. */
-export function placeBadge(
-  video: Box,
-  pill: Size,
-  viewport: Size,
-  position: BadgePosition | null,
-): Placement {
+/** Where the chip belongs on this video, whether or not that's on screen. */
+export function spotOf(video: Box, pill: Size, position: BadgePosition | null): Box {
   const left = position
     ? video.left + position.x * (video.width - pill.width)
     : video.left + video.width - pill.width - INSET_PX;
   const top = position
     ? video.top + position.y * (video.height - pill.height)
     : video.top + INSET_PX;
+  return { left, top, width: pill.width, height: pill.height };
+}
+
+/** Pushed anywhere else, the chip would be sitting on the site instead of the video. */
+export function isSpotOnScreen(spot: Box, viewport: Size): boolean {
+  return (
+    spot.left >= 0 &&
+    spot.top >= 0 &&
+    spot.left + spot.width <= viewport.width &&
+    spot.top + spot.height <= viewport.height
+  );
+}
+
+/**
+ * Keeps the card on the side with room for it, and everything inside the viewport.
+ * `minTop` keeps it below something the site has pinned along the top of the window.
+ */
+export function placeBadge(
+  video: Box,
+  pill: Size,
+  viewport: Size,
+  position: BadgePosition | null,
+  minTop = INSET_PX,
+): Placement {
+  const { left, top } = spotOf(video, pill, position);
 
   const alignRight = !position || position.x > 0.5;
   const opensUp = position !== null && position.y > 0.5;
@@ -44,7 +70,7 @@ export function placeBadge(
       : { side: "left", px: Math.max(INSET_PX, left) },
     vertical: opensUp
       ? { side: "bottom", px: Math.max(INSET_PX, viewport.height - top - pill.height) }
-      : { side: "top", px: Math.max(INSET_PX, top) },
+      : { side: "top", px: Math.max(minTop, top) },
   };
 }
 

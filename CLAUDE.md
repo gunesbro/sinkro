@@ -54,7 +54,7 @@ Scoring picks one winner across all frames: + visible area, playing, unmuted, du
 
 ## MVP scope (phase 1)
 
-Create/join room by code or link · play/pause/seek/rate sync · drift correction · detection engine (layers 1–5, scoring, manual picker) · ad detection · on-video badge with a position the viewer sets · configurable server URL · invite page · EN + TR.
+Create/join room by code or link · play/pause/seek/rate sync · drift correction · detection engine (layers 1–5, scoring, manual picker) · ad detection · on-video badge the viewer can drag anywhere on the video · configurable server URL · invite page · EN + TR.
 Later: big-screen mode that fills the window through temporary CSS, off by default and with no moving of the site's DOM (after real-site testing), same-source comparison for sites that serve one episode from several video hosts (to be evaluated), participants list with "who did what" (v1), chat + reactions (v1), host-only control (v1), site adapters (v1), "everyone ready" wait (v1), voice chat (v2), local-file mode (last).
 
 Phase gate for MVP: 3 people, a 1-hour video, drift stays under 0.5 s.

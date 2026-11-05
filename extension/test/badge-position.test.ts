@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { isVideoOnScreen, nudge, placeBadge, positionAt } from "../src/content/badge-position";
+import {
+  isSpotOnScreen,
+  isVideoOnScreen,
+  nudge,
+  placeBadge,
+  positionAt,
+  spotOf,
+} from "../src/content/badge-position";
 
 const video = { left: 100, top: 50, width: 800, height: 450 };
 const pill = { width: 100, height: 32 };
@@ -83,6 +90,64 @@ describe("nudge", () => {
 
   it.each(["a", "Enter", "Escape", " "])("ignores %j", (key) => {
     expect(nudge(middle, key)).toBeNull();
+  });
+});
+
+describe("placeBadge's room for a site's bar", () => {
+  const scrolled = { ...video, top: -300 };
+
+  it("stays below it", () => {
+    expect(placeBadge(scrolled, pill, viewport, null, 64).vertical).toEqual({
+      side: "top",
+      px: 64,
+    });
+  });
+
+  it("makes no difference to a spot already below it", () => {
+    expect(placeBadge(video, pill, viewport, null, 40).vertical).toEqual({ side: "top", px: 62 });
+  });
+});
+
+describe("spotOf", () => {
+  it("defaults to the video's top right corner", () => {
+    expect(spotOf(video, pill, null)).toEqual({ left: 788, top: 62, width: 100, height: 32 });
+  });
+
+  it("follows the position the viewer chose", () => {
+    expect(spotOf(video, pill, { x: 0, y: 1 })).toEqual({
+      left: 100,
+      top: 468,
+      width: 100,
+      height: 32,
+    });
+  });
+
+  it("agrees with positionAt", () => {
+    const position = positionAt(video, pill, 300, 200);
+    const spot = spotOf(video, pill, position);
+    expect(spot.left).toBeCloseTo(300);
+    expect(spot.top).toBeCloseTo(200);
+  });
+});
+
+describe("isSpotOnScreen", () => {
+  const size = { width: 50, height: 32 };
+
+  it.each([
+    ["well inside", 100, 100],
+    ["right at the top left", 0, 0],
+    ["right at the bottom right", 1230, 768],
+  ])("accepts a spot %s", (_, left, top) => {
+    expect(isSpotOnScreen({ left, top, ...size }, viewport)).toBe(true);
+  });
+
+  it.each([
+    ["above the window", 100, -1],
+    ["left of it", -1, 100],
+    ["past the right", 1231, 100],
+    ["below it", 100, 769],
+  ])("refuses a spot %s", (_, left, top) => {
+    expect(isSpotOnScreen({ left, top, ...size }, viewport)).toBe(false);
   });
 });
 

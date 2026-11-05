@@ -9,6 +9,8 @@ export const OK = "#5FD4A0";
 export const DANGER = "#FF9A8F";
 export const BACKGROUND = "#110D0C";
 export const OVERLAY_BACKGROUND = "rgba(17, 13, 12, 0.88)";
+/** See-through for a chip nobody needs right now, but its text still has to read on white. */
+export const OVERLAY_BACKGROUND_QUIET = "rgba(17, 13, 12, 0.66)";
 export const OVERLAY_BORDER = "rgba(244, 237, 230, 0.14)";
 export const BORDER = "#3A2F2A";
 export const BUTTON_BORDER = "#4A3C35";

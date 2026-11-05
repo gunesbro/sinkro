@@ -310,5 +310,11 @@
   },
   "notifyYouSeeked": {
     "message": "Videoyu sardın"
+  },
+  "badgeDragHint": {
+    "message": "Taşımak için sürükle"
+  },
+  "badgeDragCancel": {
+    "message": "Esc ile vazgeç"
   }
 }
