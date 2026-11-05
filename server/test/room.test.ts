@@ -1,7 +1,12 @@
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
-import { CloseCode, type ServerMessage } from "../src/protocol";
+import {
+  CloseCode,
+  MIN_PROTOCOL_VERSION,
+  PROTOCOL_VERSION,
+  type ServerMessage,
+} from "../src/protocol";
 
 const BASE = "https://sinkro.test";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -99,6 +104,35 @@ function getAlarm(code: string): Promise<number | null> {
 
 afterEach(async () => {
   for (const client of open.splice(0)) client.close();
+});
+
+describe("protocol versions", () => {
+  it.each([
+    ["newer than the server knows", PROTOCOL_VERSION + 1],
+    ["older than it still supports", MIN_PROTOCOL_VERSION - 1],
+  ])("refuses a client %s", async (_, protocol) => {
+    const client = await connect(await createRoom());
+    client.send({ type: "join", protocol });
+    expect(await client.closed).toBe(CloseCode.ProtocolMismatch);
+  });
+
+  it("accepts the oldest supported version", async () => {
+    const client = await connect(await createRoom());
+    client.send({ type: "join", protocol: MIN_PROTOCOL_VERSION });
+    expect((await client.next()).type).toBe("joined");
+  });
+
+  it("lets a client send fields it knows and the server doesn't", async () => {
+    const code = await createRoom();
+    const { client: newer } = await join(code);
+    const { client: older } = await join(code);
+    await newer.next();
+    newer.sendState({ position: 7, somethingNew: true });
+
+    const received = await older.next();
+    expect(received).toMatchObject({ type: "state", position: 7 });
+    expect(received).not.toHaveProperty("somethingNew");
+  });
 });
 
 describe("HTTP routes", () => {
