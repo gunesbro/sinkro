@@ -37,8 +37,8 @@ export type ConnectionEvents = {
   onPeers: (count: number) => void;
   /** How many others are on an ad. */
   onAds: (count: number) => void;
-  /** Someone moved the room to another video. */
-  onVideo: (sealed: string) => void;
+  /** Someone moved the room to another video. `fresh` means it's a different film. */
+  onVideo: (sealed: string, fresh: boolean) => void;
   onRejected: () => void;
   onDisconnected: () => void;
   onStatus: (status: ConnectionStatus, reason: CloseReason | null) => void;
@@ -133,8 +133,8 @@ export class RoomConnection {
     return this.joined && this.send({ type: "ad", watching });
   }
 
-  sendVideo(sealed: string): boolean {
-    return this.send({ type: "video/set", sealed });
+  sendVideo(sealed: string, fresh: boolean): boolean {
+    return this.send({ type: "video/set", sealed, ...(fresh ? { fresh: true } : {}) });
   }
 
   private open(): void {
@@ -200,7 +200,7 @@ export class RoomConnection {
         events.onAds(message.count);
         return;
       case "video":
-        if (message.sealed !== null) events.onVideo(message.sealed);
+        if (message.sealed !== null) events.onVideo(message.sealed, message.fresh === true);
         return;
       case "error":
         events.onRejected();

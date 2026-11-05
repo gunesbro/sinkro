@@ -79,7 +79,7 @@ export type TabRequest =
   | { type: "session/role"; active: boolean }
   | { type: "session/status" }
   /** Sends this viewer's page and position to the room, moving everyone else to them. */
-  | { type: "session/bring"; sealed: string | null }
+  | { type: "session/bring"; sealed: string | null; isNewFilm: boolean }
   | { type: "session/video-change"; change: VideoChange | null }
   /** Lets the viewer drag the on-video badge somewhere else. */
   | { type: "badge/move" }

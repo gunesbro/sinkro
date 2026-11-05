@@ -2,7 +2,7 @@
 // the sync. It holds no connections, because it goes to sleep.
 import { normalizeRoomCode } from "../../../server/src/room-code";
 import { getLanguage, loadMessages } from "../i18n";
-import { INVITE_ORIGIN, parseInviteFragment } from "../invite";
+import { INVITE_ORIGIN, isSamePage, parseInviteFragment } from "../invite";
 import type {
   BackgroundRequest,
   CreateRoomResponse,
@@ -148,7 +148,7 @@ function onRoomVideoSeen(
 
 function bringEveryoneHere(tabId: number): Promise<void> {
   return inTabQueue(tabId, async () => {
-    const [session, { pageUrl, pageTitle }] = await Promise.all([
+    const [session, { pageUrl, pageTitle, roomUrl }] = await Promise.all([
       getSession(tabId),
       getTabVideo(tabId),
     ]);
@@ -157,7 +157,11 @@ function bringEveryoneHere(tabId: number): Promise<void> {
       pageUrl && (await sealRoomVideo(session.code, { url: pageUrl, title: pageTitle }));
     // The frame goes first: lifting the hold before it has spoken would pull this video back
     // to the old timeline, and then that's the position everyone gets brought to.
-    await sendToTab(tabId, { type: "session/bring", sealed: sealed || null });
+    await sendToTab(tabId, {
+      type: "session/bring",
+      sealed: sealed || null,
+      isNewFilm: roomUrl !== null && !isSamePage(pageUrl, roomUrl),
+    });
     await updateTabVideo(tabId, broughtHere);
   });
 }

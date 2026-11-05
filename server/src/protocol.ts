@@ -35,7 +35,8 @@ export type ClientMessage =
   | { type: "ping"; clientTime: number }
   /** The room's video, sealed. Both work without joining. Setting it tells everyone who joined. */
   | { type: "video/get" }
-  | { type: "video/set"; sealed: string }
+  /** `fresh` means it's a different film, so the room's position no longer means anything. */
+  | { type: "video/set"; sealed: string; fresh?: boolean }
   /** Whether this viewer is sitting through an ad, so the others can choose to wait. */
   | { type: "ad"; watching: boolean };
 
@@ -57,7 +58,7 @@ export type ServerMessage =
   | ({ type: "state" } & RoomState)
   | { type: "peers"; count: number }
   | { type: "pong"; clientTime: number; serverTime: number }
-  | { type: "video"; sealed: string | null }
+  | { type: "video"; sealed: string | null; fresh?: boolean }
   | { type: "error"; code: ErrorCode };
 
 const MAX_MESSAGE_LENGTH = 4096;
@@ -139,7 +140,11 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
       return typeof message.sealed === "string" &&
         message.sealed.length > 0 &&
         message.sealed.length <= MAX_SEALED_VIDEO_LENGTH
-        ? { type: "video/set", sealed: message.sealed }
+        ? {
+            type: "video/set",
+            sealed: message.sealed,
+            ...(message.fresh === true ? { fresh: true } : {}),
+          }
         : null;
     default:
       return null;
@@ -179,7 +184,11 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       return isFiniteNumber(message.count) ? { type: "ads", count: message.count } : null;
     case "video":
       return typeof message.sealed === "string" || message.sealed === null
-        ? { type: "video", sealed: message.sealed }
+        ? {
+            type: "video",
+            sealed: message.sealed,
+            ...(message.fresh === true ? { fresh: true } : {}),
+          }
         : null;
     case "pong":
       return isFiniteNumber(message.clientTime) && isFiniteNumber(message.serverTime)
