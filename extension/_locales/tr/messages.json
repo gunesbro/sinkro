@@ -349,5 +349,14 @@
   },
   "startPlayerHelp": {
     "message": "Oynatıcının oynat düğmesine bas. Video açılınca eşitleme başlar."
+  },
+  "youMovedFloatingHelp": {
+    "message": "Oda önceki videoda. Herkesi getirmek için önce bu videonun kendi sayfasını aç."
+  },
+  "floatingPlayer": {
+    "message": "Küçük oynatıcıdasın"
+  },
+  "floatingPlayerHelp": {
+    "message": "Eşitleme sürüyor. Herkesi buraya getirmek için önce videonun kendi sayfasını aç."
   }
 }

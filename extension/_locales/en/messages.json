@@ -349,5 +349,14 @@
   },
   "startPlayerHelp": {
     "message": "Press play on the site's player. Syncing starts once the video opens."
+  },
+  "youMovedFloatingHelp": {
+    "message": "The room is on the previous one. To bring everyone, open this video's own page first."
+  },
+  "floatingPlayer": {
+    "message": "You're in a small player"
+  },
+  "floatingPlayerHelp": {
+    "message": "Sync carries on. To bring everyone here, open the video's own page first."
   }
 }
