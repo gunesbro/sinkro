@@ -112,6 +112,25 @@ describe("scoreVideo", () => {
   });
 });
 
+describe("holdReason with another video over a paused film", () => {
+  const film: HoldSignals = {
+    duration: 5400,
+    longestSeen: 5400,
+    roomPosition: 1000,
+    hasAdEvidence: false,
+    hasOthers: true,
+    picked: false,
+  };
+
+  it("calls it an ad, with no markers at all", () => {
+    expect(holdReason({ ...film, hasCompetingPlayback: true })).toBe("ad");
+  });
+
+  it("isn't one without it", () => {
+    expect(holdReason({ ...film, hasCompetingPlayback: false })).toBeNull();
+  });
+});
+
 describe("holdReason", () => {
   const film: HoldSignals = {
     duration: 5400,

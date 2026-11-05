@@ -83,6 +83,7 @@ type RoomHooks = {
   /** Someone else's state, for what it says about their film. */
   onOthersState: (state: RoomState) => void;
   filmDetails: () => Pick<RoomState, "duration" | "source">;
+  lastInputAt: () => number;
   sourceMismatch: () => SourceMismatch | null;
 };
 
@@ -104,8 +105,10 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     onRemoteChange: hooks.onRemoteChange,
     onOwnChange: hooks.onOwnChange,
     filmDetails: hooks.filmDetails,
+    lastInputAt: hooks.lastInputAt,
     onHoldChange: (hold) => {
-      isOnAd = hold === "ad";
+      // A film that can't follow is usually a player's ad without markers, as far as others care.
+      isOnAd = hold === "ad" || hold === "cant_follow";
       connection.sendAdState(isOnAd);
     },
   });
@@ -218,6 +221,8 @@ class FrameSession {
   private lastPageReport = "";
   private lastPageUrl: string | null = null;
   private pointer: { x: number; y: number } | null = null;
+  /** When the viewer last clicked or pressed a key here, to tell their changes from a player's. */
+  private lastInputAt = Number.NEGATIVE_INFINITY;
   private readonly clickedVideos = new WeakSet<HTMLVideoElement>();
   private readonly previews = new WeakSet<HTMLVideoElement>();
   private readonly pointerListeners = new AbortController();
@@ -276,9 +281,14 @@ class FrameSession {
     // goes ahead of the move, and the engine asks about the video the moment it starts.
     window.addEventListener("pointerover", notePointer, { capture: true, passive: true, signal });
     window.addEventListener("pointermove", notePointer, { capture: true, passive: true, signal });
+    const noteInput = () => {
+      this.lastInputAt = Date.now();
+    };
+    window.addEventListener("keydown", noteInput, { capture: true, passive: true, signal });
     window.addEventListener(
       "pointerdown",
       (event) => {
+        noteInput();
         notePointer(event);
         const video = this.tracker.video();
         if (video && this.isPointerOver(video)) this.clickedVideos.add(video);
@@ -314,6 +324,7 @@ class FrameSession {
         isHoverPreview: () => this.isHoverPreview(),
         onOthersState: (state) => this.onOthersState(state),
         filmDetails: () => this.filmDetails(),
+        lastInputAt: () => this.lastInputAt,
         sourceMismatch: () => this.sourceMismatch(),
       });
       void this.startBadge();

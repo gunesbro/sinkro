@@ -2,6 +2,8 @@ import { hasAdEvidence, holdReason, type HoldReason } from "./ads";
 import { VideoDiscovery } from "./discovery";
 import { pickBest, scoreVideo, type Candidate } from "./score";
 
+/** How big another video has to be, against the film, to be an ad shown over it. */
+const COMPETING_SHARE = 0.25;
 const EVALUATE_INTERVAL_MS = 1000;
 const MIN_EVALUATE_GAP_MS = 100;
 /** Frames report at least this often, so the background can tell a frame has gone. */
@@ -115,6 +117,7 @@ export class VideoTracker {
       longestSeen: this.longestSeen,
       roomPosition,
       hasAdEvidence: this.checkAdEvidence(video),
+      hasCompetingPlayback: this.hasCompetingPlayback(video),
       hasOthers,
       picked: video === this.picked || this.matchesRemembered(video),
     });
@@ -124,6 +127,18 @@ export class VideoTracker {
       this.longestSeen = hasOthers ? Math.max(this.longestSeen, video.duration) : video.duration;
     }
     return reason;
+  }
+
+  /** Players pause the film and play an ad in an element of their own, laid over it. */
+  private hasCompetingPlayback(video: HTMLVideoElement): boolean {
+    if (!video.paused) return false;
+    const box = video.getBoundingClientRect();
+    const area = box.width * box.height;
+    return this.discovery.current().some((other) => {
+      if (other === video || other.paused || other.muted || other.volume === 0) return false;
+      const { width, height } = other.getBoundingClientRect();
+      return other.checkVisibility() && width * height >= area * COMPETING_SHARE;
+    });
   }
 
   private checkAdEvidence(video: HTMLVideoElement): boolean {

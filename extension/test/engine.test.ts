@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlaybackState, RoomState } from "../../server/src/protocol";
 import type { HoldReason } from "../src/content/detection/ads";
-import { SyncEngine, type PlaybackChange } from "../src/content/sync/engine";
+import { SyncEngine, type EngineDeps, type PlaybackChange } from "../src/content/sync/engine";
 import { FakeVideo } from "./fake-video";
 
 const ME = "me";
 const PEER = "peer";
 const CLOCK_OFFSET_MS = 5000;
 
-function setup() {
+function setup(extra: Partial<EngineDeps> = {}) {
   const changes: PlaybackChange[] = [];
   const ownChanges: PlaybackChange[] = [];
   const rates: number[] = [];
@@ -44,6 +44,7 @@ function setup() {
       if (online) sent.push(state);
       return online;
     },
+    ...extra,
   });
   let seq = 0;
   const peerState = (state: Partial<RoomState>): RoomState => {
@@ -1224,6 +1225,92 @@ describe("telling the viewer what they did themselves", () => {
     await settle();
 
     expect(context.ownChanges).toEqual([]);
+  });
+});
+
+describe("telling the viewer's actions from the player's own", () => {
+  /** The viewer last touched the page long ago, so whatever happens now is the player. */
+  const untouched = () => setup({ lastInputAt: () => Number.NEGATIVE_INFINITY });
+
+  it("waits a moment before passing on a pause nobody pressed", async () => {
+    const context = untouched();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    context.video.pause();
+    await settle();
+    expect(context.sent).toEqual([]);
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(context.sent.at(-1)?.playing).toBe(false);
+  });
+
+  it("doesn't undo the pause while it waits, which would leave nothing to pass on", async () => {
+    const context = untouched();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    context.video.pause();
+    await settle();
+    await vi.advanceTimersByTimeAsync(250);
+    context.video.dispatchEvent(new Event("timeupdate"));
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(context.video.paused).toBe(true);
+    expect(context.sent.at(-1)?.playing).toBe(false);
+  });
+
+  it("doesn't pass it on when an ad starts over the film meanwhile", async () => {
+    const context = untouched();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    context.video.pause();
+    await settle();
+    context.hold.reason = "ad";
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(context.sent).toEqual([]);
+  });
+
+  it("passes a pressed pause on at once", async () => {
+    let inputAt = Number.NEGATIVE_INFINITY;
+    const context = setup({ lastInputAt: () => inputAt });
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    inputAt = Date.now();
+    context.video.pause();
+    await settle();
+
+    expect(context.sent.at(-1)?.playing).toBe(false);
+  });
+
+  it("doesn't let a player putting the film back after an ad pull the room back", async () => {
+    const context = untouched();
+    await joinPlaying(context, 900);
+    context.hold.reason = "cant_follow";
+    await vi.advanceTimersByTimeAsync(8000);
+    context.hold.reason = null;
+    await vi.advanceTimersByTimeAsync(1100);
+    context.sent.length = 0;
+    context.video.userSeek(900);
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(context.sent).toEqual([]);
+    expect(context.video.position).toBeGreaterThan(905);
+  });
+
+  it("still passes on the viewer's own seek right after a hold", async () => {
+    let inputAt = Number.NEGATIVE_INFINITY;
+    const context = setup({ lastInputAt: () => inputAt });
+    await joinPlaying(context, 900);
+    context.hold.reason = "ad";
+    await vi.advanceTimersByTimeAsync(3000);
+    context.hold.reason = null;
+    await vi.advanceTimersByTimeAsync(1100);
+    context.sent.length = 0;
+    inputAt = Date.now();
+    context.video.userSeek(2000);
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(context.sent.at(-1)?.position).toBeGreaterThan(1990);
   });
 });
 
