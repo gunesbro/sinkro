@@ -217,5 +217,17 @@
   },
   "openVideoHereHelp": {
     "message": "You're in the room. Sync starts once this tab is on the video's page."
+  },
+  "badgeMove": {
+    "message": "Move the badge"
+  },
+  "badgeMoveHint": {
+    "message": "Drag the badge, or use the arrow keys. Esc cancels."
+  },
+  "badgeDone": {
+    "message": "Done"
+  },
+  "badgeReset": {
+    "message": "Reset"
   }
 }

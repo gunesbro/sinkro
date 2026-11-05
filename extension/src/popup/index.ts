@@ -129,6 +129,7 @@ function renderRoom(): void {
     element("alert-body").textContent = t(notice.bodyKey);
     element("pick-room").hidden = notice.action !== "pick";
   }
+  element<HTMLButtonElement>("move-badge").disabled = !status?.hasVideo;
   element<HTMLButtonElement>("bring").disabled =
     status?.connection !== "connected" || !status.hasVideo || status.hold !== null;
 }
@@ -298,6 +299,13 @@ function connectEvents(): void {
     if (tabId === undefined) return;
     const request: TabRequest = { type: "session/bring" };
     void chrome.tabs.sendMessage(tabId, request).catch(() => undefined);
+  });
+  element("move-badge").addEventListener("click", () => {
+    if (tabId === undefined) return;
+    const request: TabRequest = { type: "badge/move" };
+    void chrome.tabs.sendMessage(tabId, request).catch(() => undefined);
+    // The moving happens on the page, and a click there would close the popup anyway.
+    window.close();
   });
   element("copy-code").addEventListener("click", (event) => {
     if (session) void copyWithFeedback(event.currentTarget as HTMLElement, session.code);
