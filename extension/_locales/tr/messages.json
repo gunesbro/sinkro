@@ -217,5 +217,17 @@
   },
   "openVideoHereHelp": {
     "message": "Odadasın. Bu sekmede videonun sayfasına gidince senkron başlar."
+  },
+  "badgeMove": {
+    "message": "Rozeti taşı"
+  },
+  "badgeMoveHint": {
+    "message": "Rozeti sürükle ya da ok tuşlarını kullan. Esc iptal eder."
+  },
+  "badgeDone": {
+    "message": "Tamam"
+  },
+  "badgeReset": {
+    "message": "Sıfırla"
   }
 }

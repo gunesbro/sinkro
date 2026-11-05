@@ -52,6 +52,8 @@ export type TabRequest =
   | { type: "session/status" }
   /** Sends this viewer's position to the room, moving everyone else to it. */
   | { type: "session/bring" }
+  /** Lets the viewer drag the on-video badge somewhere else. */
+  | { type: "badge/move" }
   | { type: "detect/peek" }
   | { type: "picker/start"; messages: Messages }
   | { type: "picker/stop"; picked: boolean };
