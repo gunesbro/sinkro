@@ -1,6 +1,6 @@
 # Sinkro server
 
-A Cloudflare Worker with one Durable Object per room. It relays playback state between the people in a room and never sees video, page URLs or titles. It works on Cloudflare's free plan.
+A Cloudflare Worker with one Durable Object per room. It relays playback state between the people in a room and never sees video or page titles. It stores the address of the room's video only in a form sealed by the extension. It works on Cloudflare's free plan.
 
 ## Self-hosting
 
@@ -22,9 +22,13 @@ Then enter the `workers.dev` URL as the server URL in the extension's settings.
 
 The creation limit keeps a hash of the address for at most a minute, then deletes it. Addresses themselves aren't stored. A room is deleted 24 hours after its last person leaves, or 24 hours after it's created if nobody joins.
 
+## The room's video
+
+Without joining, a client can send `{"type":"video/get"}` or `{"type":"video/set","sealed":"..."}`, and the room answers `{"type":"video","sealed":...}`. The value is opaque to the server and deleted with the room.
+
 ## WebSocket messages
 
-All messages are JSON text of at most 512 characters. The types are in [`src/protocol.ts`](src/protocol.ts).
+All messages are JSON text of at most 4096 characters. The types are in [`src/protocol.ts`](src/protocol.ts).
 
 | Direction | Message                                                | Notes                                                 |
 | --------- | ------------------------------------------------------ | ----------------------------------------------------- |

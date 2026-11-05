@@ -9,7 +9,7 @@ Full background and reasoning: `docs/PLAN.md`. Visual design: `docs/DESIGN.md` a
 
 ## Decisions already made (don't relitigate without asking)
 
-- **Product**: browser extension + a static invite/landing page. No accounts, no analytics. Only room code and playback state (playing/paused, position, rate, timestamp) ever reach the server — never video content.
+- **Product**: browser extension + a static invite/landing page. No accounts, no analytics. Only room code, playback state (playing/paused, position, rate, timestamp) and the page address of the room's video ever reach the server — never video content. That address is sent only on creating a room or "Bring everyone to me", sealed with a key from the room code, so joining by code can offer a button to the video.
 - **Languages**: English is the default, Turkish is the second language, both in the MVP. Use the WebExtension `_locales/en` and `_locales/tr` message files; the popup has an EN/TR switch that overrides the browser language. Every user-facing string goes through i18n from day one — no hard-coded copy.
 - **Server**: Cloudflare Workers + Durable Objects (one Durable Object per room, WebSocket hibernation). Free tier. The server URL is configurable in extension settings so anyone can self-host.
 - **Hosting for the invite page**: Cloudflare Pages at `sinkro.pages.dev` for now. A real domain comes later.
@@ -66,4 +66,4 @@ Phase gate for MVP: 3 people, a 1-hour video, drift stays under 0.5 s.
 - One branch + one pull request per piece of work, in this order: repo skeleton → server → sync core → detection → popup UI → invite page → test suite.
 - Small, focused commits with clear messages. PR description says what changed, how it was tested, and what's left.
 - Accessibility is part of done: real `<button>`/`<label>`/`<input>`, 44 px touch targets, text contrast ≥ 4.5:1, `aria-label` on icon-only buttons.
-- Privacy is a feature: never add telemetry, never send page URLs or titles to the server beyond what the invite link needs.
+- Privacy is a feature: never add telemetry, never send page titles to the server, or page URLs beyond the sealed address of the room's video.

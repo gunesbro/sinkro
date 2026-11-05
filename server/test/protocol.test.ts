@@ -11,6 +11,8 @@ describe("parseServerMessage", () => {
     [{ type: "state", ...roomState }],
     [{ type: "peers", count: 3 }],
     [{ type: "pong", clientTime: 1, serverTime: 2 }],
+    [{ type: "video", sealed: null }],
+    [{ type: "video", sealed: "abc" }],
     [{ type: "error", code: "rate_limited" }],
   ])("accepts %j", (message) => {
     expect(parseServerMessage(JSON.stringify(message))).toEqual(message);
@@ -35,6 +37,7 @@ describe("parseServerMessage", () => {
     ],
     ["a pong without server time", JSON.stringify({ type: "pong", clientTime: 1 })],
     ["an unknown error", JSON.stringify({ type: "error", code: "nope" })],
+    ["a video that isn't text", JSON.stringify({ type: "video", sealed: 5 })],
   ])("rejects %s", (_, raw) => {
     expect(parseServerMessage(raw)).toBeNull();
   });
@@ -44,6 +47,8 @@ describe("parseClientMessage", () => {
   it.each([
     [{ type: "join", protocol: 1 }],
     [{ type: "ping", clientTime: 5 }],
+    [{ type: "video/get" }],
+    [{ type: "video/set", sealed: "abc" }],
     [state],
     [{ ...state, position: 0, rate: 16, playing: false }],
   ])("accepts %j", (message) => {
@@ -69,7 +74,10 @@ describe("parseClientMessage", () => {
     ["a zero rate", JSON.stringify({ ...state, rate: 0 })],
     ["a rate above the limit", JSON.stringify({ ...state, rate: 17 })],
     ["a string sentAt", JSON.stringify({ ...state, sentAt: "now" })],
-    ["an oversized message", JSON.stringify({ ...state, padding: "x".repeat(512) })],
+    ["an oversized message", JSON.stringify({ ...state, padding: "x".repeat(4096) })],
+    ["an empty video", JSON.stringify({ type: "video/set", sealed: "" })],
+    ["a video that isn't text", JSON.stringify({ type: "video/set", sealed: 5 })],
+    ["a video that's too long", JSON.stringify({ type: "video/set", sealed: "x".repeat(3501) })],
     ["binary data", new ArrayBuffer(4)],
   ])("rejects %s", (_, raw) => {
     expect(parseClientMessage(raw)).toBeNull();

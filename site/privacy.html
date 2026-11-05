@@ -23,11 +23,18 @@
         <li>The room code.</li>
         <li>Playback state: playing or paused, position, speed and a timestamp.</li>
         <li>
+          The address of the page with the video, when someone creates a room or uses "Bring
+          everyone to me", so others can go to it. It isn't sent just because you browse. It's
+          encrypted with a key made from the room code and deleted with the room. The server also
+          sees room codes, so this keeps it out of plain sight rather than hiding it from whoever
+          runs the server.
+        </li>
+        <li>
           When a room is created, a hash of your IP address, kept for at most a minute to limit how
           many rooms one address can create.
         </li>
       </ul>
-      <p>Video, page addresses and page titles don't reach the server.</p>
+      <p>Video, page titles and any other page addresses don't reach the server.</p>
 
       <h2>What stays with you</h2>
       <ul>
@@ -42,7 +49,9 @@
       </ul>
 
       <h2>How long it's kept</h2>
-      <p>A room's playback state is deleted 24 hours after its last person leaves.</p>
+      <p>
+        A room's playback state and video address are deleted 24 hours after its last person leaves.
+      </p>
 
       <h2>Why the extension asks to run on all sites</h2>
       <p>

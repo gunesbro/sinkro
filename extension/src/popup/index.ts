@@ -17,12 +17,16 @@ import type {
   TabRequest,
   TabSession,
 } from "../messages";
-import { getServerUrl, setServerUrl } from "../settings";
-import { noticeFor, statusLine, type Tone } from "../status";
+import { openRoomVideo, sealRoomVideo } from "../room-video";
+import { getServerUrl, roomSocketUrl, setServerUrl } from "../settings";
+import { noticeFor, statusLine, type Notice, type Tone } from "../status";
+import { askRoomVideo } from "./room-link";
 
 const STATUS_POLL_MS = 500;
 const PEEK_INTERVAL_MS = 1500;
 const COPIED_MS = 1500;
+/** Someone can change the room's video with "Bring everyone to me" while this is open. */
+const ROOM_VIDEO_POLL_MS = 5000;
 /** Without an answer from the tab for this long, it isn't on a page Sinkro can run on. */
 const NO_PAGE_AFTER_MS = 1500;
 /** Longer when the tab has just been sent to a video, which takes a moment to load. */
@@ -50,6 +54,8 @@ let homeError = "";
 let isBusy = false;
 let noAnswerSince: number | null = null;
 let noPageAfterMs = NO_PAGE_AFTER_MS;
+let roomVideoUrl: string | null = null;
+let isRoomGone = false;
 
 const t = (key: string, substitutions?: string[]) => translate(messages, key, substitutions);
 
@@ -114,14 +120,42 @@ function renderRoom(): void {
       ? (formatTimecode(status.position) ?? "")
       : "";
 
-  const notice = isWaitingForPage
-    ? ({
-        tone: "idle",
-        titleKey: "openVideoHere",
-        bodyKey: "openVideoHereHelp",
-        action: null,
-      } as const)
-    : noticeFor(status);
+  const canGoToVideo = roomVideoUrl !== null && !isSamePage(pageUrl, roomVideoUrl);
+  const showGoButton = canGoToVideo && !isRoomGone;
+  element("go-video").hidden = !showGoButton;
+  if (showGoButton && roomVideoUrl) {
+    element("go-video").textContent = t("goToVideo", [new URL(roomVideoUrl).hostname]);
+  }
+  // One main action per view: here it's getting to the video, not sharing the room.
+  element("copy-link").classList.toggle("primary", !showGoButton);
+  element("copy-link").classList.toggle("secondary", showGoButton);
+
+  const goneNotice: Notice = {
+    tone: "danger",
+    titleKey: "roomGone",
+    bodyKey: "roomGoneHelp",
+    action: null,
+  };
+  const waitingNotice: Notice = {
+    tone: "idle",
+    titleKey: "openVideoHere",
+    bodyKey: "openVideoHereHelp",
+    action: null,
+  };
+  // Says outright that nothing has opened, so nobody sits waiting for the video to appear.
+  const goNotice: Notice = {
+    tone: "warn",
+    titleKey: "inRoomGo",
+    bodyKey: "inRoomGoHelp",
+    action: null,
+  };
+  const notice = isRoomGone
+    ? goneNotice
+    : showGoButton
+      ? goNotice
+      : isWaitingForPage
+        ? waitingNotice
+        : noticeFor(status);
   element("alert").hidden = !notice;
   if (notice) {
     setDot("alert-dot", notice.tone);
@@ -182,6 +216,31 @@ function onPeekReport(report: PeekReport): void {
   if (view === "home") renderHome();
 }
 
+async function refreshRoomVideo(): Promise<void> {
+  if (!session || view !== "room") return;
+  const { code, serverUrl } = session;
+  const answer = await askRoomVideo(roomSocketUrl(serverUrl, code), { type: "video/get" });
+  if (session?.code !== code) return;
+
+  if (answer.status === "gone") isRoomGone = true;
+  if (answer.status === "ok") {
+    isRoomGone = false;
+    roomVideoUrl = answer.sealed ? await openRoomVideo(code, answer.sealed) : null;
+  }
+  if (view === "room") renderRoom();
+}
+
+/** Only on purpose: creating a room or "Bring everyone to me", never just by browsing. */
+async function shareThisVideo(): Promise<void> {
+  if (!session || !pageUrl) return;
+  const { code, serverUrl } = session;
+  const sealed = await sealRoomVideo(code, pageUrl);
+  if (!sealed) return;
+  const answer = await askRoomVideo(roomSocketUrl(serverUrl, code), { type: "video/set", sealed });
+  if (answer.status === "ok") roomVideoUrl = pageUrl;
+  if (view === "room") renderRoom();
+}
+
 async function enterRoom(code: string, url?: string): Promise<void> {
   if (tabId === undefined) return;
   const joined = await send<JoinResponse>({ type: "session/join", tabId, code, url });
@@ -194,9 +253,12 @@ async function enterRoom(code: string, url?: string): Promise<void> {
   status = null;
   noAnswerSince = null;
   noPageAfterMs = url ? NO_PAGE_AFTER_LOADING_MS : NO_PAGE_AFTER_MS;
+  roomVideoUrl = null;
+  isRoomGone = false;
   homeError = "";
   setView("room");
   void refreshStatus();
+  void refreshRoomVideo();
 }
 
 async function onCreate(): Promise<void> {
@@ -211,6 +273,7 @@ async function onCreate(): Promise<void> {
     return;
   }
   await enterRoom(created.code);
+  await shareThisVideo();
 }
 
 async function onJoin(event: Event): Promise<void> {
@@ -234,6 +297,8 @@ async function onLeave(): Promise<void> {
   if (tabId === undefined) return;
   await send({ type: "session/leave", tabId });
   session = null;
+  roomVideoUrl = null;
+  isRoomGone = false;
   status = null;
   setView("home");
 }
@@ -298,8 +363,17 @@ function connectEvents(): void {
   element("pick-home").addEventListener("click", () => void startPicker());
   element("pick-room").addEventListener("click", () => void startPicker());
   element("pick-any").addEventListener("click", () => void startPicker());
+  element("go-video").addEventListener("click", () => {
+    if (tabId === undefined || !roomVideoUrl) return;
+    pageUrl = roomVideoUrl;
+    noAnswerSince = null;
+    noPageAfterMs = NO_PAGE_AFTER_LOADING_MS;
+    void chrome.tabs.update(tabId, { url: roomVideoUrl });
+    render();
+  });
   element("bring").addEventListener("click", () => {
     if (tabId === undefined) return;
+    void shareThisVideo();
     const request: TabRequest = { type: "session/bring" };
     void chrome.tabs.sendMessage(tabId, request).catch(() => undefined);
     const button = element("bring");
@@ -320,7 +394,9 @@ function connectEvents(): void {
   });
   element("copy-link").addEventListener("click", (event) => {
     if (session) {
-      void copyWithFeedback(event.currentTarget as HTMLElement, inviteLink(session.code, pageUrl));
+      // The room's video first: whoever copies this may not be on that page themselves.
+      const link = inviteLink(session.code, roomVideoUrl ?? pageUrl);
+      void copyWithFeedback(event.currentTarget as HTMLElement, link);
     }
   });
   element("open-settings").addEventListener("click", () => void openSettings());
@@ -349,6 +425,8 @@ async function start(): Promise<void> {
   }, PEEK_INTERVAL_MS);
   void refreshStatus();
   setInterval(() => void refreshStatus(), STATUS_POLL_MS);
+  void refreshRoomVideo();
+  setInterval(() => void refreshRoomVideo(), ROOM_VIDEO_POLL_MS);
 }
 
 void start();

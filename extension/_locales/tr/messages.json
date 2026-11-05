@@ -33,7 +33,7 @@
     "message": "Katıl"
   },
   "footer": {
-    "message": "Hesap yok. Sadece oynat, durdur ve konum paylaşılır."
+    "message": "Hesap yok. Yalnızca oynatma durumu ve video adresi paylaşılır."
   },
   "live": {
     "message": "Oda açık"
@@ -241,5 +241,23 @@
   },
   "bringSent": {
     "message": "Gönderildi"
+  },
+  "goToVideo": {
+    "message": "Videoya git · $HOST$",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "www.youtube.com"
+      }
+    }
+  },
+  "inRoomGo": {
+    "message": "Odaya katıldın"
+  },
+  "inRoomGoHelp": {
+    "message": "Video kendiliğinden açılmaz. Gitmek için aşağıdaki düğmeye bas."
+  },
+  "starting": {
+    "message": "Başlatılıyor…"
   }
 }

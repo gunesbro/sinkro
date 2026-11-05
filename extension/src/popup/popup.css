@@ -302,7 +302,7 @@ input::placeholder {
   letter-spacing: 0.1em;
 }
 
-.room-head .primary {
+.room-head #copy-link {
   margin-top: 12px;
 }
 
@@ -324,6 +324,15 @@ input::placeholder {
   font-size: 24px;
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+#go-video {
+  margin-top: 4px;
+  overflow: hidden;
+  padding: 0 12px;
+  font-size: 15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .alert {

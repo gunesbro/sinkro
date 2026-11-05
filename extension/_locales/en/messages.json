@@ -33,7 +33,7 @@
     "message": "Join"
   },
   "footer": {
-    "message": "No account. Only play, pause and position are shared."
+    "message": "No account. Only playback state and the video's address are shared."
   },
   "live": {
     "message": "Room is live"
@@ -241,5 +241,23 @@
   },
   "bringSent": {
     "message": "Sent"
+  },
+  "goToVideo": {
+    "message": "Go to the video · $HOST$",
+    "placeholders": {
+      "host": {
+        "content": "$1",
+        "example": "www.youtube.com"
+      }
+    }
+  },
+  "inRoomGo": {
+    "message": "You're in the room"
+  },
+  "inRoomGoHelp": {
+    "message": "The video won't open by itself. Press the button below to go to it."
+  },
+  "starting": {
+    "message": "Starting…"
   }
 }
