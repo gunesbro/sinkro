@@ -30,6 +30,17 @@ export function statusLine(status: SessionStatus | null): StatusLine {
   return { tone: "ok", key: "synced" };
 }
 
+/** Pages often end their title with the site's name, which the host already says better. */
+export function withoutSiteName(title: string, host: string): string {
+  const match = /^(.+?)\s*[-–—|·:]\s*([^-–—|·:]+)$/u.exec(title);
+  if (!match?.[1] || !match[2]) return title;
+
+  const simplify = (text: string) => text.toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]/gu, "");
+  const site = simplify(match[2]);
+  const isSiteName = site.length > 0 && host.split(".").some((part) => simplify(part) === site);
+  return isSiteName ? match[1] : title;
+}
+
 export type Notice = {
   tone: Tone;
   titleKey: string;
@@ -44,6 +55,8 @@ export type Notice = {
   titleSubstitutions?: string[];
   /** The name of a video. It comes from a web page, so it's never a message key. */
   detail?: string;
+  /** The site that video is on, because the viewer is being offered a trip there. */
+  host?: string;
 };
 
 /** The viewer has to do something, so these show wherever the video is, or without one. */
@@ -74,7 +87,8 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
     return notice("warn", "youMoved", status.hasVideo ? "bring" : "return");
   }
   if (status.videoChange?.kind === "room_moved") {
-    return { ...notice("warn", "roomMoved", "go"), detail: status.videoChange.title };
+    const { title, host } = status.videoChange;
+    return { ...notice("warn", "roomMoved", "go"), detail: withoutSiteName(title, host), host };
   }
   if (status.hold === "ad") {
     const ad = notice("warn", "adPlaying");

@@ -65,7 +65,7 @@
     }
   },
   "goThere": {
-    "message": "Go to their episode"
+    "message": "Go to the video"
   },
   "connLost": {
     "message": "Connection lost"

@@ -52,6 +52,8 @@ const BELOW_BAR_PX = 8;
 const TOP_OF_WINDOW_PX = 28;
 /** Anything covering more of the video than this is an overlay of some kind, not a bar. */
 const MAX_BAR_SHARE_OF_VIDEO = 0.5;
+/** Every card the same width, so its buttons line up whatever they say. */
+const CARD_WIDTH_PX = 288;
 /** A pointer on the badge must never reach the player underneath. */
 const SWALLOWED_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick"];
 
@@ -135,6 +137,8 @@ export class VideoBadge {
   private readonly cardDot = document.createElement("span");
   private readonly cardTitle = document.createElement("span");
   private readonly cardDetail = document.createElement("span");
+  private readonly cardHost = document.createElement("span");
+  private readonly secondaryActions = document.createElement("div");
   private readonly cardBody = document.createElement("span");
   private readonly action = document.createElement("button");
   private readonly returnAction: HTMLElement;
@@ -174,7 +178,13 @@ export class VideoBadge {
     this.returnAction = this.createPanelButton("backToRoom", false, options.onGo);
     this.bringAction = this.createPanelButton("bring", false, options.onBring);
     this.leaveAction = this.createPanelButton("leave", false, options.onLeave);
+    // Lighter than the choices beside it, since it's a way out rather than one of them.
     this.leaveAction.style.color = DANGER;
+    this.leaveAction.style.boxShadow = "none";
+    this.leaveAction.style.padding = "12px 10px";
+    this.leaveAction.style.flex = "none";
+    this.returnAction.style.flex = "1";
+    this.bringAction.style.flex = "1";
     this.buildContent(root);
 
     this.action.addEventListener("click", (event) => {
@@ -365,7 +375,9 @@ export class VideoBadge {
       translate(this.messages, notice.titleKey, notice.titleSubstitutions),
     );
     this.setText(this.cardDetail, notice.detail ?? "");
-    this.cardDetail.style.display = notice.detail ? "block" : "none";
+    this.cardDetail.style.display = notice.detail ? "-webkit-box" : "none";
+    this.setText(this.cardHost, notice.host ?? "");
+    this.cardHost.style.display = notice.host ? "block" : "none";
     this.setText(this.cardBody, translate(this.messages, notice.bodyKey));
 
     this.actionShown = notice.action;
@@ -379,6 +391,11 @@ export class VideoBadge {
     show(this.returnAction, notice.action === "bring");
     show(this.bringAction, notice.action === "go" && status.hasVideo);
     show(this.leaveAction, isVideoChangeAction(notice) || notice.action === "leave");
+    const hasSecondary = isVideoChangeAction(notice) || notice.action === "leave";
+    this.secondaryActions.style.display = hasSecondary ? "flex" : "none";
+    // Alone on its row, leaving sits at the end, where a way out is expected.
+    this.secondaryActions.style.justifyContent =
+      notice.action === "return" || notice.action === "leave" ? "flex-end" : "flex-start";
     const isStarting = notice.action === "play" && Date.now() - this.joinPressedAt < JOIN_PRESS_MS;
     this.setText(this.action, this.actionLabel(notice, status, isStarting));
     this.action.style.opacity = isStarting ? "0.7" : "1";
@@ -394,7 +411,7 @@ export class VideoBadge {
       case "pause":
         return translate(this.messages, "pauseVideo");
       case "go":
-        return translate(this.messages, "goToVideo", [status.videoChange?.host ?? ""]);
+        return translate(this.messages, "goThere");
       default:
         return translate(this.messages, isStarting ? "starting" : "join");
     }
@@ -571,7 +588,7 @@ export class VideoBadge {
     button.textContent = translate(this.messages, key);
     button.style.cssText = `all: unset; box-sizing: border-box; min-height: 44px; padding: 12px 16px;
       border-radius: 8px; font: 700 14px ${FONT}; cursor: pointer; pointer-events: auto;
-      outline: 2px solid transparent; outline-offset: 2px;`;
+      outline: 2px solid transparent; outline-offset: 2px; text-align: center;`;
     button.style.background = isPrimary ? ACCENT : "transparent";
     button.style.color = isPrimary ? ON_ACCENT : TEXT;
     if (!isPrimary) button.style.boxShadow = `inset 0 0 0 1px ${BUTTON_BORDER}`;
@@ -628,8 +645,9 @@ export class VideoBadge {
       font-weight: 500;`;
 
     this.card.setAttribute("role", "alert");
-    this.card.style.cssText = `display: none; flex-direction: column; gap: 4px; padding: 12px 14px;
-      border-radius: 14px; background: ${OVERLAY_BACKGROUND}; border: 1px solid ${OVERLAY_BORDER};`;
+    this.card.style.cssText = `display: none; flex-direction: column; gap: 6px; box-sizing: border-box;
+      width: ${CARD_WIDTH_PX}px; padding: 14px; border-radius: 14px; background: ${OVERLAY_BACKGROUND};
+      border: 1px solid ${OVERLAY_BORDER};`;
 
     const title = document.createElement("span");
     title.style.cssText = "display: flex; align-items: center; gap: 8px;";
@@ -640,20 +658,24 @@ export class VideoBadge {
     // It's a web page's title, so it can be any length.
     this.cardDetail.style.cssText = `font-size: 13px; font-weight: 600; line-height: 1.4;
       overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;`;
+    this.cardHost.style.cssText = `font-size: 12px; color: ${TEXT_SECONDARY}; overflow: hidden;
+      white-space: nowrap; text-overflow: ellipsis;`;
     this.cardBody.style.cssText = `font-size: 13px; line-height: 1.5; color: ${TEXT_SECONDARY};`;
 
     this.action.type = "button";
-    this.action.style.cssText = `all: unset; box-sizing: border-box; display: none;
-      min-height: 44px; padding: 12px 18px;
+    this.action.style.cssText = `all: unset; box-sizing: border-box; display: none; width: 100%;
+      text-align: center; min-height: 44px; padding: 12px 18px;
       border-radius: 8px; background: ${ACCENT}; color: ${ON_ACCENT}; font: 700 14px ${FONT};
       cursor: pointer; pointer-events: auto; outline: 2px solid transparent; outline-offset: 2px;`;
     this.action.addEventListener("focus", () => (this.action.style.outlineColor = TEXT));
     this.action.addEventListener("blur", () => (this.action.style.outlineColor = "transparent"));
 
     const actions = document.createElement("div");
-    actions.style.cssText = "display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;";
-    actions.append(this.action, this.returnAction, this.bringAction, this.leaveAction);
-    this.card.append(title, this.cardDetail, this.cardBody, actions);
+    actions.style.cssText = "display: flex; flex-direction: column; gap: 8px; margin-top: 6px;";
+    this.secondaryActions.style.cssText = "display: none; gap: 8px; align-items: stretch;";
+    this.secondaryActions.append(this.returnAction, this.bringAction, this.leaveAction);
+    actions.append(this.action, this.secondaryActions);
+    this.card.append(title, this.cardDetail, this.cardHost, this.cardBody, actions);
 
     this.movePanel.style.cssText = `display: none; flex-direction: column; gap: 10px; padding: 12px 14px;
       border-radius: 14px; background: ${OVERLAY_BACKGROUND}; border: 1px solid ${OVERLAY_BORDER};
