@@ -1,6 +1,6 @@
 import { translate, type Messages } from "../i18n";
 import type { SessionStatus } from "../messages";
-import { noticeFor, statusLine, type Tone } from "../status";
+import { mustShowNotice, noticeFor, statusLine, type Notice, type Tone } from "../status";
 import {
   isVideoOnScreen,
   nudge,
@@ -47,6 +47,8 @@ export type BadgeOptions = {
   messages: Messages;
   position: BadgePosition | null;
   onPlay: () => void;
+  onBring: () => void;
+  onGo: () => void;
   onPositionChange: (position: BadgePosition | null) => void;
 };
 
@@ -66,8 +68,10 @@ export class VideoBadge {
   private readonly card = document.createElement("div");
   private readonly cardDot = document.createElement("span");
   private readonly cardTitle = document.createElement("span");
+  private readonly cardDetail = document.createElement("span");
   private readonly cardBody = document.createElement("span");
   private readonly action = document.createElement("button");
+  private readonly returnAction: HTMLElement;
   private readonly movePanel = document.createElement("div");
   private readonly listeners = new AbortController();
   private readonly messages: Messages;
@@ -84,6 +88,7 @@ export class VideoBadge {
   private lastPillLabel = "";
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
   private joinPressedAt = Number.NEGATIVE_INFINITY;
+  private actionShown: Notice["action"] = null;
 
   constructor(options: BadgeOptions) {
     this.messages = options.messages;
@@ -94,15 +99,22 @@ export class VideoBadge {
     this.host.style.cssText = `all: initial; position: fixed; inset: 0; z-index: ${TOP_LAYER};
       pointer-events: none;`;
     const root = this.host.attachShadow({ mode: "closed" });
+    this.returnAction = this.createPanelButton("backToRoom", false, options.onGo);
     this.buildContent(root);
 
     this.action.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      // Answer the click at once: playback can take a moment to start.
-      this.joinPressedAt = Date.now();
-      options.onPlay();
-      if (this.video) this.update(this.video, this.status);
+      if (this.actionShown === "bring") {
+        options.onBring();
+      } else if (this.actionShown === "go" || this.actionShown === "return") {
+        options.onGo();
+      } else {
+        // Answer the click at once: playback can take a moment to start.
+        this.joinPressedAt = Date.now();
+        options.onPlay();
+        this.update(this.video, this.status);
+      }
     });
     this.connectMoving();
     document.addEventListener("fullscreenchange", () => this.attach(), {
@@ -123,15 +135,17 @@ export class VideoBadge {
     const fits = box && box.width >= MIN_VIDEO_WIDTH_PX && box.height >= MIN_VIDEO_HEIGHT_PX;
     const viewport = { width: window.innerWidth, height: window.innerHeight };
     // A viewer who has to click can't be left without the button, wherever the video is.
-    const mustShow = status !== null && noticeFor(status)?.action === "play";
-    if (!box || !fits || !status || !(mustShow || isVideoOnScreen(box, viewport))) {
+    const mustShow = mustShowNotice(noticeFor(status));
+    const canSit = box && fits && (mustShow || isVideoOnScreen(box, viewport));
+    if (!status || !(canSit || mustShow)) {
       this.stack.style.display = "none";
       return;
     }
     this.stack.style.display = "flex";
     this.renderPill(status);
     this.renderCard(status);
-    this.place(box);
+    // Without a video big enough to sit on, the window will do.
+    this.place(canSit ? box : new DOMRect(0, 0, viewport.width, viewport.height));
   }
 
   /** Lets the viewer put the badge where it doesn't hide a player's own buttons. */
@@ -230,12 +244,30 @@ export class VideoBadge {
 
     this.cardDot.style.background = TONE_COLORS[notice.tone];
     this.setText(this.cardTitle, translate(this.messages, notice.titleKey));
+    this.setText(this.cardDetail, notice.detail ?? "");
+    this.cardDetail.style.display = notice.detail ? "block" : "none";
     this.setText(this.cardBody, translate(this.messages, notice.bodyKey));
-    this.action.style.display = notice.action === "play" ? "block" : "none";
-    const isStarting = Date.now() - this.joinPressedAt < JOIN_PRESS_MS;
-    this.setText(this.action, translate(this.messages, isStarting ? "starting" : "join"));
+
+    this.actionShown = notice.action;
+    this.action.style.display = mustShowNotice(notice) ? "block" : "none";
+    this.returnAction.style.display = notice.action === "bring" ? "block" : "none";
+    const isStarting = notice.action === "play" && Date.now() - this.joinPressedAt < JOIN_PRESS_MS;
+    this.setText(this.action, this.actionLabel(notice, status, isStarting));
     this.action.style.opacity = isStarting ? "0.7" : "1";
     this.action.style.cursor = isStarting ? "progress" : "pointer";
+  }
+
+  private actionLabel(notice: Notice, status: SessionStatus, isStarting: boolean): string {
+    switch (notice.action) {
+      case "bring":
+        return translate(this.messages, "bringHere");
+      case "return":
+        return translate(this.messages, "backToRoom");
+      case "go":
+        return translate(this.messages, "goToVideo", [status.videoChange?.host ?? ""]);
+      default:
+        return translate(this.messages, isStarting ? "starting" : "join");
+    }
   }
 
   /** Only writes real changes, so a screen reader announces each one once. */
@@ -357,7 +389,10 @@ export class VideoBadge {
     if (!isPrimary) button.style.boxShadow = `inset 0 0 0 1px ${BUTTON_BORDER}`;
     button.addEventListener("focus", () => (button.style.outlineColor = TEXT));
     button.addEventListener("blur", () => (button.style.outlineColor = "transparent"));
-    button.addEventListener("click", onClick);
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onClick();
+    });
     return button;
   }
 
@@ -387,17 +422,23 @@ export class VideoBadge {
     this.cardTitle.style.cssText = "font-size: 14px; font-weight: 700;";
     title.append(this.cardDot, this.cardTitle);
 
+    // It's a web page's title, so it can be any length.
+    this.cardDetail.style.cssText = `font-size: 13px; font-weight: 600; line-height: 1.4;
+      overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;`;
     this.cardBody.style.cssText = `font-size: 13px; line-height: 1.5; color: ${TEXT_SECONDARY};`;
 
     this.action.type = "button";
     this.action.style.cssText = `all: unset; box-sizing: border-box; display: none;
-      align-self: flex-start; min-height: 44px; margin-top: 6px; padding: 12px 18px;
+      min-height: 44px; padding: 12px 18px;
       border-radius: 8px; background: ${ACCENT}; color: ${ON_ACCENT}; font: 700 14px ${FONT};
       cursor: pointer; pointer-events: auto; outline: 2px solid transparent; outline-offset: 2px;`;
     this.action.addEventListener("focus", () => (this.action.style.outlineColor = TEXT));
     this.action.addEventListener("blur", () => (this.action.style.outlineColor = "transparent"));
 
-    this.card.append(title, this.cardBody, this.action);
+    const actions = document.createElement("div");
+    actions.style.cssText = "display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;";
+    actions.append(this.action, this.returnAction);
+    this.card.append(title, this.cardDetail, this.cardBody, actions);
 
     this.movePanel.style.cssText = `display: none; flex-direction: column; gap: 10px; padding: 12px 14px;
       border-radius: 14px; background: ${OVERLAY_BACKGROUND}; border: 1px solid ${OVERLAY_BORDER};

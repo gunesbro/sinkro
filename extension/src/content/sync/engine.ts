@@ -44,6 +44,9 @@ export type SyncedVideo = Pick<
   | "seeking"
 >;
 
+/** Why a video isn't following the room right now. */
+export type Hold = HoldReason | "other_video";
+
 /** What someone else just did, for telling the viewer. */
 export type RemoteChange = "played" | "paused" | "seeked";
 
@@ -56,7 +59,7 @@ export type EngineDeps = {
   /** Returns false if the message couldn't be handed to the connection. */
   send: (state: PlaybackState) => boolean;
   /** Says why the video can't follow the room right now, such as an ad playing. */
-  holdFor?: (roomPosition: number | null) => HoldReason | null;
+  holdFor?: (roomPosition: number | null) => Hold | null;
   onRemoteChange?: (change: RemoteChange) => void;
 };
 
@@ -70,7 +73,7 @@ export type EngineSnapshot = {
   /** The browser refused to start playback until the viewer interacts with the page. */
   needsGesture: boolean;
   /** The video isn't following the room for now, and nothing it does reaches the room. */
-  hold: HoldReason | null;
+  hold: Hold | null;
 };
 
 /**
@@ -95,7 +98,7 @@ export class SyncEngine {
   /** The speed we last set, so our own ratechange events can be told apart. */
   private expectedRate = 1;
   private correcting = false;
-  private hold: HoldReason | null = null;
+  private hold: Hold | null = null;
   /** Nobody else is in the room, so this viewer's video is the room's timeline. */
   private isAlone = false;
   /** Whether the video was paused the last time we changed it or heard from it. */
@@ -216,6 +219,11 @@ export class SyncEngine {
     // If the browser still says no, the refusal puts the notice back.
     this.autoplayRetryAt = 0;
     this.apply(true);
+  }
+
+  /** Something outside the engine changed whether this video should follow the room. */
+  recheck(): void {
+    this.syncWithRoom();
   }
 
   /** Makes this viewer's position the room's, for "Bring everyone to me". */

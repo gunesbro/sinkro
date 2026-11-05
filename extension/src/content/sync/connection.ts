@@ -26,9 +26,16 @@ export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "cl
 export type CloseReason = "room_not_found" | "room_full" | "protocol_mismatch";
 
 export type ConnectionEvents = {
-  onJoined: (message: { clientId: string; state: RoomState | null; peers: number }) => void;
+  onJoined: (message: {
+    clientId: string;
+    state: RoomState | null;
+    peers: number;
+    video?: string;
+  }) => void;
   onState: (state: RoomState) => void;
   onPeers: (count: number) => void;
+  /** Someone moved the room to another video. */
+  onVideo: (sealed: string) => void;
   onRejected: () => void;
   onDisconnected: () => void;
   onStatus: (status: ConnectionStatus, reason: CloseReason | null) => void;
@@ -114,6 +121,10 @@ export class RoomConnection {
     return this.joined && this.send({ type: "state", ...state });
   }
 
+  sendVideo(sealed: string): boolean {
+    return this.send({ type: "video/set", sealed });
+  }
+
   private open(): void {
     const socket = this.createSocket(this.options.url);
     this.socket = socket;
@@ -172,6 +183,9 @@ export class RoomConnection {
         return;
       case "peers":
         events.onPeers(message.count);
+        return;
+      case "video":
+        if (message.sealed !== null) events.onVideo(message.sealed);
         return;
       case "error":
         events.onRejected();

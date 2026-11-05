@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionStatus } from "../src/messages";
-import { noticeFor, statusLine } from "../src/status";
+import { mustShowNotice, noticeFor, statusLine } from "../src/status";
 
 const connected: SessionStatus = {
   hasVideo: true,
@@ -12,6 +12,7 @@ const connected: SessionStatus = {
   connection: "connected",
   closeReason: null,
   peers: 2,
+  videoChange: null,
 };
 
 describe("statusLine", () => {
@@ -75,6 +76,47 @@ describe("noticeFor", () => {
   it("puts a lost connection ahead of anything the video is doing", () => {
     const status = { ...connected, connection: "reconnecting", hold: "ad" } as const;
     expect(noticeFor(status)?.titleKey).toBe("connLost");
+  });
+
+  describe("another video", () => {
+    const moved = { kind: "you_moved", title: "", host: "a.com" } as const;
+    const roomMoved = { kind: "room_moved", title: "Next Film", host: "a.com" } as const;
+
+    it("offers bringing everyone, or going back", () => {
+      const notice = noticeFor({ ...connected, hold: "other_video", videoChange: moved });
+      expect(notice).toMatchObject({ titleKey: "youMoved", action: "bring" });
+      expect(mustShowNotice(notice)).toBe(true);
+    });
+
+    it("only offers going back from a page with no video to bring anyone to", () => {
+      const notice = noticeFor({ ...connected, hasVideo: false, videoChange: moved });
+      expect(notice).toMatchObject({ titleKey: "youMoved", action: "return" });
+      expect(mustShowNotice(notice)).toBe(true);
+    });
+
+    it("names the video the room moved to, and offers going", () => {
+      const notice = noticeFor({ ...connected, hold: "other_video", videoChange: roomMoved });
+      expect(notice).toMatchObject({ titleKey: "roomMoved", action: "go", detail: "Next Film" });
+      expect(mustShowNotice(notice)).toBe(true);
+    });
+
+    it("comes after a lost connection, which the buttons couldn't get past", () => {
+      const status = { ...connected, connection: "reconnecting", videoChange: moved } as const;
+      expect(noticeFor(status)?.titleKey).toBe("connLost");
+      expect(mustShowNotice(noticeFor(status))).toBe(false);
+    });
+
+    it("comes before asking for a click, for a video this viewer has left", () => {
+      const status = { ...connected, needsGesture: true, videoChange: moved };
+      expect(noticeFor(status)?.titleKey).toBe("youMoved");
+    });
+  });
+
+  it("only insists on showing itself when the viewer has something to press", () => {
+    expect(mustShowNotice(null)).toBe(false);
+    expect(mustShowNotice(noticeFor({ ...connected, hold: "ad" }))).toBe(false);
+    expect(mustShowNotice(noticeFor({ ...connected, hold: "cant_follow" }))).toBe(false);
+    expect(mustShowNotice(noticeFor({ ...connected, needsGesture: true }))).toBe(true);
   });
 
   it("doesn't ask for a video while still connecting", () => {
