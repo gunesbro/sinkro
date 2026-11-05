@@ -26,6 +26,14 @@ The creation limit keeps a hash of the address for at most a minute, then delete
 
 A `state` may also carry `duration`, the film's length in seconds, and `source`, the player's site sealed by the extension, up to 400 characters. Others use them to warn about a different source. A bad one is dropped and the rest of the state kept.
 
+## Limits
+
+- One address may open 60 connections a minute, counted in memory. More get `429`. Local runs without `CF-Connecting-IP` aren't limited.
+- A room takes 50 people and 100 sockets of any kind.
+- A room saves its state at most once a second, keeping the newest in memory meanwhile.
+- Only someone who has joined can change a room's video once it has one.
+- Addresses are hashed for the limits. Set a secret with `npx wrangler secret put IP_HASH_KEY` and they're hashed with it, so a hash can't be reversed by trying every address.
+
 ## Reconnecting
 
 A client may send `viewer` in `join`, any string of up to 64 characters that stays the same across its reconnects. A new join with the same value closes the older socket and replaces it, so it isn't counted twice. It's kept with the connection, not in storage.

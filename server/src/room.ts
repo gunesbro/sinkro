@@ -9,7 +9,12 @@ import {
   type ServerMessage,
 } from "./protocol";
 
+/** People in a room. */
 const MAX_CONNECTIONS = 50;
+/** Sockets of any kind, so ones that never join can't crowd people out. */
+const MAX_SOCKETS = 100;
+/** Each save is a row write against the daily limit, and states can come several a second. */
+const SAVE_EVERY_MS = 1000;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 /** Longer than any film, so this only closes rooms that were forgotten with a tab left open. */
 const IDLE_LIMIT_MS = 12 * 60 * 60 * 1000;
@@ -39,6 +44,10 @@ type RateWindow = { startedAt: number; count: number };
  */
 export class Room extends DurableObject {
   private readonly rateWindows = new WeakMap<WebSocket, RateWindow>();
+  /** The newest record while it waits to be saved, which then wins over storage. */
+  private unsaved: RoomRecord | null = null;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastSaveAt = 0;
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
@@ -48,7 +57,7 @@ export class Room extends DurableObject {
   /** Claims this room. Returns false if the code is already taken. */
   async create(): Promise<boolean> {
     if (await this.readRecord()) return false;
-    await this.ctx.storage.put<RoomRecord>("room", { state: null, seq: 0 });
+    await this.saveRecord({ state: null, seq: 0 });
     await this.ctx.storage.setAlarm(Date.now() + ROOM_TTL_MS);
     return true;
   }
@@ -60,7 +69,8 @@ export class Room extends DurableObject {
     // close codes on an accepted socket. These sockets don't join the hibernation set.
     const refusal = !(await this.readRecord())
       ? CloseCode.RoomNotFound
-      : this.ctx.getWebSockets().length >= MAX_CONNECTIONS
+      : this.joinedSockets().length >= MAX_CONNECTIONS ||
+          this.ctx.getWebSockets().length >= MAX_SOCKETS
         ? CloseCode.RoomFull
         : null;
     if (refusal !== null) {
@@ -122,7 +132,10 @@ export class Room extends DurableObject {
       case "video/set": {
         const record = await this.readRecord();
         if (!record) return ws.close(CloseCode.RoomNotFound);
-        await this.ctx.storage.put<RoomRecord>("room", {
+        // Creating a room sets the first one without joining. After that it takes someone in
+        // the room, or anyone with the code could send everyone somewhere else.
+        if (record.video && !this.clientIdOf(ws)) return this.sendError(ws, "not_joined");
+        await this.saveRecord({
           ...record,
           video: message.sealed,
           activeAt: Date.now(),
@@ -153,9 +166,9 @@ export class Room extends DurableObject {
         };
         // Everyone hears it even if saving fails, say on a used-up daily quota: the room keeps
         // going, and only someone joining later misses the latest state.
-        await this.ctx.storage
-          .put<RoomRecord>("room", { ...record, state, seq: state.seq, activeAt: now })
-          .catch(() => undefined);
+        await this.saveSoon({ ...record, state, seq: state.seq, activeAt: now }).catch(
+          () => undefined,
+        );
         this.broadcast({ type: "state", ...state });
         return;
       }
@@ -173,7 +186,7 @@ export class Room extends DurableObject {
   override async alarm(): Promise<void> {
     const sockets = this.ctx.getWebSockets();
     if (sockets.length === 0) {
-      await this.ctx.storage.deleteAll();
+      await this.forgetRoom();
       return;
     }
 
@@ -183,7 +196,7 @@ export class Room extends DurableObject {
       await this.ctx.storage.setAlarm(now + IDLE_CHECK_MS);
       return;
     }
-    await this.ctx.storage.deleteAll();
+    await this.forgetRoom();
     for (const socket of sockets) socket.close(CloseCode.RoomIdle);
   }
 
@@ -206,7 +219,7 @@ export class Room extends DurableObject {
 
     const clientId = crypto.randomUUID();
     ws.serializeAttachment({ clientId, ...(viewer ? { viewer } : {}) } satisfies Attachment);
-    await this.ctx.storage.put<RoomRecord>("room", { ...record, activeAt: Date.now() });
+    await this.saveRecord({ ...record, activeAt: Date.now() });
     await this.ctx.storage.setAlarm(Date.now() + IDLE_CHECK_MS);
 
     const peers = this.joinedSockets().length;
@@ -233,7 +246,39 @@ export class Room extends DurableObject {
     }
   }
 
+  /** Saves at once, replacing anything waiting. */
+  private async saveRecord(record: RoomRecord): Promise<void> {
+    this.cancelSave();
+    this.unsaved = null;
+    this.lastSaveAt = Date.now();
+    await this.ctx.storage.put<RoomRecord>("room", record);
+  }
+
+  /** Keeps the newest in memory and saves it at most once a second. */
+  private async saveSoon(record: RoomRecord): Promise<void> {
+    const wait = this.lastSaveAt + SAVE_EVERY_MS - Date.now();
+    if (wait <= 0) return this.saveRecord(record);
+    this.unsaved = record;
+    this.saveTimer ??= setTimeout(() => {
+      this.saveTimer = null;
+      const pending = this.unsaved;
+      if (pending) void this.saveRecord(pending).catch(() => undefined);
+    }, wait);
+  }
+
+  private cancelSave(): void {
+    if (this.saveTimer !== null) clearTimeout(this.saveTimer);
+    this.saveTimer = null;
+  }
+
+  private async forgetRoom(): Promise<void> {
+    this.cancelSave();
+    this.unsaved = null;
+    await this.ctx.storage.deleteAll();
+  }
+
   private readRecord(): Promise<RoomRecord | undefined> {
+    if (this.unsaved) return Promise.resolve(this.unsaved);
     return this.ctx.storage.get<RoomRecord>("room");
   }
 
