@@ -64,6 +64,7 @@ type RoomHooks = {
   onRemoteChange: (change: PlaybackChange, rate: number) => void;
   onOwnChange: (change: PlaybackChange, rate: number) => void;
   onRoomVideo: (sealed: string, announced: boolean) => void;
+  onPeopleChange: (count: number) => void;
   onOthersAdEnded: () => void;
   isOnOtherVideo: () => boolean;
   videoChange: () => VideoChange | null;
@@ -96,6 +97,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     events: {
       onJoined: (message) => {
         peers = message.peers;
+        hooks.onPeopleChange(peers);
         othersOnAd = message.ads ?? 0;
         if (message.video) hooks.onRoomVideo(message.video, false);
         engine.handleJoined(message);
@@ -105,6 +107,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       onState: (state) => engine.handleState(state),
       onPeers: (count) => {
         peers = count;
+        hooks.onPeopleChange(count);
         engine.handlePeers(count);
       },
       onAds: (count) => {
@@ -118,6 +121,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       onStatus: (status, reason) => {
         connectionStatus = status;
         closeReason = reason;
+        if (status !== "connected") hooks.onPeopleChange(0);
       },
     },
   });
@@ -233,6 +237,7 @@ class FrameSession {
         },
         onOthersAdEnded: () => this.badge?.flash("notifyAdEnded"),
         onRoomVideo: (sealed, announced) => this.onRoomVideo(sealed, announced),
+        onPeopleChange: (count) => void send({ type: "room/people", count }),
         isOnOtherVideo: () => this.isOnOtherVideo(),
         videoChange: () => this.videoChange,
       });

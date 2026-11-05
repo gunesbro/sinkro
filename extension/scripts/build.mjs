@@ -68,6 +68,10 @@ for (const [target, overrides] of Object.entries(targetManifest)) {
 
   await cp(join(root, "_locales"), join(outdir, "_locales"), { recursive: true });
   await cp(join(root, "src/popup/popup.html"), join(outdir, "popup.html"));
+  await cp(join(root, "icons"), join(outdir, "icons"), {
+    recursive: true,
+    filter: (source) => source !== join(root, "icons/source"),
+  });
   await cp(join(root, "src/popup/popup.css"), join(outdir, "popup.css"));
   await mkdir(join(outdir, "fonts"));
   for (const [source, name] of fontFiles) await cp(source, join(outdir, "fonts", name));
