@@ -29,7 +29,7 @@ type RoomRecord = {
   activeAt?: number;
 };
 /** Kept with the socket, so who's on an ad goes when they do and is never stored. */
-type Attachment = { clientId: string | null; onAd?: boolean };
+type Attachment = { clientId: string | null; onAd?: boolean; viewer?: string };
 type RateWindow = { startedAt: number; count: number };
 
 /**
@@ -91,12 +91,17 @@ export class Room extends DurableObject {
         if (message.protocol < MIN_PROTOCOL_VERSION || message.protocol > PROTOCOL_VERSION) {
           return ws.close(CloseCode.ProtocolMismatch);
         }
-        return this.join(ws);
+        return this.join(ws, message.viewer);
       case "ad": {
         const clientId = this.clientIdOf(ws);
         if (!clientId) return this.sendError(ws, "not_joined");
         if (this.isOnAd(ws) === message.watching) return;
-        ws.serializeAttachment({ clientId, onAd: message.watching } satisfies Attachment);
+        const viewer = this.viewerOf(ws);
+        ws.serializeAttachment({
+          clientId,
+          onAd: message.watching,
+          ...(viewer ? { viewer } : {}),
+        } satisfies Attachment);
         this.announceAds();
         return;
       }
@@ -172,14 +177,25 @@ export class Room extends DurableObject {
     for (const socket of sockets) socket.close(CloseCode.RoomIdle);
   }
 
-  private async join(ws: WebSocket): Promise<void> {
+  private async join(ws: WebSocket, viewer?: string): Promise<void> {
     if (this.clientIdOf(ws)) return;
 
     const record = await this.readRecord();
     if (!record) return ws.close(CloseCode.RoomNotFound);
 
+    // After a network drop the old socket can look open for a long time, and it's this viewer.
+    let replacedOneOnAd = false;
+    if (viewer) {
+      for (const socket of this.joinedSockets()) {
+        if (socket === ws || this.viewerOf(socket) !== viewer) continue;
+        replacedOneOnAd ||= this.isOnAd(socket);
+        socket.serializeAttachment({ clientId: null } satisfies Attachment);
+        socket.close(1000);
+      }
+    }
+
     const clientId = crypto.randomUUID();
-    ws.serializeAttachment({ clientId } satisfies Attachment);
+    ws.serializeAttachment({ clientId, ...(viewer ? { viewer } : {}) } satisfies Attachment);
     await this.ctx.storage.put<RoomRecord>("room", { ...record, activeAt: Date.now() });
     await this.ctx.storage.setAlarm(Date.now() + IDLE_CHECK_MS);
 
@@ -189,6 +205,7 @@ export class Room extends DurableObject {
     const ads = othersOnAd > 0 ? { ads: othersOnAd } : {};
     this.send(ws, { type: "joined", clientId, state: record.state, peers, ...video, ...ads });
     this.broadcast({ type: "peers", count: peers }, ws);
+    if (replacedOneOnAd) this.announceAds();
   }
 
   /** Runs on both close and error, which can fire for the same socket. */
@@ -208,6 +225,10 @@ export class Room extends DurableObject {
 
   private readRecord(): Promise<RoomRecord | undefined> {
     return this.ctx.storage.get<RoomRecord>("room");
+  }
+
+  private viewerOf(ws: WebSocket): string | null {
+    return (ws.deserializeAttachment() as Attachment | null)?.viewer ?? null;
   }
 
   private isOnAd(ws: WebSocket): boolean {

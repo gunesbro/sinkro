@@ -89,6 +89,10 @@ export class RoomConnection {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private followUpTimers: ReturnType<typeof setTimeout>[] = [];
 
+  /** Random, and only for this connection's life, so reconnecting isn't taken for someone new. */
+  private readonly viewer = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
   private readonly now: () => number;
   private readonly createSocket: (url: string) => SocketLike;
 
@@ -159,7 +163,7 @@ export class RoomConnection {
   private join(): void {
     if (this.joinTimer !== null) clearTimeout(this.joinTimer);
     this.joinTimer = null;
-    this.send({ type: "join", protocol: PROTOCOL_VERSION });
+    this.send({ type: "join", protocol: PROTOCOL_VERSION, viewer: this.viewer });
   }
 
   private onMessage(raw: unknown): void {

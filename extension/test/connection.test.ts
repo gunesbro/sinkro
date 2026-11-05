@@ -125,7 +125,7 @@ describe("joining", () => {
       socket.receive({ type: "pong", clientTime: ping?.clientTime, serverTime: Date.now() + 700 });
     }
 
-    expect(socket.ofType("join")).toEqual([{ type: "join", protocol: 1 }]);
+    expect(socket.ofType("join")).toMatchObject([{ type: "join", protocol: 1 }]);
     expect(clock.offset).toBe(700);
   });
 
