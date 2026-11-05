@@ -1227,6 +1227,36 @@ describe("telling the viewer what they did themselves", () => {
   });
 });
 
+describe("a state of ours the room never echoes", () => {
+  it("doesn't leave this viewer deaf to the room", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    context.video.pause();
+    await settle();
+    expect(context.sent).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(3500);
+    context.engine.handleState(context.peerState({ playing: true, position: 900 }));
+    await settle();
+
+    expect(context.video.paused).toBe(false);
+    expect(context.video.position).toBeGreaterThan(890);
+  });
+
+  it("still ignores what was sent before its own state, while the echo can still come", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(1000);
+    context.video.pause();
+    await settle();
+    await vi.advanceTimersByTimeAsync(500);
+    context.engine.handleState(context.peerState({ playing: true, position: 900 }));
+    await settle();
+
+    expect(context.video.paused).toBe(true);
+  });
+});
+
 describe("sending what the film is", () => {
   it("adds the film's details to what it sends", async () => {
     const sent: PlaybackState[] = [];

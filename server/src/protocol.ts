@@ -14,7 +14,7 @@ export const CloseCode = {
   RoomIdle: 4408,
 } as const;
 
-export type ErrorCode = "invalid_message" | "not_joined" | "rate_limited";
+export type ErrorCode = "invalid_message" | "not_joined" | "rate_limited" | "server_error";
 
 export type PlaybackState = {
   playing: boolean;
@@ -79,6 +79,7 @@ const ERROR_CODES: readonly unknown[] = [
   "invalid_message",
   "not_joined",
   "rate_limited",
+  "server_error",
 ] satisfies ErrorCode[];
 
 function isFiniteNumber(value: unknown): value is number {

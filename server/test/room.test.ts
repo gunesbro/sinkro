@@ -538,6 +538,35 @@ describe("hibernation", () => {
   });
 });
 
+describe("a room whose storage fails", () => {
+  const breakStorage = (code: string) =>
+    runInDurableObject(env.ROOMS.getByName(code), (instance) => {
+      const storage = (instance as unknown as { ctx: DurableObjectState }).ctx.storage;
+      storage.put = () => Promise.reject(new Error("quota"));
+    });
+
+  it("still passes states on and echoes them, so nobody waits for good", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    await breakStorage(code);
+    a.sendState({ position: 77 });
+
+    expect(await b.next()).toMatchObject({ type: "state", position: 77 });
+    expect(await a.next()).toMatchObject({ type: "state", position: 77 });
+  });
+
+  it("answers with an error when it can't do what was asked", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    await breakStorage(code);
+    client.send({ type: "video/set", sealed: "abc" });
+
+    expect(await client.next()).toEqual({ type: "error", code: "server_error" });
+  });
+});
+
 describe("a state's film details", () => {
   it("reach the others and whoever joins later", async () => {
     const code = await createRoom();
