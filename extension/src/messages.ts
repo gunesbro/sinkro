@@ -44,6 +44,8 @@ export type BackgroundRequest =
   /** From the invite page only, on a real click. */
   | { type: "invite/join"; fragment: string }
   | { type: "detect/report"; score: number }
+  /** From the frame running the room, for the number on the toolbar icon. 0 means not connected. */
+  | { type: "room/people"; count: number }
   /** From the top frame, which is the only one that knows the page's address. */
   | { type: "page/report"; url: string; title: string }
   /** The room's video as this frame's connection heard it. Only extension pages can open it. */

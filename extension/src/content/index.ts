@@ -64,6 +64,7 @@ type RoomHooks = {
   onRemoteChange: (change: PlaybackChange, rate: number) => void;
   onOwnChange: (change: PlaybackChange, rate: number) => void;
   onRoomVideo: (sealed: string, announced: boolean) => void;
+  onPeopleChange: (count: number) => void;
   isOnOtherVideo: () => boolean;
   videoChange: () => VideoChange | null;
 };
@@ -89,12 +90,14 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     events: {
       onJoined: (message) => {
         peers = message.peers;
+        hooks.onPeopleChange(peers);
         if (message.video) hooks.onRoomVideo(message.video, false);
         engine.handleJoined(message);
       },
       onState: (state) => engine.handleState(state),
       onPeers: (count) => {
         peers = count;
+        hooks.onPeopleChange(count);
         engine.handlePeers(count);
       },
       onVideo: (sealed) => hooks.onRoomVideo(sealed, true),
@@ -103,6 +106,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       onStatus: (status, reason) => {
         connectionStatus = status;
         closeReason = reason;
+        if (status !== "connected") hooks.onPeopleChange(0);
       },
     },
   });
@@ -216,6 +220,7 @@ class FrameSession {
           this.badge?.flash(OWN_CHANGE_MESSAGES[change], [formatRate(rate)]);
         },
         onRoomVideo: (sealed, announced) => this.onRoomVideo(sealed, announced),
+        onPeopleChange: (count) => void send({ type: "room/people", count }),
         isOnOtherVideo: () => this.isOnOtherVideo(),
         videoChange: () => this.videoChange,
       });

@@ -28,6 +28,10 @@ import { chooseFrame, TOP_FRAME_ID, type FrameReports } from "./arbiter";
 
 type TabFrames = { winner: number; reports: FrameReports };
 
+// The accent colour and the text that goes on it.
+const BADGE_BACKGROUND = "#F2B045";
+const BADGE_TEXT = "#1A1208";
+
 // Session storage survives the worker sleeping and is cleared when the browser closes.
 const tabKey = (tabId: number) => `tab:${tabId}`;
 const framesKey = (tabId: number) => `frames:${tabId}`;
@@ -75,6 +79,26 @@ async function recordReport(tabId: number, frameId: number, score: number): Prom
     await sendToTab(tabId, { type: "session/role", active: true }, winner);
   }
   return winner === frameId;
+}
+
+const iconSizes = (state: "on" | "off") =>
+  Object.fromEntries([16, 32, 48, 128].map((size) => [size, `icons/icon-${state}-${size}.png`]));
+
+/** Browsers forget a tab's icon when it goes to another page, so this runs again each time. */
+async function showRoomOnIcon(tabId: number): Promise<void> {
+  const session = await getSession(tabId);
+  await chrome.action
+    .setIcon({ tabId, path: iconSizes(session ? "on" : "off") })
+    .catch(() => undefined);
+}
+
+async function showPeopleOnIcon(tabId: number, count: number): Promise<void> {
+  const text = count > 0 ? String(count) : "";
+  await chrome.action.setBadgeText({ tabId, text }).catch(() => undefined);
+  await chrome.action
+    .setBadgeBackgroundColor({ tabId, color: BADGE_BACKGROUND })
+    .catch(() => undefined);
+  await chrome.action.setBadgeTextColor?.({ tabId, color: BADGE_TEXT }).catch(() => undefined);
 }
 
 async function getTabVideo(tabId: number): Promise<TabVideo> {
@@ -174,6 +198,7 @@ async function joinTab(tabId: number, code: string): Promise<TabSession> {
   const session: TabSession = { code, serverUrl: await getServerUrl() };
   await chrome.storage.session.set({ [tabKey(tabId)]: session });
   await chrome.storage.session.remove([framesKey(tabId), videoKey(tabId)]);
+  await showRoomOnIcon(tabId);
   return session;
 }
 
@@ -203,6 +228,8 @@ async function joinFromInvite(
 
 async function leaveRoom(tabId: number): Promise<void> {
   await chrome.storage.session.remove([tabKey(tabId), framesKey(tabId), videoKey(tabId)]);
+  await showRoomOnIcon(tabId);
+  await showPeopleOnIcon(tabId, 0);
   await sendToTab(tabId, { type: "session/changed", session: null });
 }
 
@@ -267,6 +294,9 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
             return recordReport(tabId, frameId, request.score);
           }),
         };
+      case "room/people":
+        await showPeopleOnIcon(tabId, request.count);
+        return null;
       case "page/report":
         return frameId === TOP_FRAME_ID ? onPageReport(tabId, request.url, request.title) : null;
       case "video/seen":
@@ -297,6 +327,10 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
 chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendResponse) => {
   void handle(request, sender).then(sendResponse);
   return true;
+});
+
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.status === "loading") void showRoomOnIcon(tabId);
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
