@@ -34,7 +34,9 @@ type RoomRecord = {
   activeAt?: number;
 };
 /** Kept with the socket, so who's on an ad goes when they do and is never stored. */
-type Attachment = { clientId: string | null; onAd?: boolean; viewer?: string };
+type Attachment = { clientId: string | null; onAd?: boolean; viewer?: string; drift?: number };
+/** Smaller changes to the room's spread aren't worth waking everyone for. */
+const SPREAD_STEP_SECONDS = 0.05;
 type RateWindow = { startedAt: number; count: number };
 
 /**
@@ -115,13 +117,14 @@ export class Room extends DurableObject {
         const clientId = this.clientIdOf(ws);
         if (!clientId) return this.sendError(ws, "not_joined");
         if (this.isOnAd(ws) === message.watching) return;
-        const viewer = this.viewerOf(ws);
-        ws.serializeAttachment({
-          clientId,
-          onAd: message.watching,
-          ...(viewer ? { viewer } : {}),
-        } satisfies Attachment);
+        this.patchAttachment(ws, { onAd: message.watching });
         this.announceAds();
+        return;
+      }
+      case "drift": {
+        if (!this.clientIdOf(ws)) return this.sendError(ws, "not_joined");
+        this.patchAttachment(ws, { drift: message.seconds });
+        this.announceSpread();
         return;
       }
       case "video/get": {
@@ -170,6 +173,10 @@ export class Room extends DurableObject {
           () => undefined,
         );
         this.broadcast({ type: "state", ...state });
+        // Everyone heads for the new state, so what they said before it no longer holds.
+        for (const socket of this.joinedSockets())
+          this.patchAttachment(socket, { drift: undefined });
+        this.lastSpread = null;
         return;
       }
     }
@@ -229,6 +236,9 @@ export class Room extends DurableObject {
     this.send(ws, { type: "joined", clientId, state: record.state, peers, ...video, ...ads });
     this.broadcast({ type: "peers", count: peers }, ws);
     if (replacedOneOnAd) this.announceAds();
+    const spread = this.spread();
+    if (spread !== null)
+      this.send(ws, { type: "spread", seconds: Math.round(spread * 1000) / 1000 });
   }
 
   /** Runs on both close and error, which can fire for the same socket. */
@@ -239,6 +249,8 @@ export class Room extends DurableObject {
       ws.serializeAttachment({ clientId: null } satisfies Attachment);
       this.broadcast({ type: "peers", count: remaining.length }, ws);
       if (wasOnAd) this.announceAds();
+      this.lastSpread = null;
+      this.announceSpread();
     }
 
     if (remaining.length === 0 && (await this.readRecord())) {
@@ -280,6 +292,32 @@ export class Room extends DurableObject {
   private readRecord(): Promise<RoomRecord | undefined> {
     if (this.unsaved) return Promise.resolve(this.unsaved);
     return this.ctx.storage.get<RoomRecord>("room");
+  }
+
+  /** Keeps whatever else the socket carries, which survives the room hibernating. */
+  private patchAttachment(ws: WebSocket, change: Partial<Attachment>): void {
+    const current = (ws.deserializeAttachment() as Attachment | null) ?? { clientId: null };
+    ws.serializeAttachment({ ...current, ...change } satisfies Attachment);
+  }
+
+  private lastSpread: number | null = null;
+
+  /** From what each person says of themselves, so it only counts who has said. */
+  private spread(): number | null {
+    const drifts = this.joinedSockets()
+      .map((socket) => (socket.deserializeAttachment() as Attachment | null)?.drift)
+      .filter((drift): drift is number => typeof drift === "number");
+    return drifts.length >= 2 ? Math.max(...drifts) - Math.min(...drifts) : null;
+  }
+
+  private announceSpread(): void {
+    const spread = this.spread();
+    if (spread === null) return;
+    if (this.lastSpread !== null && Math.abs(spread - this.lastSpread) < SPREAD_STEP_SECONDS) {
+      return;
+    }
+    this.lastSpread = spread;
+    this.broadcast({ type: "spread", seconds: Math.round(spread * 1000) / 1000 });
   }
 
   private viewerOf(ws: WebSocket): string | null {

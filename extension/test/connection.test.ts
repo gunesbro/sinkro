@@ -64,6 +64,7 @@ function setup() {
     onRejected: vi.fn(),
     onVideo: vi.fn(),
     onAds: vi.fn(),
+    onSpread: vi.fn(),
     onDisconnected: vi.fn(),
     onStatus: vi.fn(),
   };

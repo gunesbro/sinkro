@@ -125,7 +125,17 @@ function renderRoom(): void {
   element("room-status").textContent = t(line.key);
 
   const peers = status?.peers ?? 0;
-  element("people").textContent = peers > 0 ? t("people", [String(peers)]) : "";
+  const people = peers > 0 ? t("people", [String(peers)]) : "";
+  // Hundredths are what anyone can make sense of, in the way this language writes them.
+  const spread =
+    status?.spread !== null && status?.spread !== undefined
+      ? t("spreadWithin", [
+          status.spread.toLocaleString(document.documentElement.lang || "en", {
+            maximumFractionDigits: 2,
+          }),
+        ])
+      : "";
+  element("people").textContent = [people, spread].filter(Boolean).join(" · ");
   element("timecode").textContent =
     status?.position !== undefined && status.position !== null
       ? (formatTimecode(status.position) ?? "")

@@ -621,6 +621,80 @@ describe("saving states", () => {
   });
 });
 
+describe("the room's spread", () => {
+  it("is how far apart the furthest two say they are", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "drift", seconds: 0.1 });
+    b.send({ type: "drift", seconds: -0.05 });
+
+    expect(await a.next()).toEqual({ type: "spread", seconds: 0.15 });
+    expect(await b.next()).toEqual({ type: "spread", seconds: 0.15 });
+  });
+
+  it("isn't sent for changes too small to matter", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "drift", seconds: 0.1 });
+    b.send({ type: "drift", seconds: 0 });
+    await a.next();
+    await b.next();
+    b.send({ type: "drift", seconds: 0.01 });
+    a.send({ type: "ping", clientTime: 1 });
+
+    expect((await a.next()).type).toBe("pong");
+  });
+
+  it("is told to someone joining later", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "drift", seconds: 0.1 });
+    b.send({ type: "drift", seconds: 0 });
+    await a.next();
+    await b.next();
+    const { client: c } = await join(code);
+
+    expect(await c.next()).toEqual({ type: "spread", seconds: 0.1 });
+  });
+
+  it("starts over once the room moves on", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "drift", seconds: 0.1 });
+    b.send({ type: "drift", seconds: 0 });
+    await a.next();
+    await b.next();
+    a.send({ type: "state", playing: false, position: 5, rate: 1, sentAt: Date.now() });
+    expect((await a.next()).type).toBe("state");
+    expect((await b.next()).type).toBe("state");
+    a.send({ type: "drift", seconds: 0.02 });
+    b.send({ type: "drift", seconds: 0 });
+
+    expect(await a.next()).toEqual({ type: "spread", seconds: 0.02 });
+  });
+
+  it("needs joining first", async () => {
+    const client = await connect(await createRoom());
+    client.send({ type: "drift", seconds: 0.1 });
+    expect(await client.next()).toEqual({ type: "error", code: "not_joined" });
+  });
+
+  it("refuses a drift that's really a seek", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    client.send({ type: "drift", seconds: 90 });
+    expect(await client.next()).toEqual({ type: "error", code: "invalid_message" });
+  });
+});
+
 describe("a room whose storage fails", () => {
   const breakStorage = (code: string) =>
     runInDurableObject(env.ROOMS.getByName(code), (instance) => {

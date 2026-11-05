@@ -38,6 +38,10 @@ A `state` may also carry `duration`, the film's length in seconds, and `source`,
 
 A client may send `viewer` in `join`, any string of up to 64 characters that stays the same across its reconnects. A new join with the same value closes the older socket and replaces it, so it isn't counted twice. It's kept with the connection, not in storage.
 
+## The room's spread
+
+A client that has joined may send `{"type":"drift","seconds":0.08}`, how far it is from the room's timeline, up to 60 s either way. Everyone gets `{"type":"spread","seconds":...}`, how far apart the furthest two are, from what each has said, when it changes by 0.05 s or more. It's kept with the connection, not in storage.
+
 ## Someone on an ad
 
 A client that has joined can send `{"type":"ad","watching":true}`. Everyone who has joined gets `{"type":"ads","count":n}`, counting the others on an ad, and someone joining gets it in `joined` as `ads`, when any are. It's kept with the connection, not in storage.

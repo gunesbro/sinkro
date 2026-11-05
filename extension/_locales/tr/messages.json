@@ -397,5 +397,14 @@
   },
   "gotIt": {
     "message": "Tamam"
+  },
+  "spreadWithin": {
+    "message": "herkes $SECONDS$ sn içinde",
+    "placeholders": {
+      "seconds": {
+        "content": "$1",
+        "example": "0,12"
+      }
+    }
   }
 }
