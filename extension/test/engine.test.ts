@@ -11,6 +11,7 @@ const CLOCK_OFFSET_MS = 5000;
 function setup() {
   const changes: PlaybackChange[] = [];
   const ownChanges: PlaybackChange[] = [];
+  const rates: number[] = [];
   const sent: PlaybackState[] = [];
   const video = new FakeVideo();
   const hold: { reason: HoldReason | null; roomPosition: number | null } = {
@@ -22,8 +23,14 @@ function setup() {
   const engine = new SyncEngine({
     now: Date.now,
     serverNow,
-    onRemoteChange: (change) => changes.push(change),
-    onOwnChange: (change) => ownChanges.push(change),
+    onRemoteChange: (change, rate) => {
+      changes.push(change);
+      rates.push(rate);
+    },
+    onOwnChange: (change, rate) => {
+      ownChanges.push(change);
+      rates.push(rate);
+    },
     holdFor: (roomPosition) => {
       hold.roomPosition = roomPosition;
       return hold.reason;
@@ -49,7 +56,7 @@ function setup() {
   const setOnline = (value: boolean) => {
     online = value;
   };
-  return { engine, video, sent, peerState, serverNow, setOnline, hold, changes, ownChanges };
+  return { engine, video, sent, peerState, serverNow, setOnline, hold, changes, ownChanges, rates };
 }
 
 /** Joins a room others are in, and settles on a playing timeline at `position`. */
@@ -1000,6 +1007,24 @@ describe("telling the viewer what someone else did", () => {
     expect(context.changes).toEqual([expected]);
   });
 
+  it("reports a new speed, and says what it is", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.engine.handleState(context.peerState({ position: 100, rate: 1.5 }));
+
+    expect(context.changes).toEqual(["rate"]);
+    expect(context.rates).toEqual([1.5]);
+  });
+
+  it("calls a new speed that, not a seek, even after time has passed", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(10_000);
+    context.engine.handleState(context.peerState({ position: 110, rate: 2 }));
+
+    expect(context.changes).toEqual(["rate"]);
+  });
+
   it("reports playback starting", async () => {
     const context = setup();
     await joinPlaying(context);
@@ -1074,6 +1099,26 @@ describe("telling the viewer what they did themselves", () => {
     await settle();
 
     expect(context.ownChanges).toEqual(["seeked"]);
+  });
+
+  it("reports their new speed, and says what it is", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.video.userSetRate(1.5);
+    await settle();
+
+    expect(context.ownChanges).toEqual(["rate"]);
+    expect(context.rates).toEqual([1.5]);
+  });
+
+  it("says nothing about the speed a drift correction plays at", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.video.position += 1;
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(context.ownChanges).toEqual([]);
+    expect(context.changes).toEqual([]);
   });
 
   it("reports a seek that had to wait its turn to be sent", async () => {

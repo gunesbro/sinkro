@@ -48,7 +48,7 @@ export type SyncedVideo = Pick<
 export type Hold = HoldReason | "other_video";
 
 /** What someone just did to the room's video, for telling the viewer. */
-export type PlaybackChange = "played" | "paused" | "seeked";
+export type PlaybackChange = "played" | "paused" | "seeked" | "rate";
 
 /** A jump smaller than this is drift being settled, not someone seeking. */
 const SEEK_NOTICE_SECONDS = 2;
@@ -60,9 +60,10 @@ export type EngineDeps = {
   send: (state: PlaybackState) => boolean;
   /** Says why the video can't follow the room right now, such as an ad playing. */
   holdFor?: (roomPosition: number | null) => Hold | null;
-  onRemoteChange?: (change: PlaybackChange) => void;
+  /** `rate` is the speed the room is at now. */
+  onRemoteChange?: (change: PlaybackChange, rate: number) => void;
   /** This viewer's own action reached the others. Not called when nobody else is there. */
-  onOwnChange?: (change: PlaybackChange) => void;
+  onOwnChange?: (change: PlaybackChange, rate: number) => void;
 };
 
 export type EngineSnapshot = {
@@ -190,13 +191,14 @@ export class SyncEngine {
     const change = this.describeChange(state);
     this.setTimeline(state);
     this.apply(true);
-    if (change) this.deps.onRemoteChange?.(change);
+    if (change) this.deps.onRemoteChange?.(change, state.rate);
   }
 
   private describeChange(next: PlaybackState): PlaybackChange | null {
     const { timeline } = this;
     if (!timeline) return null;
     if (timeline.playing !== next.playing) return next.playing ? "played" : "paused";
+    if (Math.abs(timeline.rate - next.rate) >= RATE_EPSILON) return "rate";
 
     const expected = targetPosition(timeline, next.sentAt, Number.POSITIVE_INFINITY);
     return Math.abs(expected - next.position) > SEEK_NOTICE_SECONDS ? "seeked" : null;
@@ -544,7 +546,7 @@ export class SyncEngine {
     this.lastPublishAt = this.deps.now();
     this.timeline = state;
     this.finishCorrection();
-    if (change) this.deps.onOwnChange?.(change);
+    if (change) this.deps.onOwnChange?.(change, state.rate);
   }
 
   private cancelPublish(): void {

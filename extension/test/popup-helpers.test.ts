@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { formatTimecode } from "../src/format";
+import { formatRate, formatTimecode } from "../src/format";
 import { inviteLink, isSamePage, parseInviteFragment, parseJoinInput } from "../src/invite";
+
+describe("formatRate", () => {
+  it.each([
+    [1, "1x"],
+    [1.5, "1.5x"],
+    [0.75, "0.75x"],
+    [1.3333333, "1.33x"],
+  ])("shows %s as %s", (rate, shown) => {
+    expect(formatRate(rate)).toBe(shown);
+  });
+});
 
 describe("formatTimecode", () => {
   it.each([
