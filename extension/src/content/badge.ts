@@ -29,6 +29,8 @@ const MIN_VIDEO_WIDTH_PX = 240;
 const MIN_VIDEO_HEIGHT_PX = 120;
 /** All's well for this long, and the badge shrinks to its dot so the film has the screen. */
 const QUIET_AFTER_MS = 5000;
+/** How long "Starting…" stays before offering the button again, if nothing has happened. */
+const JOIN_PRESS_MS = 5000;
 /** A pointer on the badge in move mode must never reach the player underneath. */
 const SWALLOWED_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick"];
 
@@ -77,6 +79,7 @@ export class VideoBadge {
   private lastChangeAt = 0;
   private lastPillText = "";
   private lastPillLabel = "";
+  private joinPressedAt = Number.NEGATIVE_INFINITY;
 
   constructor(options: BadgeOptions) {
     this.messages = options.messages;
@@ -92,7 +95,10 @@ export class VideoBadge {
     this.action.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
+      // Answer the click at once: playback can take a moment to start.
+      this.joinPressedAt = Date.now();
       options.onPlay();
+      if (this.video) this.update(this.video, this.status);
     });
     this.connectMoving();
     document.addEventListener("fullscreenchange", () => this.attach(), {
@@ -210,7 +216,10 @@ export class VideoBadge {
     this.setText(this.cardTitle, translate(this.messages, notice.titleKey));
     this.setText(this.cardBody, translate(this.messages, notice.bodyKey));
     this.action.style.display = notice.action === "play" ? "block" : "none";
-    this.setText(this.action, translate(this.messages, "join"));
+    const isStarting = Date.now() - this.joinPressedAt < JOIN_PRESS_MS;
+    this.setText(this.action, translate(this.messages, isStarting ? "starting" : "join"));
+    this.action.style.opacity = isStarting ? "0.7" : "1";
+    this.action.style.cursor = isStarting ? "progress" : "pointer";
   }
 
   /** Only writes real changes, so a screen reader announces each one once. */

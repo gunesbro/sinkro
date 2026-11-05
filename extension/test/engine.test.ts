@@ -844,6 +844,23 @@ describe("the autoplay notice", () => {
   });
 });
 
+describe("the join button when the browser still refuses", () => {
+  it("brings the notice back", async () => {
+    const context = setup();
+    const { engine, video, peerState } = context;
+    video.autoplayAllowed = false;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: peerState({ position: 100 }), peers: 2 });
+    await settle();
+
+    engine.retryPlay();
+    expect(engine.snapshot().needsGesture).toBe(false);
+    await settle();
+
+    expect(engine.snapshot().needsGesture).toBe(true);
+  });
+});
+
 describe("the join button on the page", () => {
   it("plays straight away once the browser allows it, without telling the room", async () => {
     const context = setup();

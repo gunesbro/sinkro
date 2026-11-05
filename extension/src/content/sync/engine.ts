@@ -195,6 +195,8 @@ export class SyncEngine {
 
   /** The viewer clicked to get past an autoplay block, and a click is what the browser wants. */
   retryPlay(): void {
+    // If the browser still says no, the refusal puts the notice back.
+    this.autoplayRetryAt = 0;
     this.apply(true);
   }
 
