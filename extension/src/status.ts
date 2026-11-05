@@ -100,7 +100,10 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
     if (status.isFloatingPlayer) {
       return { ...notice("warn", "youMoved", "return"), bodyKey: "youMovedFloatingHelp" };
     }
-    return notice("warn", "youMoved", status.hasVideo ? "bring" : "return");
+    // With no video here it's another page, and calling it another video would be wrong.
+    if (!status.hasVideo)
+      return { ...notice("warn", "youMoved", "return"), titleKey: "youLeftPage" };
+    return notice("warn", "youMoved", "bring");
   }
   if (status.videoChange?.kind === "room_moved") {
     const { title, host } = status.videoChange;

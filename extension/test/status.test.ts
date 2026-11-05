@@ -248,7 +248,11 @@ describe("noticeFor", () => {
 
     it("only offers going back from a page with no video to bring anyone to", () => {
       const notice = noticeFor({ ...connected, hasVideo: false, videoChange: moved });
-      expect(notice).toMatchObject({ titleKey: "youMoved", action: "return" });
+      expect(notice).toMatchObject({
+        titleKey: "youLeftPage",
+        bodyKey: "youMovedHelp",
+        action: "return",
+      });
       expect(mustShowNotice(notice)).toBe(true);
     });
 
