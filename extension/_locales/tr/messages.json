@@ -193,5 +193,20 @@
   },
   "tooManyRooms": {
     "message": "Çok fazla oda oluşturdun. Bir dakika bekleyip yeniden dene."
+  },
+  "adPlaying": {
+    "message": "Reklam oynuyor"
+  },
+  "adPlayingHelp": {
+    "message": "Diğerleri izlemeye devam ediyor. Reklam bitince odanın olduğu yere atlarsın."
+  },
+  "pastEnd": {
+    "message": "Bu video odanın olduğu yerden önce bitiyor"
+  },
+  "pastEndHelp": {
+    "message": "Başka bir video veya kaynakta olabilirsin. Oda bu aralığa dönene kadar Sinkro videoya dokunmaz."
+  },
+  "onHold": {
+    "message": "Beklemede"
   }
 }

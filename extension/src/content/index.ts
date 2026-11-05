@@ -31,7 +31,7 @@ type Room = {
   stop: () => void;
 };
 
-function startRoom({ code, serverUrl }: TabSession, video: HTMLVideoElement | null): Room {
+function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker): Room {
   const clock = new ServerClock();
   let connectionStatus: ConnectionStatus = "connecting";
   let closeReason: CloseReason | null = null;
@@ -41,6 +41,7 @@ function startRoom({ code, serverUrl }: TabSession, video: HTMLVideoElement | nu
     now: Date.now,
     serverNow: () => Date.now() + clock.offset,
     send: (state) => connection.sendState(state),
+    holdFor: (roomPosition) => tracker.holdReason(roomPosition),
   });
   const connection = new RoomConnection({
     url: roomSocketUrl(serverUrl, code),
@@ -63,7 +64,7 @@ function startRoom({ code, serverUrl }: TabSession, video: HTMLVideoElement | nu
     },
   });
 
-  engine.bind(video);
+  engine.bind(tracker.video());
   const onOnline = () => connection.retryNow();
   window.addEventListener("online", onOnline);
   connection.start();
@@ -115,7 +116,7 @@ class FrameSession {
 
   setActive(active: boolean): void {
     if (active && !this.room) {
-      this.room = startRoom(this.session, this.tracker.video());
+      this.room = startRoom(this.session, this.tracker);
     } else if (!active && this.room) {
       this.room.stop();
       this.room = null;

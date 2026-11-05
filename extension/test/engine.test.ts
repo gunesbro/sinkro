@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlaybackState, RoomState } from "../../server/src/protocol";
+import type { HoldReason } from "../src/content/detection/ads";
 import { SyncEngine } from "../src/content/sync/engine";
 import { FakeVideo } from "./fake-video";
 
@@ -10,11 +11,19 @@ const CLOCK_OFFSET_MS = 5000;
 function setup() {
   const sent: PlaybackState[] = [];
   const video = new FakeVideo();
+  const hold: { reason: HoldReason | null; roomPosition: number | null } = {
+    reason: null,
+    roomPosition: null,
+  };
   const serverNow = () => Date.now() + CLOCK_OFFSET_MS;
   let online = true;
   const engine = new SyncEngine({
     now: Date.now,
     serverNow,
+    holdFor: (roomPosition) => {
+      hold.roomPosition = roomPosition;
+      return hold.reason;
+    },
     send: (state) => {
       if (online) sent.push(state);
       return online;
@@ -36,7 +45,7 @@ function setup() {
   const setOnline = (value: boolean) => {
     online = value;
   };
-  return { engine, video, sent, peerState, serverNow, setOnline };
+  return { engine, video, sent, peerState, serverNow, setOnline, hold };
 }
 
 /** Joins a room others are in, and settles on a playing timeline at `position`. */
@@ -283,6 +292,97 @@ describe("what the viewer does reaches the room", () => {
     await vi.advanceTimersByTimeAsync(100);
 
     expect(sent).toMatchObject([{ position: 800 }]);
+  });
+});
+
+describe("a video still loading", () => {
+  /** A player swapping the source: position 0, length unknown, nothing buffered. */
+  function startLoading(video: FakeVideo) {
+    video.position = 0;
+    video.duration = Number.NaN;
+    video.readyState = 0;
+  }
+
+  it("doesn't send a playing room back to zero when a player calls play on a new source", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { video, sent } = context;
+    startLoading(video);
+    video.paused = true;
+    video.userPlay();
+    await settle();
+
+    expect(sent).toEqual([]);
+  });
+
+  it("doesn't send the room back to zero when a new source seeks or changes speed", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { video, sent } = context;
+    startLoading(video);
+    video.userSeek(0);
+    await settle();
+    video.userSetRate(1.5);
+    await settle();
+
+    expect(sent).toEqual([]);
+  });
+
+  it("doesn't pause the room when a player pauses while swapping sources", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { video, sent } = context;
+    startLoading(video);
+    video.pause();
+    await settle();
+
+    expect(sent).toEqual([]);
+  });
+
+  it("still lets the viewer start a paused room, from the room's own spot", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, video, sent, peerState } = context;
+    engine.handleState(peerState({ playing: false, position: 700 }));
+    await vi.advanceTimersByTimeAsync(1300);
+    startLoading(video);
+    video.userPlay();
+    await settle();
+
+    expect(sent).toMatchObject([{ playing: true, position: 700 }]);
+  });
+
+  it("doesn't start the room's timeline from a video with no length yet", async () => {
+    const context = setup();
+    const { engine, video, sent } = context;
+    startLoading(video);
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: null, peers: 1 });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(sent).toEqual([]);
+
+    video.position = 42;
+    video.duration = 3600;
+    video.readyState = 4;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(sent.map((s) => s.position)).toEqual([42]);
+  });
+
+  it("reports normally again once it has loaded", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { video, sent } = context;
+    startLoading(video);
+    await settle();
+    video.duration = 3600;
+    video.readyState = 4;
+    video.position = 100;
+    await vi.advanceTimersByTimeAsync(1300);
+
+    video.pause();
+    await settle();
+
+    expect(sent).toMatchObject([{ playing: false }]);
   });
 });
 
@@ -828,6 +928,128 @@ describe("connection loss", () => {
     await settle();
 
     expect(video.position).toBe(900);
+  });
+});
+
+describe("while an ad plays", () => {
+  /** In a playing room at 100, with an ad now on screen and the engine aware of it. */
+  async function duringAd() {
+    const context = setup();
+    await joinPlaying(context);
+    context.hold.reason = "ad";
+    await vi.advanceTimersByTimeAsync(1300);
+    context.sent.length = 0;
+    return context;
+  }
+
+  it("reports the hold, and no drift to worry about", async () => {
+    const { engine } = await duringAd();
+    expect(engine.snapshot().hold).toBe("ad");
+    expect(engine.snapshot().drift).toBeNull();
+  });
+
+  it("tells the check where the room really is, past the end of a short video", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.video.duration = 30;
+    await vi.advanceTimersByTimeAsync(1300);
+    expect(context.hold.roomPosition).toBeGreaterThan(100);
+  });
+
+  it("leaves the video alone", async () => {
+    const { video } = await duringAd();
+    video.position = 5;
+    const seeks = video.seekCalls;
+    await play(video, 10_000);
+
+    expect(video.seekCalls).toBe(seeks);
+    expect(video.playbackRate).toBe(1);
+  });
+
+  it("doesn't follow new states into it", async () => {
+    const { engine, video, peerState } = await duringAd();
+    video.position = 5;
+    engine.handleState(peerState({ playing: false, position: 900 }));
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(video.position).toBe(5);
+    expect(video.paused).toBe(false);
+  });
+
+  it("keeps the room out of what happens to it", async () => {
+    const { video, sent } = await duringAd();
+    video.pause();
+    await settle();
+    video.userPlay();
+    await settle();
+    video.userSeek(10);
+    await settle();
+    video.userSetRate(2);
+    await settle();
+
+    expect(sent).toEqual([]);
+  });
+
+  it("doesn't pause the room when the ad ends", async () => {
+    const { video, sent } = await duringAd();
+    video.duration = 30;
+    video.reachEnd();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(sent).toEqual([]);
+  });
+
+  it("doesn't bring everyone to the ad", async () => {
+    const { engine, sent } = await duringAd();
+    engine.bringEveryone();
+
+    expect(sent).toEqual([]);
+  });
+
+  it("goes back to the room's spot as soon as it's over", async () => {
+    const { engine, video, peerState, hold } = await duringAd();
+    video.position = 5;
+    engine.handleState(peerState({ playing: true, position: 900 }));
+    await vi.advanceTimersByTimeAsync(1300);
+    expect(video.position).toBeLessThan(10);
+
+    hold.reason = null;
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(video.position).toBeGreaterThan(900);
+    expect(engine.snapshot().hold).toBeNull();
+  });
+
+  it("goes back even within the usual cooldown on seeks", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, video, peerState, hold } = context;
+    engine.handleState(peerState({ position: 900 }));
+    await settle();
+
+    hold.reason = "ad";
+    await vi.advanceTimersByTimeAsync(1300);
+    video.position = 5;
+    hold.reason = null;
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(video.position).toBeGreaterThan(900);
+  });
+
+  it("doesn't start the room's timeline from an ad", async () => {
+    const context = setup();
+    const { engine, video, sent, hold } = context;
+    hold.reason = "ad";
+    video.position = 7;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: null, peers: 1 });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(sent).toEqual([]);
+
+    hold.reason = null;
+    video.position = 42;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(sent.map((s) => s.position)).toEqual([42]);
   });
 });
 

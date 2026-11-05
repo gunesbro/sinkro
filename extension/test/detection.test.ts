@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chooseFrame } from "../src/background/arbiter";
+import { holdReason, type HoldSignals } from "../src/content/detection/ads";
 import { pickBest, scoreVideo, type VideoSignals } from "../src/content/detection/score";
 
 const SCREEN = 1920 * 1080;
@@ -97,6 +98,57 @@ describe("scoreVideo", () => {
 
   it("honours the viewer's choice even when it's out of view for now", () => {
     expect(score({ picked: true, visibleRatio: 0 })).toBeGreaterThan(0);
+  });
+});
+
+describe("holdReason", () => {
+  const film: HoldSignals = {
+    duration: 5400,
+    longestSeen: 5400,
+    roomPosition: 1000,
+    hasAdMarker: false,
+    picked: false,
+  };
+  const reason = (changes: Partial<HoldSignals>) => holdReason({ ...film, ...changes });
+
+  it("doesn't hold the film itself", () => {
+    expect(reason({})).toBeNull();
+  });
+
+  it.each<[string, Partial<HoldSignals>]>([
+    ["a short video after a long one", { duration: 30, roomPosition: 10 }],
+    ["a player's ad marker", { hasAdMarker: true }],
+    ["a marker even on a long video", { hasAdMarker: true, duration: 5400 }],
+    ["a marker on a video the viewer picked", { hasAdMarker: true, picked: true }],
+    ["a short video that can't reach the room", { duration: 30, longestSeen: 0 }],
+  ])("calls %s an ad", (_, changes) => {
+    expect(reason(changes)).toBe("ad");
+  });
+
+  it.each<[string, Partial<HoldSignals>]>([
+    [
+      "a short film with nothing longer around",
+      { duration: 120, longestSeen: 120, roomPosition: 30 },
+    ],
+    ["a video the viewer picked", { duration: 30, picked: true, roomPosition: 10 }],
+    ["a video with no metadata yet", { duration: Number.NaN }],
+    ["a live stream", { duration: Number.POSITIVE_INFINITY }],
+    [
+      "a short video before the room has a timeline",
+      { duration: 30, longestSeen: 0, roomPosition: null },
+    ],
+    ["a long video not much shorter than the longest", { duration: 4000 }],
+    [
+      "a video the length of an ad but not much shorter",
+      { duration: 170, longestSeen: 600, roomPosition: 100 },
+    ],
+    ["a room just past the end, within tolerance", { duration: 5400, roomPosition: 5404 }],
+  ])("doesn't hold %s", (_, changes) => {
+    expect(reason(changes)).toBeNull();
+  });
+
+  it("holds a long video the room has gone past, without calling it an ad", () => {
+    expect(reason({ duration: 1200, longestSeen: 1200, roomPosition: 1400 })).toBe("past_end");
   });
 });
 

@@ -193,5 +193,20 @@
   },
   "tooManyRooms": {
     "message": "You've created a lot of rooms. Wait a minute and try again."
+  },
+  "adPlaying": {
+    "message": "An ad is playing"
+  },
+  "adPlayingHelp": {
+    "message": "Everyone else carries on. You'll jump to the room's spot when it ends."
+  },
+  "pastEnd": {
+    "message": "This video ends before the room's spot"
+  },
+  "pastEndHelp": {
+    "message": "You may be on a different video or source. Sinkro won't move it until the room is back in range."
+  },
+  "onHold": {
+    "message": "On hold"
   }
 }
