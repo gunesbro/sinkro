@@ -26,6 +26,8 @@ import { askRoomVideo } from "./room-link";
 const STATUS_POLL_MS = 500;
 const PEEK_INTERVAL_MS = 1500;
 const COPIED_MS = 1500;
+/** Past this with no answer, the tab probably has no script running. */
+const RESTORE_AFTER_MS = 400;
 /** Someone can change the room's video with "Bring everyone to me" while this is open. */
 const ROOM_VIDEO_POLL_MS = 5000;
 /** Without an answer from the tab for this long, it isn't on a page Sinkro can run on. */
@@ -457,6 +459,13 @@ async function start(): Promise<void> {
   // The first look also finds the page address for invite links. After that, keep looking
   // only on the home view, where a video that's still loading can turn up.
   peek();
+  setTimeout(() => {
+    if (pageReachable || tabId === undefined) return;
+    void send({ type: "scripts/restore", tabId }).then(() => {
+      peek();
+      void refreshStatus();
+    });
+  }, RESTORE_AFTER_MS);
   setInterval(() => {
     // In a room, keep looking only until the address for invite links turns up.
     if (view === "home" || !pageUrl) peek();

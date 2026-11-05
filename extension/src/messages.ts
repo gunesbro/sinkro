@@ -34,6 +34,8 @@ export type BackgroundRequest =
   | { type: "session/join"; tabId: number; code: string; url?: string }
   | { type: "picker/start"; tabId: number }
   | { type: "video/page"; tabId: number }
+  /** The tab didn't answer, which an open tab doesn't after an install or update. */
+  | { type: "scripts/restore"; tabId: number }
   // From both. An extension page says which tab; a content script speaks for its own.
   | { type: "session/leave"; tabId?: number }
   /** Makes the page this tab is on the room's video, and moves everyone to this position. */

@@ -419,60 +419,71 @@ function stopPicker(picked: boolean): void {
   pickedHere = false;
 }
 
-chrome.runtime.onMessage.addListener((request: TabRequest, _sender, sendResponse) => {
-  switch (request.type) {
-    case "session/changed":
-      applySession(request.session);
-      return;
-    case "session/role":
-      frameSession?.setActive(request.active);
-      return;
-    case "session/status": {
-      // Only one frame answers: the one running the room, or the top one if none is.
-      const status = frameSession?.status() ?? null;
-      if (status || (isTopFrame && !frameSession)) sendResponse(status);
-      return;
+function start(): void {
+  chrome.runtime.onMessage.addListener((request: TabRequest, _sender, sendResponse) => {
+    switch (request.type) {
+      case "session/changed":
+        applySession(request.session);
+        return;
+      case "session/role":
+        frameSession?.setActive(request.active);
+        return;
+      case "session/status": {
+        // Only one frame answers: the one running the room, or the top one if none is.
+        const status = frameSession?.status() ?? null;
+        if (status || (isTopFrame && !frameSession)) sendResponse(status);
+        return;
+      }
+      case "session/bring":
+        frameSession?.bringEveryone(request.sealed);
+        return;
+      case "session/video-change":
+        frameSession?.setVideoChange(request.change);
+        return;
+      case "badge/move":
+        frameSession?.moveBadge();
+        return;
+      case "detect/peek": {
+        const report = peek();
+        // Frames with nothing to add stay quiet. The top frame always answers, for the title.
+        if (isTopFrame || report.score > 0) void send({ type: "detect/peeked", report });
+        return;
+      }
+      case "picker/start":
+        startPicker(request.messages);
+        return;
+      case "picker/stop":
+        stopPicker(request.picked);
+        return;
     }
-    case "session/bring":
-      frameSession?.bringEveryone(request.sealed);
-      return;
-    case "session/video-change":
-      frameSession?.setVideoChange(request.change);
-      return;
-    case "badge/move":
-      frameSession?.moveBadge();
-      return;
-    case "detect/peek": {
-      const report = peek();
-      // Frames with nothing to add stay quiet. The top frame always answers, for the title.
-      if (isTopFrame || report.score > 0) void send({ type: "detect/peeked", report });
-      return;
-    }
-    case "picker/start":
-      startPicker(request.messages);
-      return;
-    case "picker/stop":
-      stopPicker(request.picked);
-      return;
+  });
+
+  if (isTopFrame && location.origin === INVITE_ORIGIN) {
+    connectInvitePage((request) => send(request));
   }
-});
 
-if (isTopFrame && location.origin === INVITE_ORIGIN) {
-  connectInvitePage((request) => send(request));
-}
+  function syncWithBackground(): void {
+    void send<SessionInfo>({ type: "session/get" }).then((info) => {
+      if (!info) return;
+      applySession(info.session);
+      frameSession?.setVideoChange(info.videoChange);
+      frameSession?.setActive(info.active);
+    });
+  }
 
-function syncWithBackground(): void {
-  void send<SessionInfo>({ type: "session/get" }).then((info) => {
-    if (!info) return;
-    applySession(info.session);
-    frameSession?.setVideoChange(info.videoChange);
-    frameSession?.setActive(info.active);
+  syncWithBackground();
+
+  // Back from being kept for the back button. The room may have changed meanwhile.
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) syncWithBackground();
   });
 }
 
-syncWithBackground();
-
-// Back from being kept for the back button. The room may have changed meanwhile.
-window.addEventListener("pageshow", (event) => {
-  if (event.persisted) syncWithBackground();
-});
+// The popup adds this script to a tab that didn't answer, which a slow page might yet do.
+// A copy left over from before an update doesn't count, since it has stopped.
+const RUNNING = Symbol.for("sinkro.content");
+const page = window as unknown as Record<symbol, (() => boolean) | undefined>;
+if (page[RUNNING]?.() !== true) {
+  page[RUNNING] = isStillInstalled;
+  start();
+}
