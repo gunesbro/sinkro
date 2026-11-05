@@ -337,6 +337,9 @@ export class SyncEngine {
     }
     // Coming back from an ad can't wait for a cooldown any more than a new state can.
     const force = newState || wasOnHold;
+    // What the viewer just did is on its way, so the timeline here is already out of date.
+    // A seek bar's pause goes out first, and following it would undo the seek behind it.
+    if (!force && this.publishTimer !== null) return;
     if (!force && this.hasUnreportedChange(video)) return;
 
     const target = targetPosition(timeline, this.deps.serverNow(), video.duration);
