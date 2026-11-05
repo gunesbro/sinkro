@@ -538,6 +538,77 @@ describe("hibernation", () => {
   });
 });
 
+describe("a viewer reconnecting", () => {
+  const joinAs = async (code: string, viewer?: string) => {
+    const client = await connect(code);
+    client.send({ type: "join", protocol: PROTOCOL_VERSION, ...(viewer ? { viewer } : {}) });
+    return { client, joined: (await client.next()) as { peers: number } };
+  };
+
+  it("isn't counted twice while the old socket still looks open", async () => {
+    const code = await createRoom();
+    const { client: other } = await joinAs(code, "other");
+    await joinAs(code, "me");
+    expect(await other.next()).toEqual({ type: "peers", count: 2 });
+
+    const { joined } = await joinAs(code, "me");
+    expect(joined.peers).toBe(2);
+    expect(await other.next()).toEqual({ type: "peers", count: 2 });
+  });
+
+  it("closes the old socket", async () => {
+    const code = await createRoom();
+    const { client: old } = await joinAs(code, "me");
+    await joinAs(code, "me");
+    expect(await old.closed).toBe(1000);
+  });
+
+  it("keeps different viewers apart", async () => {
+    const code = await createRoom();
+    await joinAs(code, "me");
+    const { joined } = await joinAs(code, "you");
+    expect(joined.peers).toBe(2);
+  });
+
+  it("leaves alone clients that don't say who they are", async () => {
+    const code = await createRoom();
+    await joinAs(code);
+    const { joined } = await joinAs(code);
+    expect(joined.peers).toBe(2);
+  });
+
+  it("stops counting the old socket's ad", async () => {
+    const code = await createRoom();
+    const { client: other } = await joinAs(code, "other");
+    const { client: old } = await joinAs(code, "me");
+    await other.next();
+    old.send({ type: "ad", watching: true });
+    expect(await other.next()).toEqual({ type: "ads", count: 1 });
+
+    await joinAs(code, "me");
+    expect(await other.next()).toEqual({ type: "peers", count: 2 });
+    expect(await other.next()).toEqual({ type: "ads", count: 0 });
+  });
+
+  it("keeps who it is after saying it's on an ad", async () => {
+    const code = await createRoom();
+    const { client: first } = await joinAs(code, "me");
+    first.send({ type: "ad", watching: true });
+    await first.next();
+    const { joined } = await joinAs(code, "me");
+    expect(joined.peers).toBe(1);
+  });
+
+  it("doesn't store who it is", async () => {
+    const code = await createRoom();
+    await joinAs(code, "me-secret");
+    const stored = await runInDurableObject(env.ROOMS.getByName(code), (_, state) =>
+      state.storage.get("room"),
+    );
+    expect(JSON.stringify(stored)).not.toContain("me-secret");
+  });
+});
+
 describe("someone on an ad", () => {
   it("tells the others, and not them", async () => {
     const code = await createRoom();

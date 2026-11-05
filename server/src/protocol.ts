@@ -26,7 +26,11 @@ export type PlaybackState = {
 };
 
 export type ClientMessage =
-  | { type: "join"; protocol: number }
+  /**
+   * `viewer` is a random value from one page's connection, kept through its reconnects, so a
+   * socket whose network dropped isn't counted alongside the one replacing it.
+   */
+  | { type: "join"; protocol: number; viewer?: string }
   | ({ type: "state" } & PlaybackState)
   | { type: "ping"; clientTime: number }
   /** The room's video, sealed. Both work without joining. Setting it tells everyone who joined. */
@@ -57,6 +61,7 @@ export type ServerMessage =
   | { type: "error"; code: ErrorCode };
 
 const MAX_MESSAGE_LENGTH = 4096;
+const MAX_VIEWER_LENGTH = 64;
 /** Room for a sealed 2048-character address and a title, and small enough to store for every room. */
 const MAX_SEALED_VIDEO_LENGTH = 3900;
 const MAX_POSITION_SECONDS = 7 * 24 * 60 * 60;
@@ -110,7 +115,12 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
 
   switch (message.type) {
     case "join":
-      return isFiniteNumber(message.protocol) ? { type: "join", protocol: message.protocol } : null;
+      if (!isFiniteNumber(message.protocol)) return null;
+      return typeof message.viewer === "string" &&
+        message.viewer.length > 0 &&
+        message.viewer.length <= MAX_VIEWER_LENGTH
+        ? { type: "join", protocol: message.protocol, viewer: message.viewer }
+        : { type: "join", protocol: message.protocol };
     case "ping":
       return isFiniteNumber(message.clientTime)
         ? { type: "ping", clientTime: message.clientTime }

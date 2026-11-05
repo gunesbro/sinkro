@@ -24,6 +24,7 @@ describe("parseServerMessage", () => {
   it.each([
     ["not JSON", "{"],
     ["binary data", new ArrayBuffer(4)],
+    ["a join without a number", JSON.stringify({ type: "join", viewer: "abc" })],
     ["keepalive", "keepalive"],
     ["an unknown type", JSON.stringify({ type: "chat" })],
     ["a join without an id", JSON.stringify({ type: "joined", state: null, peers: 1 })],
