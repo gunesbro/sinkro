@@ -25,7 +25,7 @@ import {
   saveRemembered,
   selectorFor,
 } from "./detection/remembered";
-import { isFloatingPlayer } from "./detection/floating";
+import { isFloatingPlayer, isHoverPreview, isSmallInWindow } from "./detection/floating";
 import { VideoTracker } from "./detection/tracker";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
@@ -75,6 +75,7 @@ type RoomHooks = {
   videoChange: () => VideoChange | null;
   isFilmStillPlaying: () => boolean;
   isOnRoomPage: () => boolean;
+  isHoverPreview: () => boolean;
 };
 
 function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks: RoomHooks): Room {
@@ -146,6 +147,8 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     sendVideo: (sealed, fresh) => void connection.sendVideo(sealed, fresh),
     status: () => ({
       ...engine.snapshot(),
+      // Nobody came to watch this, so as far as anyone's told there's no video here.
+      ...(hooks.isHoverPreview() ? { hasVideo: false, position: null, drift: null } : {}),
       connection: connectionStatus,
       closeReason,
       peers,
@@ -197,6 +200,10 @@ class FrameSession {
   });
   private lastPageReport = "";
   private lastPageUrl: string | null = null;
+  private pointer: { x: number; y: number } | null = null;
+  private readonly clickedVideos = new WeakSet<HTMLVideoElement>();
+  private readonly previews = new WeakSet<HTMLVideoElement>();
+  private readonly pointerListeners = new AbortController();
   private isOnRoomPage = false;
   private lastRoomPageCheck = Number.NEGATIVE_INFINITY;
   private videoChange: VideoChange | null = null;
@@ -231,10 +238,27 @@ class FrameSession {
         this.room?.engine.bind(null);
         this.room?.engine.bind(video);
       },
-      onReport: (score) => this.report(score),
+      onReport: (score) => this.report(this.isHoverPreview() ? 0 : score),
     });
     window.addEventListener("pagehide", this.onPageHide);
     chrome.storage.onChanged.addListener(this.onStorageChange);
+    const { signal } = this.pointerListeners;
+    const notePointer = (event: PointerEvent) => {
+      this.pointer = { x: event.clientX, y: event.clientY };
+    };
+    // Over as well as move, because it comes first: a page starts a preview on mouseenter, which
+    // goes ahead of the move, and the engine asks about the video the moment it starts.
+    window.addEventListener("pointerover", notePointer, { capture: true, passive: true, signal });
+    window.addEventListener("pointermove", notePointer, { capture: true, passive: true, signal });
+    window.addEventListener(
+      "pointerdown",
+      (event) => {
+        notePointer(event);
+        const video = this.tracker.video();
+        if (video && this.isPointerOver(video)) this.clickedVideos.add(video);
+      },
+      { capture: true, passive: true, signal },
+    );
     this.installedTimer = setInterval(() => {
       if (!isStillInstalled()) this.stop();
     }, STILL_INSTALLED_CHECK_MS);
@@ -261,6 +285,7 @@ class FrameSession {
         videoChange: () => (this.isFilmStillPlaying() ? null : this.videoChange),
         isFilmStillPlaying: () => this.isFilmStillPlaying(),
         isOnRoomPage: () => this.isOnRoomPage,
+        isHoverPreview: () => this.isHoverPreview(),
       });
       void this.startBadge();
     } else if (!active && this.room) {
@@ -298,6 +323,7 @@ class FrameSession {
   stop(): void {
     this.isStopped = true;
     clearInterval(this.installedTimer);
+    this.pointerListeners.abort();
     window.removeEventListener("pagehide", this.onPageHide);
     if (this.pageTimer !== null) clearInterval(this.pageTimer);
     this.setActive(false);
@@ -306,9 +332,36 @@ class FrameSession {
     if (isStillInstalled()) chrome.storage.onChanged.removeListener(this.onStorageChange);
   }
 
+  private isPointerOver(video: HTMLVideoElement): boolean {
+    if (!this.pointer) return false;
+    const box = video.getBoundingClientRect();
+    const { x, y } = this.pointer;
+    return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+  }
+
+  private isHoverPreview(): boolean {
+    const video = this.tracker.video();
+    if (!video) return false;
+    const isPreview = isHoverPreview({
+      muted: video.muted || video.volume === 0,
+      isSmall: isSmallInWindow(video.getBoundingClientRect(), {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }),
+      isPointerOver: this.isPointerOver(video),
+      wasClicked: this.clickedVideos.has(video),
+      position: video.currentTime,
+      wasPreview: this.previews.has(video),
+    });
+    if (isPreview) this.previews.add(video);
+    else this.previews.delete(video);
+    return isPreview;
+  }
+
   /** Looks at the address each time, so a site changing film is caught before it's touched. */
   private isOnOtherVideo(): boolean {
     this.reportPage();
+    if (this.isHoverPreview()) return true;
     if (this.videoChange === null && this.checksPending === 0) {
       this.followedFilm = filmOf(this.tracker.video()) ?? this.followedFilm;
     }
@@ -378,7 +431,10 @@ class FrameSession {
     });
     this.badgeTimer = setInterval(() => {
       this.checkRoomPage();
-      this.badge?.update(this.tracker.video(), this.room?.status() ?? null);
+      this.badge?.update(
+        this.isHoverPreview() ? null : this.tracker.video(),
+        this.room?.status() ?? null,
+      );
     }, BADGE_UPDATE_MS);
   }
 

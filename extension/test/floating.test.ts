@@ -1,7 +1,55 @@
 import { describe, expect, it } from "vitest";
-import { isSmallInWindow } from "../src/content/detection/floating";
+import { isHoverPreview, isSmallInWindow } from "../src/content/detection/floating";
 
 const window = { width: 1600, height: 900 };
+
+describe("isHoverPreview", () => {
+  const preview = {
+    muted: true,
+    isSmall: true,
+    isPointerOver: true,
+    wasClicked: false,
+    position: 0.5,
+    wasPreview: false,
+  };
+
+  it("knows a muted little video playing under the pointer", () => {
+    expect(isHoverPreview(preview)).toBe(true);
+  });
+
+  it.each([
+    ["has its sound on", { muted: false }],
+    ["fills the page", { isSmall: false }],
+    ["isn't under the pointer, like a muted film autoplaying", { isPointerOver: false }],
+    ["the pointer found well into playing", { position: 40 }],
+    ["has been clicked", { wasClicked: true }],
+  ])("doesn't count a video that %s", (_, change) => {
+    expect(isHoverPreview({ ...preview, ...change })).toBe(false);
+  });
+});
+
+describe("isHoverPreview once it's been one", () => {
+  const was = {
+    muted: true,
+    isSmall: true,
+    isPointerOver: false,
+    wasClicked: false,
+    position: 30,
+    wasPreview: true,
+  };
+
+  it("stays one after the pointer moves on, when the stop that follows mustn't reach the room", () => {
+    expect(isHoverPreview(was)).toBe(true);
+  });
+
+  it.each([
+    ["clicked", { wasClicked: true }],
+    ["given its sound", { muted: false }],
+    ["made big", { isSmall: false }],
+  ])("stops being one when %s", (_, change) => {
+    expect(isHoverPreview({ ...was, ...change })).toBe(false);
+  });
+});
 
 describe("isSmallInWindow", () => {
   it.each([
