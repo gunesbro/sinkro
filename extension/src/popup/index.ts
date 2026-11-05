@@ -394,7 +394,9 @@ function connectEvents(): void {
   });
   element("copy-link").addEventListener("click", (event) => {
     if (session) {
-      void copyWithFeedback(event.currentTarget as HTMLElement, inviteLink(session.code, pageUrl));
+      // The room's video first: whoever copies this may not be on that page themselves.
+      const link = inviteLink(session.code, roomVideoUrl ?? pageUrl);
+      void copyWithFeedback(event.currentTarget as HTMLElement, link);
     }
   });
   element("open-settings").addEventListener("click", () => void openSettings());
