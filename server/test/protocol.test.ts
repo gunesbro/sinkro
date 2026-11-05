@@ -8,6 +8,7 @@ describe("parseServerMessage", () => {
   it.each([
     [{ type: "joined", clientId: "a", state: null, peers: 1 }],
     [{ type: "joined", clientId: "a", state: roomState, peers: 2 }],
+    [{ type: "joined", clientId: "a", state: null, peers: 2, video: "sealed" }],
     [{ type: "state", ...roomState }],
     [{ type: "peers", count: 3 }],
     [{ type: "pong", clientTime: 1, serverTime: 2 }],
@@ -77,7 +78,7 @@ describe("parseClientMessage", () => {
     ["an oversized message", JSON.stringify({ ...state, padding: "x".repeat(4096) })],
     ["an empty video", JSON.stringify({ type: "video/set", sealed: "" })],
     ["a video that isn't text", JSON.stringify({ type: "video/set", sealed: 5 })],
-    ["a video that's too long", JSON.stringify({ type: "video/set", sealed: "x".repeat(3501) })],
+    ["a video that's too long", JSON.stringify({ type: "video/set", sealed: "x".repeat(3901) })],
     ["binary data", new ArrayBuffer(4)],
   ])("rejects %s", (_, raw) => {
     expect(parseClientMessage(raw)).toBeNull();

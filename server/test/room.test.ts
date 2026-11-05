@@ -149,6 +149,56 @@ describe("the room's video", () => {
     expect(await videoOf(code)).toEqual({ type: "video", sealed: "abc" });
   });
 
+  it("tells everyone who joined when it changes", async () => {
+    const code = await createRoom();
+    const { client: viewer } = await join(code);
+    const setter = await connect(code);
+    setter.send({ type: "video/set", sealed: "abc" });
+
+    expect(await setter.next()).toEqual({ type: "video", sealed: "abc" });
+    expect(await viewer.next()).toEqual({ type: "video", sealed: "abc" });
+  });
+
+  it("tells a viewer before the state that moves them", async () => {
+    const code = await createRoom();
+    const { client: first } = await join(code);
+    const { client: second } = await join(code);
+    await first.next();
+    first.send({ type: "video/set", sealed: "abc" });
+    first.sendState();
+
+    expect((await second.next()).type).toBe("video");
+    expect((await second.next()).type).toBe("state");
+  });
+
+  it("answers whoever set it only once", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    client.send({ type: "video/set", sealed: "abc" });
+    await client.next();
+    client.send({ type: "ping", clientTime: 1 });
+
+    expect((await client.next()).type).toBe("pong");
+  });
+
+  it("goes to whoever joins later", async () => {
+    const code = await createRoom();
+    const setter = await connect(code);
+    setter.send({ type: "video/set", sealed: "abc" });
+    await setter.next();
+
+    const late = await connect(code);
+    late.send({ type: "join", protocol: PROTOCOL_VERSION });
+    expect(await late.next()).toMatchObject({ type: "joined", video: "abc" });
+  });
+
+  it("isn't mentioned to someone joining a room without one", async () => {
+    const code = await createRoom();
+    const late = await connect(code);
+    late.send({ type: "join", protocol: PROTOCOL_VERSION });
+    expect(await late.next()).not.toHaveProperty("video");
+  });
+
   it("doesn't count anyone asking as a person in the room", async () => {
     const code = await createRoom();
     const { client } = await join(code);
