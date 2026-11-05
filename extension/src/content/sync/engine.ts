@@ -220,7 +220,8 @@ export class SyncEngine {
           ? video.currentTime - targetPosition(timeline, this.deps.serverNow(), video.duration)
           : null,
       correcting: this.correcting,
-      needsGesture: this.autoplayRetryAt !== 0,
+      // A play the browser accepted can take a while to finish while the video loads.
+      needsGesture: this.autoplayRetryAt !== 0 && (video?.paused ?? false),
       hold: this.hold,
     };
   }

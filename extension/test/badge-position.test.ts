@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nudge, placeBadge, positionAt } from "../src/content/badge-position";
+import { isVideoOnScreen, nudge, placeBadge, positionAt } from "../src/content/badge-position";
 
 const video = { left: 100, top: 50, width: 800, height: 450 };
 const pill = { width: 100, height: 32 };
@@ -83,5 +83,24 @@ describe("nudge", () => {
 
   it.each(["a", "Enter", "Escape", " "])("ignores %j", (key) => {
     expect(nudge(middle, key)).toBeNull();
+  });
+});
+
+describe("isVideoOnScreen", () => {
+  it.each([
+    ["all of it showing", { left: 100, top: 50, width: 800, height: 450 }],
+    ["half scrolled away", { left: 0, top: -225, width: 800, height: 450 }],
+    ["a third showing", { left: 0, top: -300, width: 800, height: 450 }],
+  ])("says yes with %s", (_, box) => {
+    expect(isVideoOnScreen(box, viewport)).toBe(true);
+  });
+
+  it.each([
+    ["scrolled off the top", { left: 0, top: -500, width: 800, height: 450 }],
+    ["below the fold", { left: 0, top: 900, width: 800, height: 450 }],
+    ["only a sliver showing", { left: 0, top: -400, width: 800, height: 450 }],
+    ["off to the side", { left: 1300, top: 0, width: 800, height: 450 }],
+  ])("says no when %s", (_, box) => {
+    expect(isVideoOnScreen(box, viewport)).toBe(false);
   });
 });

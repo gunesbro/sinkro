@@ -295,10 +295,16 @@ function connectEvents(): void {
   element("leave").addEventListener("click", () => void onLeave());
   element("pick-home").addEventListener("click", () => void startPicker());
   element("pick-room").addEventListener("click", () => void startPicker());
+  element("pick-any").addEventListener("click", () => void startPicker());
   element("bring").addEventListener("click", () => {
     if (tabId === undefined) return;
     const request: TabRequest = { type: "session/bring" };
     void chrome.tabs.sendMessage(tabId, request).catch(() => undefined);
+    const button = element("bring");
+    button.textContent = t("bringSent");
+    setTimeout(() => {
+      button.textContent = t("bring");
+    }, COPIED_MS);
   });
   element("move-badge").addEventListener("click", () => {
     if (tabId === undefined) return;
