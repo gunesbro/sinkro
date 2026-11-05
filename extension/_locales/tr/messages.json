@@ -200,12 +200,6 @@
   "adPlayingHelp": {
     "message": "Diğerleri izlemeye devam ediyor. Reklam bitince odanın olduğu yere atlarsın."
   },
-  "pastEnd": {
-    "message": "Bu video odanın olduğu yerden önce bitiyor"
-  },
-  "pastEndHelp": {
-    "message": "Başka bir video veya kaynakta olabilirsin. Oda bu aralığa dönene kadar Sinkro videoya dokunmaz."
-  },
   "onHold": {
     "message": "Beklemede"
   },
@@ -217,5 +211,14 @@
   },
   "openVideoHereHelp": {
     "message": "Odadasın. Bu sekmede videonun sayfasına gidince senkron başlar."
+  },
+  "adPlayingAloneHelp": {
+    "message": "Reklam bitince senkron yeniden başlar."
+  },
+  "cantFollow": {
+    "message": "Bu video odayı takip edemiyor"
+  },
+  "cantFollowHelp": {
+    "message": "Reklam ya da başka bir video veya kaynak olabilir. Odanın videosu dönünce odanın olduğu yere atlarsın."
   }
 }

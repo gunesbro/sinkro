@@ -951,6 +951,109 @@ describe("connection loss", () => {
   });
 });
 
+describe("alone in a room", () => {
+  /** Alone, with a timeline this viewer started. */
+  async function alone() {
+    const context = setup();
+    const { engine, video } = context;
+    video.position = 100;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: null, peers: 1 });
+    await settle();
+    video.userPlay();
+    // Past the limit on how often states go out, so the play has been sent.
+    await vi.advanceTimersByTimeAsync(300);
+    // The room echoes each state back, as it would for real.
+    for (const state of context.sent) {
+      engine.handleState(context.peerState({ ...state, from: ME }));
+    }
+    context.sent.length = 0;
+    return context;
+  }
+
+  it("never corrects the video, since there's nobody to be in sync with", async () => {
+    const { video } = await alone();
+    video.position = 5000;
+    const seeks = video.seekCalls;
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(video.seekCalls).toBe(seeks);
+    expect(video.playbackRate).toBe(1);
+  });
+
+  it("isn't dragged to the end of a short video by a timeline that ran past it", async () => {
+    const { video } = await alone();
+    video.duration = 15;
+    video.position = 5;
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    expect(video.position).toBe(5);
+    expect(video.paused).toBe(false);
+  });
+
+  it("reports no drift", async () => {
+    const { engine, video } = await alone();
+    video.position = 5000;
+    expect(engine.snapshot().drift).toBeNull();
+  });
+
+  it("keeps the room's state up to date for whoever joins", async () => {
+    const { video, sent } = await alone();
+    await vi.advanceTimersByTimeAsync(300);
+    video.pause();
+    await settle();
+
+    expect(sent).toMatchObject([{ playing: false }]);
+  });
+
+  it("sends where it is when someone arrives", async () => {
+    const { engine, video, sent } = await alone();
+    video.position = 777;
+    engine.handlePeers(2);
+
+    expect(sent.map((s) => s.position)).toEqual([777]);
+  });
+
+  it("starts correcting once there's someone to follow", async () => {
+    const { engine, video, sent, peerState } = await alone();
+    engine.handlePeers(2);
+    engine.handleState(peerState({ ...sent.at(-1), from: ME }));
+    engine.handleState(peerState({ position: 900 }));
+    await settle();
+
+    expect(video.position).toBe(900);
+  });
+
+  it("sends nothing new when the count changes among others", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.engine.handlePeers(3);
+    context.engine.handlePeers(2);
+
+    expect(context.sent).toEqual([]);
+  });
+
+  it("stops correcting when everyone else leaves", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, video } = context;
+    engine.handlePeers(1);
+    video.position += 1;
+    await play(video, 2000);
+
+    expect(video.playbackRate).toBe(1);
+  });
+
+  it("doesn't send an ad's position to someone arriving", async () => {
+    const { engine, video, sent, hold } = await alone();
+    hold.reason = "ad";
+    video.position = 7;
+    engine.handlePeers(2);
+
+    expect(sent).toEqual([]);
+  });
+});
+
 describe("while an ad plays", () => {
   /** In a playing room at 100, with an ad now on screen and the engine aware of it. */
   async function duringAd() {

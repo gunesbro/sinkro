@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chooseFrame } from "../src/background/arbiter";
-import { holdReason, type HoldSignals } from "../src/content/detection/ads";
+import { holdReason, isAdHost, type HoldSignals } from "../src/content/detection/ads";
 import { pickBest, scoreVideo, type VideoSignals } from "../src/content/detection/score";
 
 const SCREEN = 1920 * 1080;
@@ -106,7 +106,8 @@ describe("holdReason", () => {
     duration: 5400,
     longestSeen: 5400,
     roomPosition: 1000,
-    hasAdMarker: false,
+    hasAdEvidence: false,
+    hasOthers: true,
     picked: false,
   };
   const reason = (changes: Partial<HoldSignals>) => holdReason({ ...film, ...changes });
@@ -116,13 +117,28 @@ describe("holdReason", () => {
   });
 
   it.each<[string, Partial<HoldSignals>]>([
-    ["a short video after a long one", { duration: 30, roomPosition: 10 }],
-    ["a player's ad marker", { hasAdMarker: true }],
-    ["a marker even on a long video", { hasAdMarker: true, duration: 5400 }],
-    ["a marker on a video the viewer picked", { hasAdMarker: true, picked: true }],
-    ["a short video that can't reach the room", { duration: 30, longestSeen: 0 }],
-  ])("calls %s an ad", (_, changes) => {
+    ["with evidence", { hasAdEvidence: true }],
+    ["with evidence, on a long video", { hasAdEvidence: true, duration: 5400 }],
+    ["with evidence, on a video the viewer picked", { hasAdEvidence: true, picked: true }],
+    ["with evidence, even alone", { hasAdEvidence: true, hasOthers: false }],
+  ])("calls it an ad %s", (_, changes) => {
     expect(reason(changes)).toBe("ad");
+  });
+
+  it.each<[string, Partial<HoldSignals>]>([
+    ["a short video after a long one", { duration: 30, roomPosition: 10 }],
+    ["a short video the room is past", { duration: 30, longestSeen: 0 }],
+    ["a long video the room is past", { duration: 1200, longestSeen: 1200, roomPosition: 1400 }],
+  ])("never calls %s an ad, since length proves nothing", (_, changes) => {
+    expect(reason(changes)).toBe("cant_follow");
+  });
+
+  it.each<[string, Partial<HoldSignals>]>([
+    ["a short video after a long one", { duration: 15, roomPosition: 10 }],
+    ["a short video the room is past", { duration: 15, roomPosition: 300 }],
+    ["a long video the room is past", { duration: 1200, longestSeen: 1200, roomPosition: 1400 }],
+  ])("doesn't hold %s when alone", (_, changes) => {
+    expect(reason({ ...changes, hasOthers: false })).toBeNull();
   });
 
   it.each<[string, Partial<HoldSignals>]>([
@@ -146,10 +162,22 @@ describe("holdReason", () => {
   ])("doesn't hold %s", (_, changes) => {
     expect(reason(changes)).toBeNull();
   });
+});
 
-  it("holds a long video the room has gone past, without calling it an ad", () => {
-    expect(reason({ duration: 1200, longestSeen: 1200, roomPosition: 1400 })).toBe("past_end");
-  });
+describe("isAdHost", () => {
+  it.each(["doubleclick.net", "ad.doubleclick.net", "s0.2mdn.net", "VIDEO.TEADS.TV"])(
+    "knows %s",
+    (host) => {
+      expect(isAdHost(host)).toBe(true);
+    },
+  );
+
+  it.each(["", "notdoubleclick.net", "doubleclick.net.example.com", "youtube.com", "twitter.com"])(
+    "doesn't mistake %j",
+    (host) => {
+      expect(isAdHost(host)).toBe(false);
+    },
+  );
 });
 
 describe("pickBest", () => {
