@@ -9,6 +9,12 @@ const REPORT_HEARTBEAT_MS = 5000;
 /** Smaller score changes aren't worth waking the background for. */
 const REPORT_SCORE_CHANGE = 5;
 const HOVER_SAMPLE_MS = 500;
+/**
+ * More than one step, or the ratio goes stale. A video sitting exactly on its container's
+ * edge counts as intersecting at ratio 0, and moving fully into view from there crosses
+ * no threshold at 0 alone, so it would read as invisible for good. YouTube's starts so.
+ */
+const VISIBILITY_THRESHOLDS = [0, 0.01, 0.1, 0.25, 0.5, 0.75, 1];
 /** Looking for ad evidence reads the player's controls, and this gets asked several times a second. */
 const AD_CHECK_MS = 1000;
 
@@ -51,11 +57,14 @@ export class VideoTracker {
 
   constructor(private readonly events: TrackerEvents) {
     this.discovery = new VideoDiscovery(() => this.evaluate());
-    this.visibility = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        this.visibleRatios.set(entry.target as HTMLVideoElement, entry.intersectionRatio);
-      }
-    });
+    this.visibility = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          this.visibleRatios.set(entry.target as HTMLVideoElement, entry.intersectionRatio);
+        }
+      },
+      { threshold: VISIBILITY_THRESHOLDS },
+    );
   }
 
   start(rememberedSelector: string | null): void {

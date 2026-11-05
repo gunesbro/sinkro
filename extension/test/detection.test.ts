@@ -24,7 +24,7 @@ const score = (changes: Partial<VideoSignals>) => scoreVideo({ ...mainVideo, ...
 describe("scoreVideo", () => {
   it.each<[string, Partial<VideoSignals>]>([
     ["not rendered", { rendered: false }],
-    ["scrolled fully out of view", { visibleRatio: 0 }],
+    ["out of view with nothing loaded", { visibleRatio: 0, duration: Number.NaN }],
     ["too narrow", { width: 100 }],
     ["too short", { height: 80 }],
     ["zero sized", { width: 0, height: 0 }],
@@ -44,6 +44,16 @@ describe("scoreVideo", () => {
     ["not looping when muted", { muted: true, loop: false }, { muted: true, loop: true }],
   ])("prefers a video that's %s", (_, better, worse) => {
     expect(score(better)).toBeGreaterThan(score(worse));
+  });
+
+  it("keeps a loaded video that's out of view, as players park them before starting", () => {
+    expect(score({ visibleRatio: 0, playing: false })).toBeGreaterThan(0);
+  });
+
+  it("puts any video on screen ahead of one out of view", () => {
+    const parked = score({ visibleRatio: 0 });
+    const unpromising = score({ width: 200, height: 150, muted: true, loop: true, duration: 5 });
+    expect(unpromising).toBeGreaterThan(parked);
   });
 
   it("forgets an old click", () => {
@@ -200,6 +210,12 @@ describe("pickBest", () => {
 
   it("switches when something clearly beats the current one", () => {
     expect(pickBest([a, c], "a")).toBe(c);
+  });
+
+  it("doesn't stay with something that has gone off screen", () => {
+    const offScreen = { item: "a", score: 0.5 };
+    const visible = { item: "b", score: 1 };
+    expect(pickBest([offScreen, visible], "a")).toBe(visible);
   });
 
   it("switches when the current one stops being a candidate", () => {
