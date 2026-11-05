@@ -29,11 +29,24 @@ export function parseInviteFragment(fragment: string): { code: string; url: stri
 }
 
 /** Accepts a room code or a whole invite link. Returns the code, or null if there isn't one. */
-export function parseRoomInput(input: string): string | null {
-  const direct = normalizeRoomCode(input);
-  if (direct) return direct;
+export function parseJoinInput(input: string): { code: string; url: string | null } | null {
+  const code = normalizeRoomCode(input);
+  if (code) return { code, url: null };
 
-  const fragment = input.trim().split("#")[1];
-  const room = fragment ? new URLSearchParams(fragment).get("room") : null;
-  return room ? normalizeRoomCode(room) : null;
+  const trimmed = input.trim();
+  const hash = trimmed.indexOf("#");
+  return hash === -1 ? null : parseInviteFragment(trimmed.slice(hash + 1));
+}
+
+/** Whether two addresses are the same page, ignoring the fragment. */
+export function isSamePage(a: string | null, b: string): boolean {
+  if (!a) return false;
+  try {
+    const [first, second] = [new URL(a), new URL(b)];
+    first.hash = "";
+    second.hash = "";
+    return first.href === second.href;
+  } catch {
+    return false;
+  }
 }

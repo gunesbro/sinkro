@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatTimecode } from "../src/format";
-import { inviteLink, parseInviteFragment, parseRoomInput } from "../src/invite";
+import { inviteLink, isSamePage, parseInviteFragment, parseJoinInput } from "../src/invite";
 
 describe("formatTimecode", () => {
   it.each([
@@ -72,7 +72,7 @@ describe("parseInviteFragment", () => {
   });
 });
 
-describe("parseRoomInput", () => {
+describe("parseJoinInput", () => {
   it.each([
     ["K7M-2QX", "K7M-2QX"],
     ["k7m2qx", "K7M-2QX"],
@@ -81,13 +81,47 @@ describe("parseRoomInput", () => {
     ["https://sinkro.pages.dev/#room=k7m2qx&url=https%3A%2F%2Fexample.com", "K7M-2QX"],
     [inviteLink("K7M-2QX", "https://example.com/a#b"), "K7M-2QX"],
   ])("finds the code in %s", (input, expected) => {
-    expect(parseRoomInput(input)).toBe(expected);
+    expect(parseJoinInput(input)?.code).toBe(expected);
   });
 
   it.each(["", "hello", "K7M", "https://sinkro.pages.dev/", "https://example.com/#room=nope"])(
     "finds no code in %j",
     (input) => {
-      expect(parseRoomInput(input)).toBeNull();
+      expect(parseJoinInput(input)).toBeNull();
     },
   );
+});
+
+describe("parseJoinInput and the video in a link", () => {
+  it("has no video for a bare code", () => {
+    expect(parseJoinInput("K7M-2QX")).toEqual({ code: "K7M-2QX", url: null });
+  });
+
+  it("finds the video in an invite link", () => {
+    const url = "https://example.com/watch?v=1#t=5";
+    expect(parseJoinInput(inviteLink("K7M-2QX", url))).toEqual({ code: "K7M-2QX", url });
+  });
+
+  it("won't take an address a tab shouldn't go to", () => {
+    const link = `https://sinkro.pages.dev/#room=K7M-2QX&url=${encodeURIComponent("javascript:alert(1)")}`;
+    expect(parseJoinInput(link)).toEqual({ code: "K7M-2QX", url: null });
+  });
+});
+
+describe("isSamePage", () => {
+  it.each([
+    ["https://a.com/x?v=1", "https://a.com/x?v=1"],
+    ["https://a.com/x?v=1#t=5", "https://a.com/x?v=1"],
+  ])("treats %s and %s as the same page", (a, b) => {
+    expect(isSamePage(a, b)).toBe(true);
+  });
+
+  it.each([
+    [null, "https://a.com/"],
+    ["https://a.com/x?v=1", "https://a.com/x?v=2"],
+    ["https://a.com/x", "https://b.com/x"],
+    ["not a url", "https://a.com/"],
+  ])("treats %s and %s as different pages", (a, b) => {
+    expect(isSamePage(a, b)).toBe(false);
+  });
 });
