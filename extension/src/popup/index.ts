@@ -18,14 +18,12 @@ import type {
   TabSession,
 } from "../messages";
 import { getServerUrl, setServerUrl } from "../settings";
+import { noticeFor, statusLine, type Tone } from "../status";
 
 const STATUS_POLL_MS = 500;
 const PEEK_INTERVAL_MS = 1500;
 const COPIED_MS = 1500;
-/** Below this, the viewer can't tell they're off; matches when the engine starts correcting. */
-const IN_SYNC_SECONDS = 0.3;
 
-type Tone = "ok" | "warn" | "danger" | "idle";
 type View = "home" | "room" | "settings";
 
 function element<T extends HTMLElement>(id: string): T {
@@ -92,61 +90,12 @@ function renderHome(): void {
     !pageReachable || isBusy;
 }
 
-type AlertContent = { tone: Tone; title: string; body: string; canPick: boolean };
-
-function alertFor(current: SessionStatus | null): AlertContent | null {
-  if (!current) return null;
-  if (current.closeReason === "room_not_found") {
-    return { tone: "danger", title: t("roomGone"), body: t("roomGoneHelp"), canPick: false };
-  }
-  if (current.closeReason === "room_full") {
-    return { tone: "danger", title: t("roomFull"), body: t("roomFullHelp"), canPick: false };
-  }
-  if (current.closeReason === "protocol_mismatch") {
-    return {
-      tone: "danger",
-      title: t("updateNeeded"),
-      body: t("updateNeededHelp"),
-      canPick: false,
-    };
-  }
-  if (current.connection === "reconnecting") {
-    return { tone: "danger", title: t("connLost"), body: t("connLostHelp"), canPick: false };
-  }
-  if (current.hold === "ad") {
-    return { tone: "warn", title: t("adPlaying"), body: t("adPlayingHelp"), canPick: false };
-  }
-  if (current.hold === "past_end") {
-    return { tone: "warn", title: t("pastEnd"), body: t("pastEndHelp"), canPick: true };
-  }
-  if (current.needsGesture) {
-    return { tone: "warn", title: t("needsGesture"), body: t("needsGestureHelp"), canPick: false };
-  }
-  if (current.connection === "connected" && !current.hasVideo) {
-    return { tone: "idle", title: t("noVideo"), body: t("noVideoHelp"), canPick: true };
-  }
-  return null;
-}
-
-function roomStatusLine(current: SessionStatus | null): { tone: Tone; text: string } {
-  if (!current || current.connection === "connecting") {
-    return { tone: "warn", text: t("connecting") };
-  }
-  if (current.connection !== "connected") return { tone: "danger", text: t("connLost") };
-  if (!current.hasVideo) return { tone: "ok", text: t("live") };
-  if (current.hold) return { tone: "warn", text: t("onHold") };
-  if (current.drift !== null && Math.abs(current.drift) >= IN_SYNC_SECONDS) {
-    return { tone: "warn", text: t("catchingUp") };
-  }
-  return { tone: "ok", text: t("synced") };
-}
-
 function renderRoom(): void {
   element("room-code").textContent = session?.code ?? "";
 
-  const line = roomStatusLine(status);
+  const line = statusLine(status);
   setDot("room-dot", line.tone);
-  element("room-status").textContent = line.text;
+  element("room-status").textContent = t(line.key);
 
   const peers = status?.peers ?? 0;
   element("people").textContent = peers > 0 ? t("people", [String(peers)]) : "";
@@ -155,13 +104,13 @@ function renderRoom(): void {
       ? (formatTimecode(status.position) ?? "")
       : "";
 
-  const alert = alertFor(status);
-  element("alert").hidden = !alert;
-  if (alert) {
-    setDot("alert-dot", alert.tone);
-    element("alert-title").textContent = alert.title;
-    element("alert-body").textContent = alert.body;
-    element("pick-room").hidden = !alert.canPick;
+  const notice = noticeFor(status);
+  element("alert").hidden = !notice;
+  if (notice) {
+    setDot("alert-dot", notice.tone);
+    element("alert-title").textContent = t(notice.titleKey);
+    element("alert-body").textContent = t(notice.bodyKey);
+    element("pick-room").hidden = notice.action !== "pick";
   }
   element<HTMLButtonElement>("bring").disabled =
     status?.connection !== "connected" || !status.hasVideo || status.hold !== null;
