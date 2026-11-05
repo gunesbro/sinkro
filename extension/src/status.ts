@@ -71,6 +71,11 @@ export function mustShowNotice(notice: Notice | null): boolean {
   );
 }
 
+/** Whether the card has a button of its own for this. Picking is only offered in the popup. */
+export function hasMainButton(notice: Notice | null): boolean {
+  return isVideoChangeAction(notice) || notice?.action === "play" || notice?.action === "pause";
+}
+
 /** Whether this notice is about being on a different video from the room. */
 export function isVideoChangeAction(notice: Notice | null): boolean {
   return notice?.action === "bring" || notice?.action === "return" || notice?.action === "go";

@@ -1,6 +1,7 @@
 import { translate, type Messages } from "../i18n";
 import type { SessionStatus } from "../messages";
 import {
+  hasMainButton,
   isVideoChangeAction,
   mustShowNotice,
   noticeFor,
@@ -384,10 +385,7 @@ export class VideoBadge {
     const show = (button: HTMLElement, isShown: boolean) => {
       button.style.display = isShown ? "block" : "none";
     };
-    show(
-      this.action,
-      (mustShowNotice(notice) && notice.action !== "leave") || notice.action === "pause",
-    );
+    show(this.action, hasMainButton(notice));
     show(this.returnAction, notice.action === "bring");
     show(this.bringAction, notice.action === "go" && status.hasVideo);
     show(this.leaveAction, isVideoChangeAction(notice) || notice.action === "leave");
