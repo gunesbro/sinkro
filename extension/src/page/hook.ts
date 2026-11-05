@@ -16,32 +16,42 @@ function announceSafely(target: EventTarget): void {
   }
 }
 
-const nativePlay = HTMLMediaElement.prototype.play;
-HTMLMediaElement.prototype.play = function play(this: HTMLMediaElement) {
-  announceSafely(this);
-  return nativePlay.call(this);
-};
+function install(): void {
+  const nativePlay = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function play(this: HTMLMediaElement) {
+    announceSafely(this);
+    return nativePlay.call(this);
+  };
 
-const srcProperty = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src");
-if (srcProperty?.set && srcProperty.get) {
-  const { get, set } = srcProperty;
-  Object.defineProperty(HTMLMediaElement.prototype, "src", {
-    ...srcProperty,
-    get,
-    set(this: HTMLMediaElement, value: string) {
-      set.call(this, value);
-      announceSafely(this);
-    },
-  });
+  const srcProperty = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src");
+  if (srcProperty?.set && srcProperty.get) {
+    const { get, set } = srcProperty;
+    Object.defineProperty(HTMLMediaElement.prototype, "src", {
+      ...srcProperty,
+      get,
+      set(this: HTMLMediaElement, value: string) {
+        set.call(this, value);
+        announceSafely(this);
+      },
+    });
+  }
+
+  for (const method of ["pushState", "replaceState"] as const) {
+    const native = History.prototype[method];
+    History.prototype[method] = function (
+      this: History,
+      ...args: Parameters<History["pushState"]>
+    ): void {
+      native.apply(this, args);
+      announceSafely(document);
+    };
+  }
 }
 
-for (const method of ["pushState", "replaceState"] as const) {
-  const native = History.prototype[method];
-  History.prototype[method] = function (
-    this: History,
-    ...args: Parameters<History["pushState"]>
-  ): void {
-    native.apply(this, args);
-    announceSafely(document);
-  };
+// It outlives the extension being updated, so a page can already have one from before.
+const INSTALLED = Symbol.for("sinkro.page-hook");
+const prototype = HTMLMediaElement.prototype as unknown as Record<symbol, boolean>;
+if (!prototype[INSTALLED]) {
+  Object.defineProperty(prototype, INSTALLED, { value: true });
+  install();
 }

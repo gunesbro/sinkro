@@ -226,6 +226,25 @@ async function joinFromInvite(
   return { joined: true };
 }
 
+/**
+ * Browsers only add content scripts to pages that load after an install or update. Each
+ * script checks whether it's already running, so a slow page can't end up with two.
+ */
+async function restoreScripts(tabId: number): Promise<void> {
+  const target = { tabId, allFrames: true };
+  try {
+    await chrome.scripting.executeScript({
+      target,
+      files: ["page-hook.js"],
+      world: "MAIN",
+      injectImmediately: true,
+    });
+    await chrome.scripting.executeScript({ target, files: ["content.js"] });
+  } catch {
+    // A page extensions can't run on, like the browser's own.
+  }
+}
+
 async function leaveRoom(tabId: number): Promise<void> {
   await chrome.storage.session.remove([tabKey(tabId), framesKey(tabId), videoKey(tabId)]);
   await showRoomOnIcon(tabId);
@@ -260,6 +279,9 @@ async function handleFromExtensionPage(request: BackgroundRequest) {
       await sendToTab(request.tabId, { type: "picker/start", messages });
       return null;
     }
+    case "scripts/restore":
+      await restoreScripts(request.tabId);
+      return null;
     case "video/page": {
       const { pageUrl, pageTitle } = await getTabVideo(request.tabId);
       return { url: pageUrl, title: pageTitle } satisfies TabPage;
