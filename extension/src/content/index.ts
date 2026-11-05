@@ -29,6 +29,7 @@ import { VideoTracker } from "./detection/tracker";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
 import { SyncEngine, type PlaybackChange } from "./sync/engine";
+import { ChangeNotices, type ChangeDetails } from "./sync/notices";
 
 const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
@@ -61,8 +62,8 @@ const OWN_CHANGE_MESSAGES: Record<PlaybackChange, string> = {
 };
 
 type RoomHooks = {
-  onRemoteChange: (change: PlaybackChange, rate: number) => void;
-  onOwnChange: (change: PlaybackChange, rate: number) => void;
+  onRemoteChange: (change: PlaybackChange, details: ChangeDetails) => void;
+  onOwnChange: (change: PlaybackChange, details: ChangeDetails) => void;
   onRoomVideo: (sealed: string, announced: boolean) => void;
   onPeopleChange: (count: number) => void;
   onOthersAdEnded: () => void;
@@ -173,6 +174,15 @@ class FrameSession {
   private badgeTimer: ReturnType<typeof setInterval> | null = null;
   private pageTimer: ReturnType<typeof setInterval> | null = null;
   private readonly installedTimer: ReturnType<typeof setInterval>;
+  private readonly remoteNotices = new ChangeNotices((change, rate) => {
+    // It's about a video this viewer isn't on.
+    if (!this.isOnOtherVideo()) {
+      this.badge?.flash(REMOTE_CHANGE_MESSAGES[change], [formatRate(rate)]);
+    }
+  });
+  private readonly ownNotices = new ChangeNotices((change, rate) => {
+    this.badge?.flash(OWN_CHANGE_MESSAGES[change], [formatRate(rate)]);
+  });
   private lastPageReport = "";
   private lastPageUrl: string | null = null;
   private videoChange: VideoChange | null = null;
@@ -226,15 +236,8 @@ class FrameSession {
   setActive(active: boolean): void {
     if (active && !this.room) {
       this.room = startRoom(this.session, this.tracker, {
-        onRemoteChange: (change, rate) => {
-          // It's about a video this viewer isn't on.
-          if (!this.isOnOtherVideo()) {
-            this.badge?.flash(REMOTE_CHANGE_MESSAGES[change], [formatRate(rate)]);
-          }
-        },
-        onOwnChange: (change, rate) => {
-          this.badge?.flash(OWN_CHANGE_MESSAGES[change], [formatRate(rate)]);
-        },
+        onRemoteChange: (change, details) => this.remoteNotices.add(change, details),
+        onOwnChange: (change, details) => this.ownNotices.add(change, details),
         onOthersAdEnded: () => this.badge?.flash("notifyAdEnded"),
         onRoomVideo: (sealed, announced) => this.onRoomVideo(sealed, announced),
         onPeopleChange: (count) => void send({ type: "room/people", count }),
@@ -243,6 +246,8 @@ class FrameSession {
       });
       void this.startBadge();
     } else if (!active && this.room) {
+      this.remoteNotices.stop();
+      this.ownNotices.stop();
       this.stopBadge();
       this.room.stop();
       this.room = null;

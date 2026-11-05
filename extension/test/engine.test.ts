@@ -12,6 +12,7 @@ function setup() {
   const changes: PlaybackChange[] = [];
   const ownChanges: PlaybackChange[] = [];
   const rates: number[] = [];
+  const jumps: boolean[] = [];
   const holdChanges: (HoldReason | "other_video" | null)[] = [];
   const sent: PlaybackState[] = [];
   const video = new FakeVideo();
@@ -24,13 +25,15 @@ function setup() {
   const engine = new SyncEngine({
     now: Date.now,
     serverNow,
-    onRemoteChange: (change, rate) => {
+    onRemoteChange: (change, { rate, jumped }) => {
       changes.push(change);
       rates.push(rate);
+      jumps.push(jumped);
     },
-    onOwnChange: (change, rate) => {
+    onOwnChange: (change, { rate, jumped }) => {
       ownChanges.push(change);
       rates.push(rate);
+      jumps.push(jumped);
     },
     onHoldChange: (reason) => holdChanges.push(reason),
     holdFor: (roomPosition) => {
@@ -69,6 +72,7 @@ function setup() {
     changes,
     ownChanges,
     rates,
+    jumps,
     holdChanges,
   };
 }
@@ -1039,6 +1043,25 @@ describe("telling the viewer what someone else did", () => {
     expect(context.changes).toEqual(["rate"]);
   });
 
+  it("says whether a start also moved the position, as a seek bar's does", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.engine.handleState(context.peerState({ playing: false, position: 100 }));
+    context.engine.handleState(context.peerState({ playing: true, position: 500 }));
+
+    expect(context.changes).toEqual(["paused", "played"]);
+    expect(context.jumps).toEqual([false, true]);
+  });
+
+  it("says a start in place didn't move anything", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.engine.handleState(context.peerState({ playing: false, position: 100 }));
+    context.engine.handleState(context.peerState({ playing: true, position: 100 }));
+
+    expect(context.jumps).toEqual([false, false]);
+  });
+
   it("reports playback starting", async () => {
     const context = setup();
     await joinPlaying(context);
@@ -1113,6 +1136,19 @@ describe("telling the viewer what they did themselves", () => {
     await settle();
 
     expect(context.ownChanges).toEqual(["seeked"]);
+  });
+
+  it("says whether their start moved the position too", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.video.pause();
+    await settle();
+    context.video.userSeek(500);
+    context.video.userPlay();
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(context.ownChanges.at(-1)).toBe("played");
+    expect(context.jumps.at(-1)).toBe(true);
   });
 
   it("reports their new speed, and says what it is", async () => {

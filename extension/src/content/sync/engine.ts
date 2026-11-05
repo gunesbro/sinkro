@@ -5,6 +5,7 @@ import {
   type RoomState,
 } from "../../../../server/src/protocol";
 import type { HoldReason } from "../detection/ads";
+import type { ChangeDetails } from "./notices";
 import { IGNORE_DRIFT_SECONDS, planCorrection, targetPosition } from "./timeline";
 
 /** Rate limit on the server is 5 messages a second; this leaves room for pings. */
@@ -61,10 +62,10 @@ export type EngineDeps = {
   /** Says why the video can't follow the room right now, such as an ad playing. */
   holdFor?: (roomPosition: number | null) => Hold | null;
   onHoldChange?: (hold: Hold | null) => void;
-  /** `rate` is the speed the room is at now. */
-  onRemoteChange?: (change: PlaybackChange, rate: number) => void;
+  /** `rate` is the speed the room is at now, and `jumped` is whether its position moved too. */
+  onRemoteChange?: (change: PlaybackChange, details: ChangeDetails) => void;
   /** This viewer's own action reached the others. Not called when nobody else is there. */
-  onOwnChange?: (change: PlaybackChange, rate: number) => void;
+  onOwnChange?: (change: PlaybackChange, details: ChangeDetails) => void;
 };
 
 export type EngineSnapshot = {
@@ -192,9 +193,10 @@ export class SyncEngine {
     if (this.unacked > 0 || this.publishTimer !== null) return;
 
     const change = this.describeChange(state);
+    const jumped = this.hasJumped(state);
     this.setTimeline(state);
     this.apply(true);
-    if (change) this.deps.onRemoteChange?.(change, state.rate);
+    if (change) this.deps.onRemoteChange?.(change, { rate: state.rate, jumped });
   }
 
   private describeChange(next: PlaybackState): PlaybackChange | null {
@@ -203,8 +205,14 @@ export class SyncEngine {
     if (timeline.playing !== next.playing) return next.playing ? "played" : "paused";
     if (Math.abs(timeline.rate - next.rate) >= RATE_EPSILON) return "rate";
 
+    return this.hasJumped(next) ? "seeked" : null;
+  }
+
+  private hasJumped(next: PlaybackState): boolean {
+    const { timeline } = this;
+    if (!timeline) return false;
     const expected = targetPosition(timeline, next.sentAt, Number.POSITIVE_INFINITY);
-    return Math.abs(expected - next.position) > SEEK_NOTICE_SECONDS ? "seeked" : null;
+    return Math.abs(expected - next.position) > SEEK_NOTICE_SECONDS;
   }
 
   /** The room dropped a message of ours, so its echo will never come. */
@@ -562,11 +570,12 @@ export class SyncEngine {
     if (!this.deps.send(state)) return;
 
     const change = isViewersAction && !this.isAlone ? this.describeChange(state) : null;
+    const jumped = this.hasJumped(state);
     this.unacked += 1;
     this.lastPublishAt = this.deps.now();
     this.timeline = state;
     this.finishCorrection();
-    if (change) this.deps.onOwnChange?.(change, state.rate);
+    if (change) this.deps.onOwnChange?.(change, { rate: state.rate, jumped });
   }
 
   private cancelPublish(): void {
