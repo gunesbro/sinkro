@@ -134,7 +134,9 @@ function renderRoom(): void {
   const change = status?.videoChange ?? null;
   const changeNotice = change ? noticeFor(status) : null;
   const canFollowChange = isVideoChangeAction(changeNotice);
-  const canGoToVideo = !change && roomVideoUrl !== null && !isSamePage(pageUrl, roomVideoUrl);
+  const isFilmStillPlaying = status?.isFilmStillPlaying === true;
+  const canGoToVideo =
+    !change && !isFilmStillPlaying && roomVideoUrl !== null && !isSamePage(pageUrl, roomVideoUrl);
   const showGoButton = (canFollowChange || canGoToVideo) && !isRoomGone;
   element("go-video").hidden = !showGoButton;
   // There's nothing to invite anyone to in a room that's closed.
@@ -193,8 +195,9 @@ function renderRoom(): void {
   element<HTMLButtonElement>("move-badge").disabled = !status?.hasVideo;
   // Being on another video is exactly when this button is the way out.
   const isHeldBack = status?.hold != null && status.hold !== "other_video";
+  // The page's address isn't the film's here, and that's what bringing everyone would send.
   element<HTMLButtonElement>("bring").disabled =
-    status?.connection !== "connected" || !status.hasVideo || isHeldBack;
+    status?.connection !== "connected" || !status.hasVideo || isHeldBack || isFilmStillPlaying;
 }
 
 function render(): void {
