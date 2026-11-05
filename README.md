@@ -1,3 +1,5 @@
+<img src="extension/icons/icon-on-128.png" width="96" height="96" alt="">
+
 # Sinkro
 
 Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox that keeps any video on any website in sync with your friends.
