@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { SessionStatus } from "../src/messages";
-import { isVideoChangeAction, mustShowNotice, noticeFor, statusLine } from "../src/status";
+import {
+  isVideoChangeAction,
+  mustShowNotice,
+  noticeFor,
+  statusLine,
+  withoutSiteName,
+} from "../src/status";
 
 const connected: SessionStatus = {
   hasVideo: true,
@@ -58,6 +64,32 @@ describe("statusLine", () => {
   ])("%s", (_, changes, tone, key) => {
     const status = changes === null ? null : { ...connected, ...changes };
     expect(statusLine(status)).toEqual({ tone, key });
+  });
+});
+
+describe("withoutSiteName", () => {
+  it.each([
+    ["The Film - YouTube", "www.youtube.com", "The Film"],
+    ["The Film | Netflix", "www.netflix.com", "The Film"],
+    ["Part 1 — Vimeo", "vimeo.com", "Part 1"],
+    ["A - B - YouTube", "www.youtube.com", "A - B"],
+    [
+      "GÖRDÜLER... | Maç Sonu | Taraftar - YouTube",
+      "www.youtube.com",
+      "GÖRDÜLER... | Maç Sonu | Taraftar",
+    ],
+  ])("takes the site's name off %s", (title, host, expected) => {
+    expect(withoutSiteName(title, host)).toBe(expected);
+  });
+
+  it.each([
+    ["The Film", "www.youtube.com"],
+    ["Alien: Covenant", "www.youtube.com"],
+    ["Episode 1 - The Start", "www.youtube.com"],
+    ["", "www.youtube.com"],
+    ["- YouTube", "www.youtube.com"],
+  ])("leaves %j alone", (title, host) => {
+    expect(withoutSiteName(title, host)).toBe(title);
   });
 });
 
@@ -159,9 +191,14 @@ describe("noticeFor", () => {
       expect(mustShowNotice(notice)).toBe(true);
     });
 
-    it("names the video the room moved to, and offers going", () => {
+    it("names the video the room moved to and its site, and offers going", () => {
       const notice = noticeFor({ ...connected, hold: "other_video", videoChange: roomMoved });
-      expect(notice).toMatchObject({ titleKey: "roomMoved", action: "go", detail: "Next Film" });
+      expect(notice).toMatchObject({
+        titleKey: "roomMoved",
+        action: "go",
+        detail: "Next Film",
+        host: "a.com",
+      });
       expect(mustShowNotice(notice)).toBe(true);
     });
 

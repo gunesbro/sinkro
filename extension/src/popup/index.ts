@@ -20,7 +20,14 @@ import type {
 } from "../messages";
 import { openRoomVideo, sealRoomVideo } from "../room-video";
 import { getServerUrl, roomSocketUrl, setServerUrl } from "../settings";
-import { isVideoChangeAction, noticeFor, statusLine, type Notice, type Tone } from "../status";
+import {
+  isVideoChangeAction,
+  noticeFor,
+  statusLine,
+  withoutSiteName,
+  type Notice,
+  type Tone,
+} from "../status";
 import { askRoomVideo } from "./room-link";
 
 const STATUS_POLL_MS = 500;
@@ -165,7 +172,9 @@ function renderRoom(): void {
     titleKey: "inRoomGo",
     bodyKey: "inRoomGoHelp",
     action: null,
-    detail: roomVideoTitle,
+    detail: roomVideoUrl
+      ? withoutSiteName(roomVideoTitle, new URL(roomVideoUrl).hostname)
+      : roomVideoTitle,
   };
   // The tab knows why the room closed, which the popup's own look at the server can't say.
   const notice =
