@@ -159,7 +159,7 @@
     "message": "Bu oda artık yok"
   },
   "roomGoneHelp": {
-    "message": "Odalar herkes çıktıktan bir gün sonra kapanır. Yeni bir link iste ya da oda oluştur."
+    "message": "Odalar herkes çıktıktan bir gün sonra ya da 12 saat hareketsiz kalınca kapanır. Yeni bir link iste ya da oda oluştur."
   },
   "roomFull": {
     "message": "Bu oda dolu"
@@ -313,5 +313,11 @@
   },
   "badgeDragCancel": {
     "message": "Esc ile vazgeç"
+  },
+  "roomIdle": {
+    "message": "Oda kapatıldı"
+  },
+  "roomIdleHelp": {
+    "message": "12 saattir oynatılmadı, durdurulmadı, sarılmadı. İzlemeye devam etmek için yeni bir oda oluştur."
   }
 }

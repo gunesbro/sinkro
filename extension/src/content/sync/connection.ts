@@ -23,7 +23,7 @@ const MIN_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "closed";
-export type CloseReason = "room_not_found" | "room_full" | "protocol_mismatch";
+export type CloseReason = "room_not_found" | "room_full" | "protocol_mismatch" | "room_idle";
 
 export type ConnectionEvents = {
   onJoined: (message: {
@@ -65,6 +65,7 @@ const CLOSE_REASONS: Record<number, CloseReason> = {
   [CloseCode.ProtocolMismatch]: "protocol_mismatch",
   [CloseCode.RoomNotFound]: "room_not_found",
   [CloseCode.RoomFull]: "room_full",
+  [CloseCode.RoomIdle]: "room_idle",
 };
 
 /**

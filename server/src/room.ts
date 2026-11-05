@@ -11,13 +11,23 @@ import {
 
 const MAX_CONNECTIONS = 50;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
+/** Longer than any film, so this only closes rooms that were forgotten with a tab left open. */
+const IDLE_LIMIT_MS = 12 * 60 * 60 * 1000;
+/** Each check wakes the room, so it's rare. A room can stay open this much past the limit. */
+const IDLE_CHECK_MS = 60 * 60 * 1000;
 const MAX_CLOCK_ERROR_MS = 30_000;
 const RATE_LIMIT_MESSAGES = 50;
 const RATE_LIMIT_WINDOW_MS = 10_000;
 /** Answered by the runtime without waking the room, so idle connections cost nothing. */
 const KEEPALIVE = "keepalive";
 
-type RoomRecord = { state: RoomState | null; seq: number; video?: string };
+type RoomRecord = {
+  state: RoomState | null;
+  seq: number;
+  video?: string;
+  /** When someone last joined, or played, paused, seeked or moved the room to another video. */
+  activeAt?: number;
+};
 type Attachment = { clientId: string | null };
 type RateWindow = { startedAt: number; count: number };
 
@@ -89,7 +99,11 @@ export class Room extends DurableObject {
       case "video/set": {
         const record = await this.readRecord();
         if (!record) return ws.close(CloseCode.RoomNotFound);
-        await this.ctx.storage.put<RoomRecord>("room", { ...record, video: message.sealed });
+        await this.ctx.storage.put<RoomRecord>("room", {
+          ...record,
+          video: message.sealed,
+          activeAt: Date.now(),
+        });
         const video: ServerMessage = { type: "video", sealed: message.sealed };
         this.send(ws, video);
         this.broadcast(video, ws);
@@ -112,7 +126,12 @@ export class Room extends DurableObject {
           seq: record.seq + 1,
           from: clientId,
         };
-        await this.ctx.storage.put<RoomRecord>("room", { ...record, state, seq: state.seq });
+        await this.ctx.storage.put<RoomRecord>("room", {
+          ...record,
+          state,
+          seq: state.seq,
+          activeAt: now,
+        });
         this.broadcast({ type: "state", ...state });
         return;
       }
@@ -128,8 +147,20 @@ export class Room extends DurableObject {
   }
 
   override async alarm(): Promise<void> {
-    if (this.ctx.getWebSockets().length > 0) return;
+    const sockets = this.ctx.getWebSockets();
+    if (sockets.length === 0) {
+      await this.ctx.storage.deleteAll();
+      return;
+    }
+
+    const record = await this.readRecord();
+    const now = Date.now();
+    if (record && now - (record.activeAt ?? now) < IDLE_LIMIT_MS) {
+      await this.ctx.storage.setAlarm(now + IDLE_CHECK_MS);
+      return;
+    }
     await this.ctx.storage.deleteAll();
+    for (const socket of sockets) socket.close(CloseCode.RoomIdle);
   }
 
   private async join(ws: WebSocket): Promise<void> {
@@ -140,7 +171,8 @@ export class Room extends DurableObject {
 
     const clientId = crypto.randomUUID();
     ws.serializeAttachment({ clientId } satisfies Attachment);
-    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.put<RoomRecord>("room", { ...record, activeAt: Date.now() });
+    await this.ctx.storage.setAlarm(Date.now() + IDLE_CHECK_MS);
 
     const peers = this.joinedSockets().length;
     const video = record.video ? { video: record.video } : {};

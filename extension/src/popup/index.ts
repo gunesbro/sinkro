@@ -128,6 +128,8 @@ function renderRoom(): void {
   const canGoToVideo = !change && roomVideoUrl !== null && !isSamePage(pageUrl, roomVideoUrl);
   const showGoButton = (canFollowChange || canGoToVideo) && !isRoomGone;
   element("go-video").hidden = !showGoButton;
+  // There's nothing to invite anyone to in a room that's closed.
+  element("copy-link").hidden = isRoomGone || status?.connection === "closed";
   if (showGoButton) {
     const host = change ? change.host : new URL(roomVideoUrl ?? "").hostname;
     element("go-video").textContent =
@@ -163,10 +165,12 @@ function renderRoom(): void {
     action: null,
     detail: roomVideoTitle,
   };
-  const notice = isRoomGone
-    ? goneNotice
-    : (changeNotice ??
-      (showGoButton ? goNotice : isWaitingForPage ? waitingNotice : noticeFor(status)));
+  // The tab knows why the room closed, which the popup's own look at the server can't say.
+  const notice =
+    isRoomGone && status?.closeReason !== "room_idle"
+      ? goneNotice
+      : (changeNotice ??
+        (showGoButton ? goNotice : isWaitingForPage ? waitingNotice : noticeFor(status)));
   element("alert").hidden = !notice;
   if (notice) {
     setDot("alert-dot", notice.tone);
