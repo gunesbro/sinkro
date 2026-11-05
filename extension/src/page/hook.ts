@@ -1,4 +1,4 @@
-// Runs in the page's own world, ahead of its scripts, because the content script can't
+// Runs in the page's own world, added only to tabs in a room, because the content script can't
 // see what page code calls. It only announces that something happened: nothing flows
 // back into the page, and a page faking the event can do no more than cause a rescan.
 import { ACTIVITY_EVENT } from "../content/detection/activity";

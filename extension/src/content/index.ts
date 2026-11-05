@@ -273,6 +273,8 @@ class FrameSession {
     });
     window.addEventListener("pagehide", this.onPageHide);
     chrome.storage.onChanged.addListener(this.onStorageChange);
+    // It goes into the page's own world, where a site could notice it, so only rooms get it.
+    void send({ type: "hook/install" });
     const { signal } = this.pointerListeners;
     const notePointer = (event: PointerEvent) => {
       this.pointer = { x: event.clientX, y: event.clientY };
