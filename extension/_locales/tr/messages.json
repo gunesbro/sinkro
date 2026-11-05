@@ -220,5 +220,26 @@
   },
   "cantFollowHelp": {
     "message": "Reklam ya da başka bir video veya kaynak olabilir. Odanın videosu dönünce odanın olduğu yere atlarsın."
+  },
+  "pastEnd": {
+    "message": "Bu video odanın olduğu yerden önce bitiyor"
+  },
+  "pastEndHelp": {
+    "message": "Başka bir video veya kaynakta olabilirsin. Oda bu aralığa dönene kadar Sinkro videoya dokunmaz."
+  },
+  "badgeMove": {
+    "message": "Rozeti taşı"
+  },
+  "badgeMoveHint": {
+    "message": "Rozeti sürükle ya da ok tuşlarını kullan. Esc iptal eder."
+  },
+  "badgeDone": {
+    "message": "Tamam"
+  },
+  "badgeReset": {
+    "message": "Sıfırla"
+  },
+  "bringSent": {
+    "message": "Gönderildi"
   }
 }

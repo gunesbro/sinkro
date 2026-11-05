@@ -14,6 +14,7 @@ import type {
 import { INVITE_ORIGIN } from "../invite";
 import { roomSocketUrl } from "../settings";
 import { VideoBadge } from "./badge";
+import { loadBadgePosition, saveBadgePosition } from "./badge-position";
 import { VideoPicker } from "./detection/picker";
 import { connectInvitePage } from "./invite-page";
 import {
@@ -150,6 +151,10 @@ class FrameSession {
     this.room?.engine.bringEveryone();
   }
 
+  moveBadge(): void {
+    this.badge?.startMoving();
+  }
+
   stop(): void {
     this.isStopped = true;
     window.removeEventListener("pagehide", this.onPageHide);
@@ -159,10 +164,18 @@ class FrameSession {
   }
 
   private async startBadge(): Promise<void> {
-    const messages = await send<Messages>({ type: "i18n/messages" });
+    const [messages, position] = await Promise.all([
+      send<Messages>({ type: "i18n/messages" }),
+      loadBadgePosition(location.hostname).catch(() => null),
+    ]);
     if (!messages || !this.room || this.badge) return;
 
-    this.badge = new VideoBadge(messages, () => this.room?.engine.retryPlay());
+    this.badge = new VideoBadge({
+      messages,
+      position,
+      onPlay: () => this.room?.engine.retryPlay(),
+      onPositionChange: (moved) => void saveBadgePosition(location.hostname, moved),
+    });
     this.badgeTimer = setInterval(() => {
       this.badge?.update(this.tracker.video(), this.room?.status() ?? null);
     }, BADGE_UPDATE_MS);
@@ -255,6 +268,9 @@ chrome.runtime.onMessage.addListener((request: TabRequest, _sender, sendResponse
     }
     case "session/bring":
       frameSession?.bringEveryone();
+      return;
+    case "badge/move":
+      frameSession?.moveBadge();
       return;
     case "detect/peek": {
       const report = peek();

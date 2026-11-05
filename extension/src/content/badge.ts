@@ -1,9 +1,11 @@
 import { translate, type Messages } from "../i18n";
 import type { SessionStatus } from "../messages";
 import { noticeFor, statusLine, type Tone } from "../status";
+import { nudge, placeBadge, positionAt, type BadgePosition } from "./badge-position";
 import { markOwnElement } from "./detection/discovery";
 import {
   ACCENT,
+  BUTTON_BORDER,
   DANGER,
   FAINT,
   FONT,
@@ -16,12 +18,13 @@ import {
   TOP_LAYER,
 } from "./theme";
 
-const INSET_PX = 12;
 /** On anything smaller, the badge would cover what it's reporting on. */
 const MIN_VIDEO_WIDTH_PX = 240;
 const MIN_VIDEO_HEIGHT_PX = 120;
 /** All's well for this long, and the badge shrinks to its dot so the film has the screen. */
 const QUIET_AFTER_MS = 5000;
+/** A pointer on the badge in move mode must never reach the player underneath. */
+const SWALLOWED_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick"];
 
 const TONE_COLORS: Record<Tone, string> = {
   ok: OK,
@@ -30,10 +33,18 @@ const TONE_COLORS: Record<Tone, string> = {
   idle: FAINT,
 };
 
+export type BadgeOptions = {
+  messages: Messages;
+  position: BadgePosition | null;
+  onPlay: () => void;
+  onPositionChange: (position: BadgePosition | null) => void;
+};
+
 /**
  * Always-visible sync status over the video, with a card for anything that needs the
- * viewer. The status itself lets clicks through to the player. Styled through the CSSOM
- * because a page's CSP can block style elements.
+ * viewer. The status lets clicks through to the player, except in move mode, which the
+ * viewer asks for from the popup. Styled through the CSSOM because a page's CSP can block
+ * style elements.
  */
 export class VideoBadge {
   private readonly host = document.createElement("div");
@@ -46,15 +57,24 @@ export class VideoBadge {
   private readonly cardTitle = document.createElement("span");
   private readonly cardBody = document.createElement("span");
   private readonly action = document.createElement("button");
+  private readonly movePanel = document.createElement("div");
   private readonly listeners = new AbortController();
+  private readonly messages: Messages;
+  private readonly onPositionChange: (position: BadgePosition | null) => void;
   private video: HTMLVideoElement | null = null;
+  private position: BadgePosition | null;
+  private positionBeforeMove: BadgePosition | null = null;
+  private isMoving = false;
+  private dragOffset: { x: number; y: number } | null = null;
   private lastChangeAt = 0;
   private lastPillText = "";
+  private lastPillLabel = "";
 
-  constructor(
-    private readonly messages: Messages,
-    onPlay: () => void,
-  ) {
+  constructor(options: BadgeOptions) {
+    this.messages = options.messages;
+    this.position = options.position;
+    this.onPositionChange = options.onPositionChange;
+
     markOwnElement(this.host);
     this.host.style.cssText = `all: initial; position: fixed; inset: 0; z-index: ${TOP_LAYER};
       pointer-events: none;`;
@@ -64,8 +84,9 @@ export class VideoBadge {
     this.action.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      onPlay();
+      options.onPlay();
     });
+    this.connectMoving();
     document.addEventListener("fullscreenchange", () => this.attach(), {
       signal: this.listeners.signal,
     });
@@ -80,14 +101,28 @@ export class VideoBadge {
       this.stack.style.display = "none";
       return;
     }
-
-    const { style } = this.stack;
-    style.display = "flex";
-    style.top = `${Math.max(INSET_PX, box.top + INSET_PX)}px`;
-    style.right = `${Math.max(INSET_PX, window.innerWidth - box.right + INSET_PX)}px`;
-
+    this.stack.style.display = "flex";
     this.renderPill(status);
     this.renderCard(status);
+    this.place(box);
+  }
+
+  /** Lets the viewer put the badge where it doesn't hide a player's own buttons. */
+  startMoving(): void {
+    if (this.isMoving) return;
+    this.isMoving = true;
+    this.positionBeforeMove = this.position;
+
+    const { style } = this.pill;
+    style.pointerEvents = "auto";
+    style.cursor = "grab";
+    style.touchAction = "none";
+    style.outline = `2px solid ${ACCENT}`;
+    this.pill.tabIndex = 0;
+    this.pill.setAttribute("role", "group");
+    this.pill.setAttribute("aria-label", translate(this.messages, "badgeMoveHint"));
+    this.movePanel.style.display = "flex";
+    this.pill.focus();
   }
 
   stop(): void {
@@ -102,6 +137,21 @@ export class VideoBadge {
     if (this.host.parentElement !== parent) parent.append(this.host);
   }
 
+  private place(box: DOMRect): void {
+    const pill = this.pill.getBoundingClientRect();
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    const { horizontal, vertical } = placeBadge(box, pill, viewport, this.position);
+
+    const { style } = this.stack;
+    style.left = horizontal.side === "left" ? `${horizontal.px}px` : "auto";
+    style.right = horizontal.side === "right" ? `${horizontal.px}px` : "auto";
+    style.top = vertical.side === "top" ? `${vertical.px}px` : "auto";
+    style.bottom = vertical.side === "bottom" ? `${vertical.px}px` : "auto";
+    style.alignItems = horizontal.side === "right" ? "flex-end" : "flex-start";
+    // The card opens away from the edge, so the pill itself stays where it was put.
+    style.flexDirection = vertical.side === "bottom" ? "column-reverse" : "column";
+  }
+
   private renderPill(status: SessionStatus): void {
     const line = statusLine(status);
     const label = translate(this.messages, line.key);
@@ -110,23 +160,23 @@ export class VideoBadge {
       this.lastPillText = text;
       this.lastChangeAt = Date.now();
       this.pillText.textContent = text;
-      this.pill.setAttribute(
-        "aria-label",
+      this.lastPillLabel =
         status.peers > 0
           ? `${label}. ${translate(this.messages, "people", [String(status.peers)])}`
-          : label,
-      );
+          : label;
+      if (!this.isMoving) this.pill.setAttribute("aria-label", this.lastPillLabel);
     }
     this.dot.style.background = TONE_COLORS[line.tone];
 
     // Hiding the words rather than dimming them keeps what's left readable on any picture.
-    const isCalm = line.tone === "ok" && Date.now() - this.lastChangeAt > QUIET_AFTER_MS;
+    const isCalm =
+      !this.isMoving && line.tone === "ok" && Date.now() - this.lastChangeAt > QUIET_AFTER_MS;
     this.pillText.style.display = isCalm ? "none" : "inline";
     this.pill.style.padding = isCalm ? "0 10px" : "0 12px";
   }
 
   private renderCard(status: SessionStatus): void {
-    const notice = noticeFor(status);
+    const notice = this.isMoving ? null : noticeFor(status);
     this.card.style.display = notice ? "flex" : "none";
     if (!notice) return;
 
@@ -142,6 +192,124 @@ export class VideoBadge {
     if (element.textContent !== text) element.textContent = text;
   }
 
+  private connectMoving(): void {
+    const { signal } = this.listeners;
+    for (const target of [this.pill, this.movePanel]) {
+      for (const type of SWALLOWED_EVENTS) {
+        target.addEventListener(type, (event) => event.stopPropagation(), { signal });
+      }
+    }
+
+    this.pill.addEventListener(
+      "pointerdown",
+      (event) => {
+        event.preventDefault();
+        const pill = this.pill.getBoundingClientRect();
+        this.dragOffset = { x: event.clientX - pill.left, y: event.clientY - pill.top };
+        this.pill.setPointerCapture(event.pointerId);
+        this.pill.style.cursor = "grabbing";
+      },
+      { signal },
+    );
+    this.pill.addEventListener(
+      "pointermove",
+      (event) => {
+        if (!this.dragOffset || !this.video) return;
+        this.position = positionAt(
+          this.video.getBoundingClientRect(),
+          this.pill.getBoundingClientRect(),
+          event.clientX - this.dragOffset.x,
+          event.clientY - this.dragOffset.y,
+        );
+        this.place(this.video.getBoundingClientRect());
+      },
+      { signal },
+    );
+    const endDrag = () => {
+      this.dragOffset = null;
+      if (this.isMoving) this.pill.style.cursor = "grab";
+    };
+    this.pill.addEventListener("pointerup", endDrag, { signal });
+    this.pill.addEventListener("pointercancel", endDrag, { signal });
+
+    // On the window, and first, because players listen for arrow keys to seek.
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        if (!this.isMoving) return;
+        const moved = nudge(this.currentPosition(), event.key);
+        if (moved) this.position = moved;
+        else if (event.key === "Escape") this.cancelMoving();
+        else if (event.key === "Enter" && !this.isFocusOnButton()) this.finishMoving();
+        else return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        if (this.video) this.place(this.video.getBoundingClientRect());
+      },
+      { capture: true, signal },
+    );
+  }
+
+  private isFocusOnButton(): boolean {
+    const root = this.stack.getRootNode() as ShadowRoot;
+    return root.activeElement instanceof HTMLButtonElement;
+  }
+
+  /** The default spot has no stored position, so read where the pill really is. */
+  private currentPosition(): BadgePosition {
+    if (this.position || !this.video) return this.position ?? { x: 1, y: 0 };
+    const pill = this.pill.getBoundingClientRect();
+    return positionAt(this.video.getBoundingClientRect(), pill, pill.left, pill.top);
+  }
+
+  private endMoving(): void {
+    this.isMoving = false;
+    this.dragOffset = null;
+    const { style } = this.pill;
+    style.pointerEvents = "none";
+    style.cursor = "";
+    style.touchAction = "";
+    style.outline = "none";
+    this.pill.removeAttribute("tabindex");
+    this.pill.setAttribute("role", "status");
+    this.pill.setAttribute("aria-label", this.lastPillLabel);
+    this.movePanel.style.display = "none";
+    this.lastChangeAt = Date.now();
+    if (this.video) this.place(this.video.getBoundingClientRect());
+  }
+
+  private finishMoving(): void {
+    this.endMoving();
+    this.onPositionChange(this.position);
+  }
+
+  private cancelMoving(): void {
+    this.position = this.positionBeforeMove;
+    this.endMoving();
+  }
+
+  private resetPosition(): void {
+    this.position = null;
+    this.finishMoving();
+  }
+
+  private createPanelButton(key: string, isPrimary: boolean, onClick: () => void): HTMLElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = translate(this.messages, key);
+    button.style.cssText = `all: unset; box-sizing: border-box; min-height: 44px; padding: 12px 16px;
+      border-radius: 8px; font: 700 14px ${FONT}; cursor: pointer; pointer-events: auto;
+      outline: 2px solid transparent; outline-offset: 2px;`;
+    button.style.background = isPrimary ? ACCENT : "transparent";
+    button.style.color = isPrimary ? ON_ACCENT : TEXT;
+    if (!isPrimary) button.style.boxShadow = `inset 0 0 0 1px ${BUTTON_BORDER}`;
+    button.addEventListener("focus", () => (button.style.outlineColor = TEXT));
+    button.addEventListener("blur", () => (button.style.outlineColor = "transparent"));
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
   private buildContent(root: ShadowRoot): void {
     this.stack.style.cssText = `position: fixed; display: none; flex-direction: column;
       align-items: flex-end; gap: 10px; max-width: 300px; font-family: ${FONT}; color: ${TEXT};`;
@@ -149,7 +317,7 @@ export class VideoBadge {
     this.pill.setAttribute("role", "status");
     this.pill.style.cssText = `display: flex; align-items: center; gap: 8px; height: 32px;
       padding: 0 12px; border-radius: 999px; background: ${OVERLAY_BACKGROUND};
-      border: 1px solid ${OVERLAY_BORDER}; font-size: 14px; font-weight: 600;`;
+      border: 1px solid ${OVERLAY_BORDER}; font-size: 14px; font-weight: 600; outline-offset: 2px;`;
     this.dot.style.cssText = "width: 8px; height: 8px; border-radius: 50%; flex: none;";
     this.pill.append(this.dot, this.pillText);
 
@@ -174,7 +342,22 @@ export class VideoBadge {
     this.action.addEventListener("blur", () => (this.action.style.outlineColor = "transparent"));
 
     this.card.append(title, this.cardBody, this.action);
-    this.stack.append(this.pill, this.card);
+
+    this.movePanel.style.cssText = `display: none; flex-direction: column; gap: 10px; padding: 12px 14px;
+      border-radius: 14px; background: ${OVERLAY_BACKGROUND}; border: 1px solid ${OVERLAY_BORDER};
+      pointer-events: auto;`;
+    const hint = document.createElement("span");
+    hint.textContent = translate(this.messages, "badgeMoveHint");
+    hint.style.cssText = `font-size: 13px; line-height: 1.5; color: ${TEXT_SECONDARY};`;
+    const buttons = document.createElement("div");
+    buttons.style.cssText = "display: flex; gap: 8px;";
+    buttons.append(
+      this.createPanelButton("badgeDone", true, () => this.finishMoving()),
+      this.createPanelButton("badgeReset", false, () => this.resetPosition()),
+    );
+    this.movePanel.append(hint, buttons);
+
+    this.stack.append(this.pill, this.card, this.movePanel);
     root.append(this.stack);
   }
 }
