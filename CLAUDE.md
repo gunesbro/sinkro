@@ -40,10 +40,10 @@ docs/                 PLAN.md, DESIGN.md, design-reference/
 ```
 
 - Keep the WebSocket in the content script or an offscreen document — the MV3 service worker goes to sleep.
-- Protocol messages: `join`, `state` (playing/paused, position, rate, sender timestamp), `ping`/`pong` (clock offset), `video/get`/`video/set`/`video` (the room's video, sealed), `ad`/`ads` (who's on an ad), `chat` (v1).
+- Protocol messages: `join`, `state` (playing/paused, position, rate, sender timestamp), `ping`/`pong` (clock offset), `video/get`/`video/set`/`video` (the room's video, sealed), `ad`/`ads` (who's on an ad), `drift`/`spread` (how far apart people are), `chat` (v1).
 - **Mixed versions**: people in a room can run different extension versions, and the hosted server updates separately from all of them. New optional fields don't bump `PROTOCOL_VERSION`, because both sides ignore what they don't know. Bump it only for a change old clients can't work with, and keep `MIN_PROTOCOL_VERSION` as low as possible so existing installs keep working.
 - **Echo loop prevention**: every remotely applied command sets a pending-event flag; flagged local events are not re-broadcast.
-- **Drift**: ignore < 0.3 s; 0.3–2 s correct with `playbackRate` 0.95–1.05; > 2 s seek.
+- **Drift**: ignore < 0.15 s; 0.15–2 s correct with `playbackRate` 0.95–1.05; > 2 s seek. Each viewer is measured against the room's timeline, so two people can be twice the dead band apart: that's why it's half of what's noticeable. Each viewer tells the room their drift, and the popup shows the spread between the furthest two.
 - **Another video**: nobody is moved by force. Whoever goes to another video goes on hold and gets "Bring everyone here" and "Back to the room"; when someone brings everyone, the others go on hold and get a button to follow. Browsing sends nothing: the page address only leaves the browser when one of those buttons is pressed.
 
 ## Video detection (core feature — make it excellent)

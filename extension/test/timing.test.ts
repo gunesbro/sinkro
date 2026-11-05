@@ -86,11 +86,13 @@ describe("targetPosition", () => {
 describe("planCorrection", () => {
   const base = { playing: true, correcting: false, baseRate: 1 };
 
-  it.each([0, 0.1, -0.1, 0.29, -0.29])("ignores %d s", (drift) => {
+  it.each([0, 0.1, -0.1, 0.14, -0.14])("ignores %d s", (drift) => {
     expect(planCorrection({ ...base, drift })).toEqual({ kind: "none" });
   });
 
   it.each([
+    [0.15, 0.985],
+    [-0.15, 1.015],
     [0.3, 0.97],
     [-0.3, 1.03],
     [0.5, 0.95],
@@ -108,8 +110,8 @@ describe("planCorrection", () => {
   });
 
   it("keeps a running correction going below the point that started it", () => {
-    expect(planCorrection({ ...base, correcting: true, drift: 0.2 }).kind).toBe("rate");
-    expect(planCorrection({ ...base, correcting: true, drift: 0.09 }).kind).toBe("none");
+    expect(planCorrection({ ...base, correcting: true, drift: 0.1 }).kind).toBe("rate");
+    expect(planCorrection({ ...base, correcting: true, drift: 0.04 }).kind).toBe("none");
   });
 
   it("stays within 5% of the chosen speed", () => {
@@ -118,7 +120,7 @@ describe("planCorrection", () => {
   });
 
   it("seeks when paused, because speed can't help", () => {
-    expect(planCorrection({ ...base, playing: false, drift: 0.3 })).toEqual({ kind: "seek" });
-    expect(planCorrection({ ...base, playing: false, drift: 0.29 })).toEqual({ kind: "none" });
+    expect(planCorrection({ ...base, playing: false, drift: 0.15 })).toEqual({ kind: "seek" });
+    expect(planCorrection({ ...base, playing: false, drift: 0.14 })).toEqual({ kind: "none" });
   });
 });
