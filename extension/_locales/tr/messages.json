@@ -259,5 +259,14 @@
   },
   "starting": {
     "message": "Başlatılıyor…"
+  },
+  "notifyPlayed": {
+    "message": "Video başlatıldı"
+  },
+  "notifyPaused": {
+    "message": "Video durduruldu"
+  },
+  "notifySeeked": {
+    "message": "Video başka bir yere sarıldı"
   }
 }

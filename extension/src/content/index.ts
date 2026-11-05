@@ -26,7 +26,7 @@ import {
 import { VideoTracker } from "./detection/tracker";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
-import { SyncEngine } from "./sync/engine";
+import { SyncEngine, type RemoteChange } from "./sync/engine";
 
 const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
@@ -39,7 +39,17 @@ type Room = {
   stop: () => void;
 };
 
-function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker): Room {
+const CHANGE_MESSAGES: Record<RemoteChange, string> = {
+  played: "notifyPlayed",
+  paused: "notifyPaused",
+  seeked: "notifySeeked",
+};
+
+function startRoom(
+  { code, serverUrl }: TabSession,
+  tracker: VideoTracker,
+  onRemoteChange: (change: RemoteChange) => void,
+): Room {
   const clock = new ServerClock();
   let connectionStatus: ConnectionStatus = "connecting";
   let closeReason: CloseReason | null = null;
@@ -50,6 +60,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker): Room
     serverNow: () => Date.now() + clock.offset,
     send: (state) => connection.sendState(state),
     holdFor: (roomPosition) => tracker.holdReason(roomPosition, peers > 1),
+    onRemoteChange,
   });
   const connection = new RoomConnection({
     url: roomSocketUrl(serverUrl, code),
@@ -134,7 +145,9 @@ class FrameSession {
 
   setActive(active: boolean): void {
     if (active && !this.room) {
-      this.room = startRoom(this.session, this.tracker);
+      this.room = startRoom(this.session, this.tracker, (change) => {
+        this.badge?.flash(CHANGE_MESSAGES[change]);
+      });
       void this.startBadge();
     } else if (!active && this.room) {
       this.stopBadge();

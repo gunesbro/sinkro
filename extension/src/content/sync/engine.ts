@@ -44,6 +44,12 @@ export type SyncedVideo = Pick<
   | "seeking"
 >;
 
+/** What someone else just did, for telling the viewer. */
+export type RemoteChange = "played" | "paused" | "seeked";
+
+/** A jump smaller than this is drift being settled, not someone seeking. */
+const SEEK_NOTICE_SECONDS = 2;
+
 export type EngineDeps = {
   now: () => number;
   serverNow: () => number;
@@ -51,6 +57,7 @@ export type EngineDeps = {
   send: (state: PlaybackState) => boolean;
   /** Says why the video can't follow the room right now, such as an ad playing. */
   holdFor?: (roomPosition: number | null) => HoldReason | null;
+  onRemoteChange?: (change: RemoteChange) => void;
 };
 
 export type EngineSnapshot = {
@@ -175,8 +182,19 @@ export class SyncEngine {
     // than what we sent, and everyone is about to receive ours after it.
     if (this.unacked > 0 || this.publishTimer !== null) return;
 
+    const change = this.describeChange(state);
     this.setTimeline(state);
     this.apply(true);
+    if (change) this.deps.onRemoteChange?.(change);
+  }
+
+  private describeChange(next: PlaybackState): RemoteChange | null {
+    const { timeline } = this;
+    if (!timeline) return null;
+    if (timeline.playing !== next.playing) return next.playing ? "played" : "paused";
+
+    const expected = targetPosition(timeline, next.sentAt, Number.POSITIVE_INFINITY);
+    return Math.abs(expected - next.position) > SEEK_NOTICE_SECONDS ? "seeked" : null;
   }
 
   /** The room dropped a message of ours, so its echo will never come. */

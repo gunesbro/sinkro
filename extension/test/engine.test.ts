@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlaybackState, RoomState } from "../../server/src/protocol";
 import type { HoldReason } from "../src/content/detection/ads";
-import { SyncEngine } from "../src/content/sync/engine";
+import { SyncEngine, type RemoteChange } from "../src/content/sync/engine";
 import { FakeVideo } from "./fake-video";
 
 const ME = "me";
@@ -9,6 +9,7 @@ const PEER = "peer";
 const CLOCK_OFFSET_MS = 5000;
 
 function setup() {
+  const changes: RemoteChange[] = [];
   const sent: PlaybackState[] = [];
   const video = new FakeVideo();
   const hold: { reason: HoldReason | null; roomPosition: number | null } = {
@@ -20,6 +21,7 @@ function setup() {
   const engine = new SyncEngine({
     now: Date.now,
     serverNow,
+    onRemoteChange: (change) => changes.push(change),
     holdFor: (roomPosition) => {
       hold.roomPosition = roomPosition;
       return hold.reason;
@@ -45,7 +47,7 @@ function setup() {
   const setOnline = (value: boolean) => {
     online = value;
   };
-  return { engine, video, sent, peerState, serverNow, setOnline, hold };
+  return { engine, video, sent, peerState, serverNow, setOnline, hold, changes };
 }
 
 /** Joins a room others are in, and settles on a playing timeline at `position`. */
@@ -980,6 +982,64 @@ describe("connection loss", () => {
     await settle();
 
     expect(video.position).toBe(900);
+  });
+});
+
+describe("telling the viewer what someone else did", () => {
+  it.each<[string, Partial<RoomState>, RemoteChange]>([
+    ["a pause", { playing: false, position: 100 }, "paused"],
+    ["a seek forward", { position: 500 }, "seeked"],
+    ["a seek back", { position: 10 }, "seeked"],
+  ])("reports %s", async (_, state, expected) => {
+    const context = setup();
+    await joinPlaying(context);
+    context.engine.handleState(context.peerState(state));
+
+    expect(context.changes).toEqual([expected]);
+  });
+
+  it("reports playback starting", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.engine.handleState(context.peerState({ playing: false, position: 100 }));
+    context.changes.length = 0;
+    context.engine.handleState(context.peerState({ playing: true, position: 100 }));
+
+    expect(context.changes).toEqual(["played"]);
+  });
+
+  it("says nothing about a state that changes nothing", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.engine.handleState(context.peerState({ position: 100 }));
+
+    expect(context.changes).toEqual([]);
+  });
+
+  it("accounts for the time passed since the last state", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    await vi.advanceTimersByTimeAsync(10_000);
+    context.engine.handleState(context.peerState({ position: 110 }));
+
+    expect(context.changes).toEqual([]);
+  });
+
+  it("says nothing about joining a room already playing", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    expect(context.changes).toEqual([]);
+  });
+
+  it("says nothing about the viewer's own actions", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, video, sent, peerState, changes } = context;
+    video.pause();
+    await settle();
+    engine.handleState(peerState({ ...sent[0], from: ME }));
+
+    expect(changes).toEqual([]);
   });
 });
 
