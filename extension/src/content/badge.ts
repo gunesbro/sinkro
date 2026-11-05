@@ -171,7 +171,7 @@ export class VideoBadge {
       pointer-events: none;`;
     const root = this.host.attachShadow({ mode: "closed" });
     this.returnAction = this.createPanelButton("backToRoom", false, options.onGo);
-    this.bringAction = this.createPanelButton("bringHere", false, options.onBring);
+    this.bringAction = this.createPanelButton("bring", false, options.onBring);
     this.leaveAction = this.createPanelButton("leave", false, options.onLeave);
     this.leaveAction.style.color = DANGER;
     this.buildContent(root);
@@ -379,7 +379,7 @@ export class VideoBadge {
   private actionLabel(notice: Notice, status: SessionStatus, isStarting: boolean): string {
     switch (notice.action) {
       case "bring":
-        return translate(this.messages, "bringHere");
+        return translate(this.messages, "bring");
       case "return":
         return translate(this.messages, "backToRoom");
       case "go":

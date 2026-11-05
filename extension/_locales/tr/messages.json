@@ -45,7 +45,7 @@
     "message": "Herkes 0,2 sn içinde"
   },
   "bring": {
-    "message": "Herkesi bana getir"
+    "message": "Hepsini buraya getir"
   },
   "leave": {
     "message": "Çık"
@@ -63,9 +63,6 @@
         "content": "$1"
       }
     }
-  },
-  "bringHere": {
-    "message": "Herkesi buraya getir"
   },
   "goThere": {
     "message": "Onun bölümüne git"
@@ -126,7 +123,7 @@
     "message": "Bağlanıyor…"
   },
   "catchingUp": {
-    "message": "Yakalıyor"
+    "message": "Yetişiyor"
   },
   "people": {
     "message": "Bu odada $COUNT$ kişi",
@@ -147,7 +144,7 @@
     "message": "Sunucuya ulaşılamıyor. Bağlantını kontrol edip yeniden dene."
   },
   "connLostHelp": {
-    "message": "Yeniden bağlanılıyor. Dönünce odanın olduğu yere atlarsın."
+    "message": "Yeniden bağlanılıyor. Bağlantı dönünce odaya yetişirsin."
   },
   "needsGesture": {
     "message": "Katılmak için videoya tıkla"
@@ -198,7 +195,7 @@
     "message": "Reklam oynuyor"
   },
   "adPlayingHelp": {
-    "message": "Diğerleri izlemeye devam ediyor. Reklam bitince odanın olduğu yere atlarsın."
+    "message": "Diğerleri izlemeye devam ediyor. Reklam bitince odaya yetişirsin."
   },
   "onHold": {
     "message": "Beklemede"
@@ -219,7 +216,7 @@
     "message": "Bu video odayı takip edemiyor"
   },
   "cantFollowHelp": {
-    "message": "Reklam ya da başka bir video veya kaynak olabilir. Odanın videosu dönünce odanın olduğu yere atlarsın."
+    "message": "Reklam ya da başka bir video veya kaynak olabilir. Odanın videosu dönünce odaya yetişirsin."
   },
   "pastEnd": {
     "message": "Bu video odanın olduğu yerden önce bitiyor"

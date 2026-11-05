@@ -45,7 +45,7 @@
     "message": "Everyone within 0.2 s"
   },
   "bring": {
-    "message": "Bring everyone to me"
+    "message": "Bring everyone here"
   },
   "leave": {
     "message": "Leave"
@@ -63,9 +63,6 @@
         "content": "$1"
       }
     }
-  },
-  "bringHere": {
-    "message": "Bring everyone here"
   },
   "goThere": {
     "message": "Go to their episode"
@@ -147,7 +144,7 @@
     "message": "Can't reach the server. Check your connection and try again."
   },
   "connLostHelp": {
-    "message": "Reconnecting. You'll jump back to the room's spot when it's back."
+    "message": "Reconnecting. You'll catch up with the room when it's back."
   },
   "needsGesture": {
     "message": "Click the video to join in"
@@ -198,7 +195,7 @@
     "message": "An ad is playing"
   },
   "adPlayingHelp": {
-    "message": "Everyone else carries on. You'll jump to the room's spot when it ends."
+    "message": "Everyone else carries on. You'll catch up with them when it ends."
   },
   "onHold": {
     "message": "On hold"
@@ -219,7 +216,7 @@
     "message": "This video can't follow the room"
   },
   "cantFollowHelp": {
-    "message": "It may be an ad, or a different video or source. You'll jump to the room's spot when the room's video is back."
+    "message": "It may be an ad, or a different video or source. You'll catch up when the room's video is back."
   },
   "pastEnd": {
     "message": "This video ends before the room's spot"
