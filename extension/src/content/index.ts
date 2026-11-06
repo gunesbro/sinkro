@@ -111,6 +111,7 @@ type RoomHooks = {
   filmDetails: () => Pick<RoomState, "duration" | "source">;
   lastInputAt: () => number;
   sourceMismatch: () => SourceMismatch | null;
+  isLive: () => boolean;
 };
 
 function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks: RoomHooks): Room {
@@ -147,6 +148,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     onOwnChange: hooks.onOwnChange,
     filmDetails: hooks.filmDetails,
     lastInputAt: hooks.lastInputAt,
+    isLive: hooks.isLive,
     onHoldChange: (hold) => {
       // A film that can't follow is usually a player's ad without markers, as far as others care.
       isOnAd = hold === "ad" || hold === "cant_follow";
@@ -423,6 +425,10 @@ class FrameSession {
         filmDetails: () => this.filmDetails(),
         lastInputAt: () => this.lastInputAt,
         sourceMismatch: () => this.sourceMismatch(),
+        isLive: () => {
+          const video = this.tracker.video();
+          return video !== null && this.lengths.isLive(video);
+        },
       });
       void this.startBadge();
     } else if (!active && this.room) {

@@ -20,6 +20,7 @@ const connected: SessionStatus = {
   isFilmStillPlaying: false,
   isFloatingPlayer: false,
   isPreviewLike: false,
+  isLive: false,
   isOnRoomPage: false,
   position: 100,
   drift: 0,
@@ -225,6 +226,19 @@ describe("noticeFor", () => {
         sourceMismatch: { mine: 30, room: 1438, host: null },
       } as const;
       expect(noticeFor(status)?.titleKey).toBe("adPlaying");
+    });
+  });
+
+  describe("a live stream", () => {
+    it("says it's live rather than in sync or catching up", () => {
+      expect(statusLine({ ...connected, isLive: true, drift: 40 })).toEqual({
+        tone: "ok",
+        key: "liveStream",
+      });
+    });
+
+    it("still says when it's held by an ad", () => {
+      expect(statusLine({ ...connected, isLive: true, hold: "ad" }).key).toBe("onHold");
     });
   });
 

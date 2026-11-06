@@ -90,6 +90,11 @@ export type EngineDeps = {
   onRemoteChange?: (change: PlaybackChange, details: ChangeDetails) => void;
   /** This viewer's own action reached the others. Not called when nobody else is there. */
   onOwnChange?: (change: PlaybackChange, details: ChangeDetails) => void;
+  /**
+   * A live stream: each viewer's position counts from when they opened it, so positions can't
+   * be compared, and everyone is at the live edge anyway. Nothing is synced for one.
+   */
+  isLive?: () => boolean;
 };
 
 export type EngineSnapshot = {
@@ -105,6 +110,8 @@ export type EngineSnapshot = {
   needsGesture: boolean;
   /** The video isn't following the room for now, and nothing it does reaches the room. */
   hold: Hold | null;
+  /** A live stream, which isn't synced. */
+  isLive: boolean;
 };
 
 /**
@@ -198,8 +205,8 @@ export class SyncEngine {
     this.lastSeq = message.state?.seq ?? 0;
     // A room that was left empty still remembers its last state, but nobody is on that
     // timeline any more. Extrapolating it would jump the video ahead by the time away.
-    const isLive = message.state !== null && message.peers > 1;
-    this.setTimeline(isLive ? message.state : null);
+    const isOngoing = message.state !== null && message.peers > 1;
+    this.setTimeline(isOngoing ? message.state : null);
     this.syncWithRoom();
   }
 
@@ -330,18 +337,20 @@ export class SyncEngine {
 
   snapshot(): EngineSnapshot {
     const { video, timeline } = this;
+    const isLive = this.isLive();
     return {
       hasVideo: video !== null,
       paused: video?.paused ?? true,
       position: video?.currentTime ?? null,
       drift:
-        video && timeline && !this.hold && !this.isAlone
+        video && timeline && !this.hold && !this.isAlone && !isLive
           ? video.currentTime - targetPosition(timeline, this.deps.serverNow(), video.duration)
           : null,
       correcting: this.correcting,
       // A play the browser accepted can take a while to finish while the video loads.
       needsGesture: this.autoplayRetryAt !== 0 && (video?.paused ?? false),
       hold: this.hold,
+      isLive,
     };
   }
 
@@ -351,8 +360,12 @@ export class SyncEngine {
   }
 
   /** After joining or binding: follow the room if it has a timeline, otherwise start one. */
+  private isLive(): boolean {
+    return this.video !== null && (this.deps.isLive?.() ?? false);
+  }
+
   private syncWithRoom(): void {
-    if (!this.joined || !this.video) return;
+    if (!this.joined || !this.video || this.isLive()) return;
     if (this.timeline) {
       this.apply(true);
       return;
@@ -396,6 +409,14 @@ export class SyncEngine {
   private apply(newState: boolean): void {
     const { video, timeline } = this;
     if (!this.joined || !video || !timeline) return;
+    // Leaves a live stream alone, after undoing any speed change made before it was known.
+    if (this.isLive()) {
+      if (this.correcting) {
+        this.correcting = false;
+        this.setRate(1);
+      }
+      return;
+    }
     // Playing a video that's been taken out of the page would leave its sound running.
     if (!video.isConnected) return;
 
@@ -678,7 +699,7 @@ export class SyncEngine {
   private publish(position?: number, isViewersAction = false): void {
     this.cancelPublish();
     const { video } = this;
-    if (!this.joined || !video) return;
+    if (!this.joined || !video || this.isLive()) return;
 
     const state: PlaybackState = {
       playing: !video.paused,
