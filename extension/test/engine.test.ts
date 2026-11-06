@@ -1228,6 +1228,91 @@ describe("telling the viewer what they did themselves", () => {
   });
 });
 
+describe("a page's video starting by itself just after joining", () => {
+  const untouched = () => setup({ lastInputAt: () => Number.NEGATIVE_INFINITY });
+
+  it("doesn't take the room back to the page's start", async () => {
+    const context = untouched();
+    const { engine, video, sent, peerState } = context;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: peerState({ position: 300 }), peers: 2 });
+    await settle();
+    sent.length = 0;
+
+    // The page's own player starts over from zero, with nobody touching anything.
+    video.userSeek(0);
+    await play(video, 1500);
+
+    expect(sent).toEqual([]);
+    expect(video.position).toBeGreaterThan(299);
+  });
+
+  it("doesn't start a paused room either", async () => {
+    const context = untouched();
+    const { engine, video, sent, peerState } = context;
+    engine.bind(video.asVideo());
+    engine.handleJoined({
+      clientId: ME,
+      state: peerState({ playing: false, position: 300 }),
+      peers: 2,
+    });
+    await settle();
+    sent.length = 0;
+
+    video.userPlay();
+    await play(video, 1500);
+
+    expect(sent).toEqual([]);
+    expect(video.paused).toBe(true);
+  });
+
+  it("still sends what the viewer does, with a click or key, straight away", async () => {
+    let inputAt = Number.NEGATIVE_INFINITY;
+    const context = setup({ lastInputAt: () => inputAt });
+    const { engine, video, sent, peerState } = context;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: peerState({ position: 300 }), peers: 2 });
+    await settle();
+    sent.length = 0;
+
+    inputAt = Date.now();
+    video.userSeek(800);
+    await settle();
+
+    expect(sent).toMatchObject([{ position: 800 }]);
+  });
+
+  it("is the room's own when alone in it", async () => {
+    const context = untouched();
+    const { engine, video, sent } = context;
+    engine.bind(video.asVideo());
+    video.position = 10;
+    engine.handleJoined({ clientId: ME, state: null, peers: 1 });
+    await settle();
+    sent.length = 0;
+
+    video.userSeek(500);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(sent).toMatchObject([{ position: 500 }]);
+  });
+
+  it("goes back to counting once the viewer has been there a while", async () => {
+    const context = untouched();
+    const { engine, video, sent, peerState } = context;
+    engine.bind(video.asVideo());
+    video.position = 300;
+    engine.handleJoined({ clientId: ME, state: peerState({ position: 300 }), peers: 2 });
+    await play(video, 5000);
+    sent.length = 0;
+
+    video.userSeek(900);
+    await settle();
+
+    expect(sent).toMatchObject([{ position: 900 }]);
+  });
+});
+
 describe("telling the viewer's actions from the player's own", () => {
   /** The viewer last touched the page long ago, so whatever happens now is the player. */
   const untouched = () => setup({ lastInputAt: () => Number.NEGATIVE_INFINITY });
@@ -1235,7 +1320,8 @@ describe("telling the viewer's actions from the player's own", () => {
   it("waits a moment before passing on a pause nobody pressed", async () => {
     const context = untouched();
     await joinPlaying(context);
-    await vi.advanceTimersByTimeAsync(1000);
+    // Past the first moments after joining, when a player starting by itself just follows.
+    await play(context.video, 4500);
     context.video.pause();
     await settle();
     expect(context.sent).toEqual([]);
@@ -1247,7 +1333,8 @@ describe("telling the viewer's actions from the player's own", () => {
   it("doesn't undo the pause while it waits, which would leave nothing to pass on", async () => {
     const context = untouched();
     await joinPlaying(context);
-    await vi.advanceTimersByTimeAsync(1000);
+    // Past the first moments after joining, when a player starting by itself just follows.
+    await play(context.video, 4500);
     context.video.pause();
     await settle();
     await vi.advanceTimersByTimeAsync(250);
@@ -1261,7 +1348,8 @@ describe("telling the viewer's actions from the player's own", () => {
   it("doesn't pass it on when an ad starts over the film meanwhile", async () => {
     const context = untouched();
     await joinPlaying(context);
-    await vi.advanceTimersByTimeAsync(1000);
+    // Past the first moments after joining, when a player starting by itself just follows.
+    await play(context.video, 4500);
     context.video.pause();
     await settle();
     context.hold.reason = "ad";
@@ -1274,7 +1362,8 @@ describe("telling the viewer's actions from the player's own", () => {
     let inputAt = Number.NEGATIVE_INFINITY;
     const context = setup({ lastInputAt: () => inputAt });
     await joinPlaying(context);
-    await vi.advanceTimersByTimeAsync(1000);
+    // Past the first moments after joining, when a player starting by itself just follows.
+    await play(context.video, 4500);
     inputAt = Date.now();
     context.video.pause();
     await settle();

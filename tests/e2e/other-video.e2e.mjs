@@ -504,6 +504,7 @@ try {
   await a.tab.evaluate(() => window.v.pause());
   await until(async () => (await b.video()).paused);
   check("A's pause reaches B on the new video", (await b.video()).paused);
+  await b.tab.keyboard.press("Shift");
   await b.tab.evaluate(() => window.v.play());
   await until(async () => !(await a.video()).paused);
   check("and B's play reaches A", !(await a.video()).paused);
@@ -532,6 +533,7 @@ try {
   await until(async () => (await kindOf(b)) === null && (await b.status())?.peers === 2);
   await popupB3.close();
   await b.tab.bringToFront();
+  await b.tab.keyboard.press("Shift");
   await b.tab.evaluate(() => {
     window.v.currentTime = 700;
   });

@@ -354,6 +354,9 @@ try {
     const sent = obs.states.length - before;
     check(`${name}: exactly one message, no echo`, sent === 1, `${sent} states`);
   }
+  // A person presses something to play. Right after joining, a play with no key or click is
+  // taken for the page's own player starting by itself, and follows the room instead.
+  await a.video.keyboard.press("Shift");
   await action(
     "A plays",
     () => a.act(() => document.querySelector("video").play()),
@@ -561,6 +564,32 @@ try {
     JSON.stringify([positionBeforeStuck, aAfterStuck.t]),
   );
   await stuck.leave();
+
+  // ---- a page whose player starts over by itself just after someone joins, as autoplay can
+  const late = await launch("late");
+  everyone.push(late);
+  const statesBeforeLate = obs.states.length;
+  await late.join(code);
+  await until(async () => (await late.status())?.connection === "connected", 10000);
+  await wait(800);
+  // Nobody touches anything: the page's own script puts its film back to the start and plays.
+  await late.act(() => {
+    const video = document.querySelector("video");
+    video.currentTime = 0;
+    video.play();
+  });
+  await wait(4000);
+  check(
+    "a player starting over by itself just after joining doesn't take the room back",
+    obs.states.length === statesBeforeLate && (await a.read()).t > 100,
+    `${obs.states.length - statesBeforeLate} states, A at ${(await a.read()).t.toFixed(1)}`,
+  );
+  check(
+    "and that viewer follows the room instead",
+    near((await late.read()).t, (await a.read()).t, 2),
+    JSON.stringify([(await late.read()).t, (await a.read()).t]),
+  );
+  await late.leave();
 
   // ---- autoplay policy
   const shy = await launch("shy", { autoplay: false, untouched: true });
