@@ -197,7 +197,7 @@ function renderRoom(): void {
     setDot("alert-dot", shownNotice.tone);
     element("alert-title").textContent = t(shownNotice.titleKey, shownNotice.titleSubstitutions);
     element("alert-detail").textContent = shownNotice.detail ?? "";
-    element("alert-body").textContent = t(shownNotice.bodyKey);
+    element("alert-body").textContent = t(shownNotice.bodyKey, shownNotice.bodySubstitutions);
     element("pick-room").hidden = shownNotice.action !== "pick";
   }
   element<HTMLButtonElement>("move-badge").disabled = !status?.hasVideo;

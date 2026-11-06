@@ -22,6 +22,10 @@ Then enter the `workers.dev` URL as the server URL in the extension's settings.
 
 The creation limit keeps a hash of the address for at most a minute, then deletes it. Addresses themselves aren't stored. A room is deleted 24 hours after its last person leaves, or 24 hours after it's created if nobody joins. A room with people in it closes with code `4408` and is deleted after 12 hours with no one joining and no change of playback or video. It's checked once an hour, so this can run an hour late.
 
+## A state's film details
+
+A `state` may also carry `duration`, the film's length in seconds, and `source`, the player's site sealed by the extension, up to 400 characters. Others use them to warn about a different source. A bad one is dropped and the rest of the state kept.
+
 ## Reconnecting
 
 A client may send `viewer` in `join`, any string of up to 64 characters that stays the same across its reconnects. A new join with the same value closes the older socket and replaces it, so it isn't counted twice. It's kept with the connection, not in storage.

@@ -1,5 +1,6 @@
 // What to tell the viewer about a room, shared by the popup and the on-video badge.
 import type { CloseReason } from "./content/sync/connection";
+import { formatTimecode } from "./format";
 import type { SessionStatus } from "./messages";
 
 export type Tone = "ok" | "warn" | "danger" | "idle";
@@ -51,8 +52,9 @@ export type Notice = {
    * anyone to. "go" follows the room, and "leave" is all that's left of a room that's gone.
    * "pause" is for waiting while someone else is on an ad.
    */
-  action: "pick" | "play" | "bring" | "return" | "go" | "leave" | "pause" | null;
+  action: "pick" | "play" | "bring" | "return" | "go" | "leave" | "pause" | "dismiss" | null;
   titleSubstitutions?: string[];
+  bodySubstitutions?: string[];
   /** The name of a video. It comes from a web page, so it's never a message key. */
   detail?: string;
   /** The site that video is on, because the viewer is being offered a trip there. */
@@ -73,7 +75,12 @@ export function mustShowNotice(notice: Notice | null): boolean {
 
 /** Whether the card has a button of its own for this. Picking is only offered in the popup. */
 export function hasMainButton(notice: Notice | null): boolean {
-  return isVideoChangeAction(notice) || notice?.action === "play" || notice?.action === "pause";
+  return (
+    isVideoChangeAction(notice) ||
+    notice?.action === "play" ||
+    notice?.action === "pause" ||
+    notice?.action === "dismiss"
+  );
 }
 
 /** Whether this notice is about being on a different video from the room. */
@@ -115,6 +122,17 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
   }
   if (status.hold === "cant_follow") return notice("warn", "cantFollow", "pick");
   if (status.needsGesture) return notice("warn", "needsGesture", "play");
+  if (status.sourceMismatch) {
+    const { mine, room, host } = status.sourceMismatch;
+    const lengths = [formatTimecode(mine) ?? "", formatTimecode(room) ?? ""];
+    return {
+      tone: "warn",
+      titleKey: "sourceMismatch",
+      bodyKey: host ? "sourceMismatchHostHelp" : "sourceMismatchHelp",
+      bodySubstitutions: host ? [...lengths, host] : lengths,
+      action: "dismiss",
+    };
+  }
   if (status.connection === "connected" && !status.hasVideo) {
     // Many players are only a picture and a button until someone presses it, and nothing can
     // press it for them: it's often what sets off the site's ads and pop-ups.

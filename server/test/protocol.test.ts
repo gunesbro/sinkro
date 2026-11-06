@@ -48,6 +48,29 @@ describe("parseServerMessage", () => {
   });
 });
 
+describe("a state's film details", () => {
+  const base = { type: "state", playing: true, position: 10, rate: 1, sentAt: 1 };
+
+  it("carries a length and a sealed source", () => {
+    const parsed = parseClientMessage(JSON.stringify({ ...base, duration: 1471, source: "abc" }));
+    expect(parsed).toEqual({ ...base, duration: 1471, source: "abc" });
+  });
+
+  it.each([
+    ["a negative length", { duration: -5 }],
+    ["an endless one", { duration: "Infinity" }],
+    ["an over-long source", { source: "x".repeat(401) }],
+    ["an empty source", { source: "" }],
+  ])("drops %s and keeps the state", (_, extra) => {
+    expect(parseClientMessage(JSON.stringify({ ...base, ...extra }))).toEqual(base);
+  });
+
+  it("reads them back from the server", () => {
+    const state = { ...base, seq: 1, from: "a", duration: 60, source: "s" };
+    expect(parseServerMessage(JSON.stringify(state))).toEqual(state);
+  });
+});
+
 describe("parseClientMessage", () => {
   it.each([
     [{ type: "join", protocol: 1 }],

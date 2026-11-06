@@ -11,7 +11,7 @@ import type {
   TabRequest,
   TabSession,
 } from "../messages";
-import { openRoomVideo, sealRoomVideo } from "../room-video";
+import { openPlayerHost, openRoomVideo, sealPlayerHost, sealRoomVideo } from "../room-video";
 import { getServerUrl } from "../settings";
 import {
   broughtHere,
@@ -321,6 +321,14 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
             return recordReport(tabId, frameId, request.score);
           }),
         };
+      case "source/seal": {
+        const session = await getSession(tabId);
+        return session ? sealPlayerHost(session.code, request.host) : null;
+      }
+      case "source/open": {
+        const session = await getSession(tabId);
+        return session ? openPlayerHost(session.code, request.sealed) : null;
+      }
       case "video/on-room-page":
         return isOnRoomPage(await getTabVideo(tabId));
       case "room/people":

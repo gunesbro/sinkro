@@ -73,6 +73,7 @@ export type BadgeOptions = {
   onGo: () => void;
   onLeave: () => void;
   onPause: () => void;
+  onDismiss: () => void;
   onPositionChange: (position: BadgePosition | null) => void;
 };
 
@@ -197,6 +198,8 @@ export class VideoBadge {
         options.onGo();
       } else if (this.actionShown === "pause") {
         options.onPause();
+      } else if (this.actionShown === "dismiss") {
+        options.onDismiss();
       } else {
         // Answer the click at once: playback can take a moment to start.
         this.joinPressedAt = Date.now();
@@ -379,7 +382,7 @@ export class VideoBadge {
     this.cardDetail.style.display = notice.detail ? "-webkit-box" : "none";
     this.setText(this.cardHost, notice.host ?? "");
     this.cardHost.style.display = notice.host ? "block" : "none";
-    this.setText(this.cardBody, translate(this.messages, notice.bodyKey));
+    this.setText(this.cardBody, translate(this.messages, notice.bodyKey, notice.bodySubstitutions));
 
     this.actionShown = notice.action;
     const show = (button: HTMLElement, isShown: boolean) => {
@@ -408,6 +411,8 @@ export class VideoBadge {
         return translate(this.messages, "backToRoom");
       case "pause":
         return translate(this.messages, "pauseVideo");
+      case "dismiss":
+        return translate(this.messages, "gotIt");
       case "go":
         return translate(this.messages, "goThere");
       default:

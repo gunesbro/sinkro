@@ -13,6 +13,7 @@ const connected: SessionStatus = {
   hasVideo: true,
   paused: false,
   othersOnAd: 0,
+  sourceMismatch: null,
   isFilmStillPlaying: false,
   isFloatingPlayer: false,
   isOnRoomPage: false,
@@ -186,6 +187,40 @@ describe("noticeFor", () => {
 
     it("goes once the video turns up", () => {
       expect(noticeFor({ ...waiting, hasVideo: true })).toBeNull();
+    });
+  });
+
+  describe("a film of another length in the room", () => {
+    it("says both lengths and the room's player, and can be put away", () => {
+      const status = {
+        ...connected,
+        sourceMismatch: { mine: 1471, room: 1438, host: "video.example.com" },
+      };
+      expect(noticeFor(status)).toMatchObject({
+        titleKey: "sourceMismatch",
+        bodyKey: "sourceMismatchHostHelp",
+        bodySubstitutions: ["24:31", "23:58", "video.example.com"],
+        action: "dismiss",
+      });
+      expect(hasMainButton(noticeFor(status))).toBe(true);
+      expect(mustShowNotice(noticeFor(status))).toBe(false);
+    });
+
+    it("leaves the player out when it isn't known", () => {
+      const status = { ...connected, sourceMismatch: { mine: 1471, room: 1438, host: null } };
+      expect(noticeFor(status)).toMatchObject({
+        bodyKey: "sourceMismatchHelp",
+        bodySubstitutions: ["24:31", "23:58"],
+      });
+    });
+
+    it("gives way to the viewer's own ad", () => {
+      const status = {
+        ...connected,
+        hold: "ad",
+        sourceMismatch: { mine: 30, room: 1438, host: null },
+      } as const;
+      expect(noticeFor(status)?.titleKey).toBe("adPlaying");
     });
   });
 

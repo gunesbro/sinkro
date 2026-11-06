@@ -64,6 +64,8 @@ export type EngineDeps = {
   /** Says why the video can't follow the room right now, such as an ad playing. */
   holdFor?: (roomPosition: number | null) => Hold | null;
   onHoldChange?: (hold: Hold | null) => void;
+  /** What goes with each state about the film itself, for spotting a different source. */
+  filmDetails?: () => Pick<PlaybackState, "duration" | "source">;
   /** `rate` is the speed the room is at now, and `jumped` is whether its position moved too. */
   onRemoteChange?: (change: PlaybackChange, details: ChangeDetails) => void;
   /** This viewer's own action reached the others. Not called when nobody else is there. */
@@ -602,6 +604,7 @@ export class SyncEngine {
         position ?? (Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : 0),
       rate: Math.min(MAX_RATE, Math.max(MIN_RATE, this.baseRate)),
       sentAt: this.deps.serverNow(),
+      ...this.deps.filmDetails?.(),
     };
     if (!this.deps.send(state)) return;
 
