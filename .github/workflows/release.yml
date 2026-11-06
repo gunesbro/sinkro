@@ -1,0 +1,80 @@
+name: Release
+
+# Pushing a tag like v0.1.0, matching extension/package.json, checks everything, builds the
+# packages and publishes them as a GitHub release. Run by hand, it only builds them.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      # Optional. With them, the Firefox package is signed by Mozilla as an unlisted add-on, so
+      # it installs from a link. Without them, Firefox users load it as a temporary add-on.
+      AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+      AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      - name: Check the tag matches the extension's version
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(node -p "require('./extension/package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "The tag is $GITHUB_REF_NAME but extension/package.json says $version."
+            exit 1
+          fi
+
+      - run: npm run check
+      - run: npm run package -w extension
+
+      - name: Sign the Firefox package as unlisted
+        if: github.ref_type == 'tag' && env.AMO_JWT_ISSUER != ''
+        run: |
+          # The extension is bundled, so Mozilla's reviewers get the readable source with it.
+          git archive --format=zip -o "$RUNNER_TEMP/sinkro-source.zip" HEAD
+          npx web-ext sign \
+            --source-dir extension/dist/firefox \
+            --artifacts-dir extension/release \
+            --channel unlisted \
+            --api-key "$AMO_JWT_ISSUER" \
+            --api-secret "$AMO_JWT_SECRET" \
+            --upload-source-code "$RUNNER_TEMP/sinkro-source.zip"
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(extension/release/*.zip extension/release/*.xpi)
+          cat > "$RUNNER_TEMP/notes.md" <<'NOTES'
+          Sinkro isn't in the extension stores yet. To install this version:
+
+          **Chrome or Edge:** download `sinkro-chrome-*.zip` and unzip it. Open `chrome://extensions` or `edge://extensions`, turn on developer mode, choose **Load unpacked** and select the unzipped folder.
+
+          **Firefox:** if there's an `.xpi` below, open it in Firefox to install. Otherwise download `sinkro-firefox-*.zip`, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on** and pick the zip. A temporary add-on goes away when Firefox closes.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+            --title "Sinkro $GITHUB_REF_NAME" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --prerelease
+
+      - name: Keep the packages from a run by hand
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sinkro-packages
+          path: extension/release
