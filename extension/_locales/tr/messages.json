@@ -443,5 +443,8 @@
   },
   "serverDefault": {
     "message": "Sinkro sunucusu (varsayılan)"
+  },
+  "serverSetup": {
+    "message": "Kendi sunucunu nasıl kurarsın? (GitHub)"
   }
 }

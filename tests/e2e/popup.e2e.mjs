@@ -424,6 +424,13 @@ try {
       (await popupB.evaluate(() => chrome.storage.local.get("serverUrl"))).serverUrl === undefined,
     await popupB.getAttribute("#server-input", "placeholder"),
   );
+  check(
+    "settings link to how to run your own server",
+    (await popupB.getAttribute("#server-setup", "href")) ===
+      "https://github.com/gunesbro/sinkro/tree/main/server#self-hosting" &&
+      (await text(popupB, "#server-setup")) === "How to run your own server (GitHub)",
+    await text(popupB, "#server-setup"),
+  );
   await popupB.fill("#server-input", "not a url");
   await popupB.click("#settings-form button[type=submit]");
   await until(async () => (await text(popupB, "#server-error")).length > 0);

@@ -443,5 +443,8 @@
   },
   "serverDefault": {
     "message": "Sinkro's server (default)"
+  },
+  "serverSetup": {
+    "message": "How to run your own server (GitHub)"
   }
 }
