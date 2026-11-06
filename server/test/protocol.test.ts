@@ -11,6 +11,7 @@ describe("parseServerMessage", () => {
     [{ type: "joined", clientId: "a", state: null, peers: 2, video: "sealed" }],
     [{ type: "joined", clientId: "a", state: null, peers: 2, ads: 1 }],
     [{ type: "ads", count: 2 }],
+    [{ type: "left_behind", count: 1 }],
     [{ type: "spread", seconds: 0.12 }],
     [{ type: "error", code: "server_error" }],
     [{ type: "video", sealed: "abc", fresh: true }],

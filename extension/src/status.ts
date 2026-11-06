@@ -144,6 +144,17 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
     }
     return notice("idle", "noVideo", "pick");
   }
+  if (status.othersBehind > 0) {
+    const here = Math.max(status.peers - status.othersBehind, 1);
+    return {
+      tone: "idle",
+      titleKey: "othersBehind",
+      titleSubstitutions: [String(here), String(status.peers)],
+      bodyKey: status.othersBehind === 1 ? "oneBehindHelp" : "othersBehindHelp",
+      bodySubstitutions: [String(status.othersBehind)],
+      action: "dismiss",
+    };
+  }
   if (status.othersOnAd > 0) {
     return {
       tone: "warn",
