@@ -1,6 +1,7 @@
 import { mergeState, type FieldVersions } from "./merge";
 import { DurableObject } from "cloudflare:workers";
 import {
+  type Film,
   CloseCode,
   MIN_PROTOCOL_VERSION,
   PROTOCOL_VERSION,
@@ -44,6 +45,8 @@ type Attachment = {
   drift?: number;
   /** Asked to come to the room's new video, and hasn't yet. */
   behind?: boolean;
+  /** The film this viewer has, as they last said. */
+  film?: Film;
 };
 /** Smaller changes to the room's spread aren't worth waking everyone for. */
 const SPREAD_STEP_SECONDS = 0.05;
@@ -131,11 +134,19 @@ export class Room extends DurableObject {
         this.announceAds();
         return;
       }
+      case "film": {
+        if (!this.clientIdOf(ws)) return this.sendError(ws, "not_joined");
+        const { type: _, ...film } = message;
+        this.patchAttachment(ws, { film });
+        this.announceFilms();
+        return;
+      }
       case "behind": {
         if (!this.clientIdOf(ws)) return this.sendError(ws, "not_joined");
         if (this.isBehind(ws) === message.behind) return;
         this.patchAttachment(ws, { behind: message.behind });
         this.announceBehind();
+        if (this.filmOf(ws)) this.announceFilms();
         return;
       }
       case "drift": {
@@ -239,11 +250,13 @@ export class Room extends DurableObject {
     // After a network drop the old socket can look open for a long time, and it's this viewer.
     let replacedOneOnAd = false;
     let replacedOneBehind = false;
+    let replacedOneWithFilm = false;
     if (viewer) {
       for (const socket of this.joinedSockets()) {
         if (socket === ws || this.viewerOf(socket) !== viewer) continue;
         replacedOneOnAd ||= this.isOnAd(socket);
         replacedOneBehind ||= this.isBehind(socket);
+        replacedOneWithFilm ||= this.filmOf(socket) !== null;
         socket.serializeAttachment({ clientId: null } satisfies Attachment);
         socket.close(1000);
       }
@@ -262,6 +275,10 @@ export class Room extends DurableObject {
     this.broadcast({ type: "peers", count: peers }, ws);
     if (replacedOneOnAd) this.announceAds();
     if (replacedOneBehind) this.announceBehind();
+    if (replacedOneWithFilm) this.announceFilms();
+    else if (this.joinedSockets().some((socket) => this.filmOf(socket) !== null)) {
+      this.send(ws, { type: "films", films: this.filmsFor(ws) });
+    }
     const behind = this.joinedSockets().filter((socket) => this.isBehind(socket)).length;
     if (behind > 0) this.send(ws, { type: "left_behind", count: behind });
     const spread = this.spread();
@@ -275,10 +292,12 @@ export class Room extends DurableObject {
     if (this.clientIdOf(ws)) {
       const wasOnAd = this.isOnAd(ws);
       const wasBehind = this.isBehind(ws);
+      const hadFilm = this.filmOf(ws) !== null;
       ws.serializeAttachment({ clientId: null } satisfies Attachment);
       this.broadcast({ type: "peers", count: remaining.length }, ws);
       if (wasOnAd) this.announceAds();
       if (wasBehind) this.announceBehind();
+      if (hadFilm) this.announceFilms();
       this.lastSpread = null;
       this.announceSpread();
     }
@@ -364,6 +383,33 @@ export class Room extends DurableObject {
     const total = sockets.filter((socket) => this.isOnAd(socket)).length;
     for (const socket of sockets) {
       this.send(socket, { type: "ads", count: total - (this.isOnAd(socket) ? 1 : 0) });
+    }
+  }
+
+  private filmOf(ws: WebSocket): Film | null {
+    return (ws.deserializeAttachment() as Attachment | null)?.film ?? null;
+  }
+
+  /**
+   * The others' films, alike ones counted together. Each is told only about the rest, and not
+   * about anyone on another page: they aren't on the room's video, so their film says nothing.
+   */
+  private filmsFor(ws: WebSocket): (Film & { count: number })[] {
+    const films = new Map<string, Film & { count: number }>();
+    for (const socket of this.joinedSockets()) {
+      const film = socket === ws || this.isBehind(socket) ? null : this.filmOf(socket);
+      if (!film) continue;
+      const key = `${film.duration === undefined ? "" : Math.round(film.duration)}|${film.source ?? ""}`;
+      const known = films.get(key);
+      if (known) known.count += 1;
+      else films.set(key, { ...film, count: 1 });
+    }
+    return [...films.values()];
+  }
+
+  private announceFilms(): void {
+    for (const socket of this.joinedSockets()) {
+      this.send(socket, { type: "films", films: this.filmsFor(socket) });
     }
   }
 

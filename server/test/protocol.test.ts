@@ -84,6 +84,33 @@ describe("a state's film details", () => {
     expect(parseClientMessage(JSON.stringify({ ...base, ...extra }))).toEqual(base);
   });
 
+  it("reads a film, dropping a bad part and keeping the rest", () => {
+    expect(
+      parseClientMessage(JSON.stringify({ type: "film", duration: 1471, source: "s" })),
+    ).toEqual({
+      type: "film",
+      duration: 1471,
+      source: "s",
+    });
+    expect(parseClientMessage(JSON.stringify({ type: "film", duration: -1, source: "s" }))).toEqual(
+      {
+        type: "film",
+        source: "s",
+      },
+    );
+  });
+
+  it("reads the others' films back from the server", () => {
+    const films = {
+      type: "films",
+      films: [{ duration: 60, source: "s", count: 2 }, { count: "x" }],
+    };
+    expect(parseServerMessage(JSON.stringify(films))).toEqual({
+      type: "films",
+      films: [{ duration: 60, source: "s", count: 2 }],
+    });
+  });
+
   it("reads them back from the server", () => {
     const state = { ...base, seq: 1, from: "a", duration: 60, source: "s" };
     expect(parseServerMessage(JSON.stringify(state))).toEqual(state);

@@ -46,6 +46,10 @@ A client that has joined may send `{"type":"drift","seconds":0.08}`, how far it 
 
 A client that has joined can send `{"type":"ad","watching":true}`. Everyone who has joined gets `{"type":"ads","count":n}`, counting the others on an ad, and someone joining gets it in `joined` as `ads`, when any are. It's kept with the connection, not in storage.
 
+## Everyone's film
+
+A client that has joined sends `{"type":"film","duration":1420,"source":"..."}` when its film changes and after joining: the length in seconds once it has settled, left out for a live stream, and the player's site sealed by the extension. Everyone who has joined gets `{"type":"films","films":[{"duration":1420,"source":"...","count":2}]}`, the others' films with alike ones counted together, leaving out anyone on another page; someone joining gets it too. A client compares its own length with what most of the others have. It's kept with the connection, not in storage.
+
 ## Someone on another video
 
 A client that has joined and isn't on the room's video, because it went elsewhere or hasn't followed after someone brought everyone, sends `{"type":"behind","behind":true}`, and `false` once it's back. It says nothing about which page. Everyone who has joined gets `{"type":"left_behind","count":n}`, counting the others who aren't on it, and someone joining gets it too when any are. It's kept with the connection, not in storage.

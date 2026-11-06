@@ -227,7 +227,8 @@ try {
   });
   await wait(300);
   await af.evaluate(() => window.v.play());
-  const mismatch = await until(async () => (await b.status())?.sourceMismatch, 10000);
+  // Lengths are compared once they've settled, a few seconds in.
+  const mismatch = await until(async () => (await b.status())?.sourceMismatch, 20000);
   check("a different cut in the room is noticed", !!mismatch, JSON.stringify(mismatch));
   check(
     "with both lengths",
@@ -256,12 +257,13 @@ try {
   const syncing = await b.status();
   check("and the sync carries on meanwhile", syncing.hold === null, String(syncing.hold));
 
-  // The same cut as the room's: nothing to say. Checked before B does anything, because once
-  // B pauses or plays, B's own state carries the other length and A is rightly told too.
+  // Two people on two lengths: there's no knowing which one is right, so both are told, and
+  // without anyone pressing anything, since each says what film they have.
+  const toldToo = await until(async () => (await a.status())?.sourceMismatch, 10000);
   check(
-    "the viewer with the room's cut isn't told anything",
-    (await a.status())?.sourceMismatch === null,
-    JSON.stringify((await a.status())?.sourceMismatch) +
+    "the other viewer is told too, with the lengths the other way round",
+    toldToo && Math.round(toldToo.mine) === 1200 && Math.round(toldToo.room) === 600,
+    JSON.stringify(toldToo) +
       " | B sent: " +
       JSON.stringify(b.sent.filter((x) => !x.includes('"ping"'))),
   );
@@ -276,6 +278,21 @@ try {
     gone = (await b.status())?.sourceMismatch === null;
   }
   check("Got it puts it away", gone);
+
+  // B switches to the room's player. Nobody presses anything, and both warnings go.
+  await b.tab.evaluate((src) => {
+    document.getElementById("box").innerHTML =
+      '<iframe src="' + src + '" width=800 height=440 allow="autoplay" style="border:0"></iframe>';
+  }, WEB + "/player");
+  const settled = await until(async () => {
+    const [sa, sb] = [await a.status(), await b.status()];
+    return sa?.sourceMismatch === null && sb?.sourceMismatch === null && sb?.hasVideo;
+  }, 20000);
+  check(
+    "once both have the same length, from switching player alone, nobody is told anything",
+    settled === true,
+    JSON.stringify([(await a.status())?.sourceMismatch, (await b.status())?.sourceMismatch]),
+  );
 } catch (error) {
   failures += 1;
   console.log("FAIL threw:", String(error).slice(0, 500));

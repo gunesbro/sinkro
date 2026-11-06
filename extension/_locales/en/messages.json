@@ -366,7 +366,7 @@
     "message": "This may be a different source"
   },
   "sourceMismatchHelp": {
-    "message": "Yours is $MINE$ long and the room's is $ROOM$. Everyone should pick the same player.",
+    "message": "Yours is $MINE$ long and the others' is $ROOM$. Everyone should pick the same player.",
     "placeholders": {
       "mine": {
         "content": "$1",
@@ -379,7 +379,7 @@
     }
   },
   "sourceMismatchHostHelp": {
-    "message": "Yours is $MINE$ long and the room's is $ROOM$, from $HOST$. Everyone should pick the same player.",
+    "message": "Yours is $MINE$ long and the others' is $ROOM$, from $HOST$. Everyone should pick the same player.",
     "placeholders": {
       "mine": {
         "content": "$1",

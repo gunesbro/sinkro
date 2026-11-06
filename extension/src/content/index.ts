@@ -2,7 +2,7 @@
 // videos and reports its best one, and the background picks one frame to run the room
 // connection and sync engine. Pages that aren't in a room get no socket and no timers.
 import type { Messages } from "../i18n";
-import type { RoomState } from "../../../server/src/protocol";
+import type { Film as FilmDetails, RoomState } from "../../../server/src/protocol";
 import type {
   BackgroundRequest,
   SourceMismatch,
@@ -36,6 +36,7 @@ import {
 } from "./detection/floating";
 import { VideoTracker } from "./detection/tracker";
 import { VideoLengths } from "./detection/length";
+import { differentFilm, type OthersFilm } from "./sync/film-match";
 import { isMarkedLive } from "../adapters/live";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
@@ -59,6 +60,8 @@ const DRIFT_STEP_SECONDS = 0.03;
 const DRIFT_SETTLE_MS = 2000;
 /** Past this the engine seeks, so the drift is about to vanish rather than worth telling. */
 const DRIFT_SEEKING_SECONDS = 2;
+/** How often a viewer looks at whether their film changed. Looking is free. */
+const FILM_CHECK_MS = 1000;
 /** How often a viewer looks at whether they've come to the room's video. Looking is free. */
 const BEHIND_CHECK_MS = 1000;
 /** Two lengths further apart than this are two different cuts of the film. */
@@ -113,6 +116,9 @@ type RoomHooks = {
   lastInputAt: () => number;
   sourceMismatch: () => SourceMismatch | null;
   isLive: () => boolean;
+  /** What film this viewer has, to tell the room. */
+  film: () => FilmDetails;
+  onFilms: (films: OthersFilm[]) => void;
 };
 
 function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks: RoomHooks): Room {
@@ -134,6 +140,8 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   let othersBehind = 0;
   let dismissedBehind: number | null = null;
   let isBehind = false;
+  /** What this viewer last told the room about their film, or null to tell it again. */
+  let lastFilmSent: string | null = null;
   const arrivals = new Arrivals({
     onEveryoneHere: hooks.onEveryoneArrived,
     isHere: () => hooks.videoChange() === null,
@@ -173,6 +181,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         // The room forgot these along with the old connection.
         if (isOnAd) connection.sendAdState(true);
         if (isBehind) connection.sendBehind(true);
+        lastFilmSent = null;
         othersBehind = 0;
       },
       onState: (state) => {
@@ -186,6 +195,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         engine.handlePeers(count);
         arrivals.setPeers(count);
       },
+      onFilms: (films) => hooks.onFilms(films),
       onLeftBehind: (count) => {
         if (count !== othersBehind) dismissedBehind = null;
         othersBehind = count;
@@ -231,6 +241,16 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   // Only a yes or no, so the others can tell who's with them. Which page this is stays here: its
   // address only leaves when someone brings everyone to it. A miniplayer still playing the
   // film has no video change, so it counts as here.
+  // Told when it changes, so a switch to another player is known without anyone pressing play.
+  const filmTimer = setInterval(() => {
+    if (connectionStatus !== "connected") return;
+    const film = hooks.film();
+    const key = JSON.stringify([
+      film.duration === undefined ? null : Math.round(film.duration),
+      film.source ?? null,
+    ]);
+    if (key !== lastFilmSent && connection.sendFilm(film)) lastFilmSent = key;
+  }, FILM_CHECK_MS);
   const behindTimer = setInterval(() => {
     const behind = hooks.videoChange() !== null;
     if (behind === isBehind || connectionStatus !== "connected") return;
@@ -268,6 +288,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     stop: () => {
       clearInterval(driftTimer);
       clearInterval(behindTimer);
+      clearInterval(filmTimer);
       window.removeEventListener("online", onOnline);
       connection.stop();
       engine.stop();
@@ -329,6 +350,11 @@ class FrameSession {
     source: null,
   };
   private readonly openedSources = new Map<string, string | null>();
+  /**
+   * The films the others on the room's video say they have. Null until the room says, as an
+   * older server never does: then the last state someone sent is all there is to go on.
+   */
+  private othersFilms: OthersFilm[] | null = null;
   private ownSource: { host: string; sealed: string } | null = null;
   private isSealingSource = false;
   private dismissedMismatch: string | null = null;
@@ -430,6 +456,8 @@ class FrameSession {
         filmDetails: () => this.filmDetails(),
         lastInputAt: () => this.lastInputAt,
         sourceMismatch: () => this.sourceMismatch(),
+        film: () => this.ownFilm(),
+        onFilms: (films) => this.onFilms(films),
         isLive: () => {
           const video = this.tracker.video();
           return video !== null && this.lengths.isLive(video);
@@ -511,11 +539,29 @@ class FrameSession {
   private onOthersState(state: RoomState): void {
     const source = state.source ?? null;
     this.othersFilm = { duration: state.duration ?? null, source };
+    this.openSource(source);
+  }
+
+  private onFilms(films: OthersFilm[]): void {
+    this.othersFilms = films;
+    for (const film of films) this.openSource(film.source ?? null);
+  }
+
+  /** Learns which site a sealed player is from, once, for naming it in the warning. */
+  private openSource(source: string | null): void {
     if (!source || this.openedSources.has(source)) return;
     this.openedSources.set(source, null);
     void send<string | null>({ type: "source/open", sealed: source }).then((host) => {
       this.openedSources.set(source, host ?? null);
     });
+  }
+
+  /** A length only once it has settled, and none for a live stream, so others compare like for like. */
+  private ownFilm(): FilmDetails {
+    const video = this.tracker.video();
+    const duration = video && !this.isHoverPreview() ? this.lengths.settledLength(video) : null;
+    const { source } = this.filmDetails();
+    return { ...(duration !== null ? { duration } : {}), ...(source ? { source } : {}) };
   }
 
   /** The player's site is this frame's, since it's the one holding the video. */
@@ -537,9 +583,8 @@ class FrameSession {
     };
   }
 
-  private mismatchKey(): string {
-    const mine = this.tracker.video()?.duration ?? 0;
-    return `${Math.round(mine)}|${Math.round(this.othersFilm.duration ?? 0)}`;
+  private mismatchKey(mine: number, room: number): string {
+    return `${Math.round(mine)}|${Math.round(room)}`;
   }
 
   /** Same length means the same moments line up, whichever source it is, so that's fine. */
@@ -547,13 +592,22 @@ class FrameSession {
     const video = this.tracker.video();
     // A live stream's length is how far back it goes, which differs by when each person came.
     const mine = video ? this.lengths.settledLength(video) : null;
-    const room = this.othersFilm.duration;
-    if (mine === null || room === null) return null;
-    if (this.isHoverPreview() || this.videoChange) return null;
-    if (Math.abs(mine - room) <= SAME_LENGTH_SECONDS) return null;
-    if (this.mismatchKey() === this.dismissedMismatch) return null;
-    const { source } = this.othersFilm;
-    return { mine, room, host: source ? (this.openedSources.get(source) ?? null) : null };
+    if (mine === null || this.isHoverPreview() || this.videoChange) return null;
+    // What most of the others say they have. With an older server, the last state sent.
+    const other = this.othersFilms
+      ? differentFilm(mine, this.othersFilms)
+      : this.othersFilm.duration !== null &&
+          Math.abs(mine - this.othersFilm.duration) > SAME_LENGTH_SECONDS
+        ? { duration: this.othersFilm.duration, source: this.othersFilm.source }
+        : null;
+    if (!other) return null;
+    if (this.mismatchKey(mine, other.duration) === this.dismissedMismatch) return null;
+    const { source } = other;
+    return {
+      mine,
+      room: other.duration,
+      host: source ? (this.openedSources.get(source) ?? null) : null,
+    };
   }
 
   /** Looks at the address each time, so a site changing film is caught before it's touched. */
@@ -639,7 +693,10 @@ class FrameSession {
       onDismiss: () => {
         const notice = noticeFor(this.room?.status() ?? null);
         if (notice?.titleKey === "othersBehind") this.room?.dismissBehind();
-        else this.dismissedMismatch = this.mismatchKey();
+        else {
+          const shown = this.sourceMismatch();
+          if (shown) this.dismissedMismatch = this.mismatchKey(shown.mine, shown.room);
+        }
       },
       onPositionChange: (moved) => void saveBadgePosition(location.hostname, moved),
     });

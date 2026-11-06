@@ -58,7 +58,12 @@ export type ClientMessage =
    * Whether this viewer isn't on the room's video, so the others can tell who's with them: one
    * that went elsewhere, or hasn't followed after someone brought everyone. Never which page.
    */
-  | { type: "behind"; behind: boolean };
+  | { type: "behind"; behind: boolean }
+  /** This viewer's film, sent when it changes and on joining, so lengths can be compared. */
+  | ({ type: "film" } & Film);
+
+/** What film a viewer has: its length, when known and not live, and its player's site, sealed. */
+export type Film = { duration?: number; source?: string };
 
 /** A playback state as accepted by the room. `seq` orders states; higher wins. */
 export type RoomState = PlaybackState & { seq: number; from: string };
@@ -80,6 +85,8 @@ export type ServerMessage =
   | { type: "ads"; count: number }
   /** How many people other than the one receiving this aren't on the room's video. */
   | { type: "left_behind"; count: number }
+  /** The films the others have, each with how many of them have it. */
+  | { type: "films"; films: (Film & { count: number })[] }
   /** How far apart the furthest two people are, from what each says of themselves. */
   | { type: "spread"; seconds: number }
   | ({ type: "state" } & RoomState)
@@ -95,6 +102,8 @@ const MAX_SEALED_VIDEO_LENGTH = 3900;
 const MAX_POSITION_SECONDS = 7 * 24 * 60 * 60;
 /** Room for a sealed host name of up to 253 characters. */
 const MAX_SOURCE_LENGTH = 400;
+/** One for each kind of film in a room, which can't be more than its people. */
+const MAX_FILMS = 100;
 /** Past this, a viewer is seeking, not drifting. */
 const MAX_DRIFT_SECONDS = 60;
 // The range browsers accept for HTMLMediaElement.playbackRate.
@@ -146,6 +155,19 @@ function parsePlayback(value: Record<string, unknown>): PlaybackState | null {
   };
 }
 
+/** Both parts are optional, so a bad one is dropped rather than costing the other. */
+function parseFilm(value: Record<string, unknown>): Film {
+  const { duration, source } = value;
+  return {
+    ...(isFiniteNumber(duration) && duration > 0 && duration <= MAX_POSITION_SECONDS
+      ? { duration }
+      : {}),
+    ...(typeof source === "string" && source.length > 0 && source.length <= MAX_SOURCE_LENGTH
+      ? { source }
+      : {}),
+  };
+}
+
 function parseRoomState(value: Record<string, unknown>): RoomState | null {
   const playback = parsePlayback(value);
   if (!playback || !isFiniteNumber(value.seq) || typeof value.from !== "string") return null;
@@ -187,6 +209,8 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
       return isFiniteNumber(message.seconds) && Math.abs(message.seconds) <= MAX_DRIFT_SECONDS
         ? { type: "drift", seconds: message.seconds }
         : null;
+    case "film":
+      return { type: "film", ...parseFilm(message) };
     case "behind":
       return typeof message.behind === "boolean"
         ? { type: "behind", behind: message.behind }
@@ -245,6 +269,24 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       return isFiniteNumber(message.count) ? { type: "ads", count: message.count } : null;
     case "left_behind":
       return isFiniteNumber(message.count) ? { type: "left_behind", count: message.count } : null;
+    case "films":
+      return Array.isArray(message.films) && message.films.length <= MAX_FILMS
+        ? {
+            type: "films",
+            films: message.films.flatMap((entry: unknown) =>
+              entry !== null &&
+              typeof entry === "object" &&
+              isFiniteNumber((entry as { count?: unknown }).count)
+                ? [
+                    {
+                      ...parseFilm(entry as Record<string, unknown>),
+                      count: (entry as { count: number }).count,
+                    },
+                  ]
+                : [],
+            ),
+          }
+        : null;
     case "spread":
       return isFiniteNumber(message.seconds) && message.seconds >= 0
         ? { type: "spread", seconds: message.seconds }
