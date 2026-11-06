@@ -246,7 +246,16 @@ try {
   const syncing = await b.status();
   check("and the sync carries on meanwhile", syncing.hold === null, String(syncing.hold));
 
-  // Got it: the card goes for this pair of lengths.
+  // The same cut as the room's: nothing to say. Checked before B does anything, because once
+  // B pauses or plays, B's own state carries the other length and A is rightly told too.
+  check(
+    "the viewer with the room's cut isn't told anything",
+    (await a.status())?.sourceMismatch === null,
+    JSON.stringify((await a.status())?.sourceMismatch),
+  );
+
+  // Got it: the card goes for this pair of lengths. The card sits in a closed shadow root, so
+  // its button is found by clicking down where it should be, and a miss can land on the video.
   await b.tab.bringToFront();
   let gone = false;
   for (let y = 160; y <= 230 && !gone; y += 8) {
@@ -255,13 +264,6 @@ try {
     gone = (await b.status())?.sourceMismatch === null;
   }
   check("Got it puts it away", gone);
-
-  // The same cut: nothing to say. A has none to complain about either.
-  check(
-    "the viewer with the room's cut isn't told anything",
-    (await a.status())?.sourceMismatch === null,
-    JSON.stringify((await a.status())?.sourceMismatch),
-  );
 } catch (error) {
   failures += 1;
   console.log("FAIL threw:", String(error).slice(0, 500));
