@@ -1386,6 +1386,44 @@ describe("a page's video starting by itself just after joining", () => {
     expect(video.paused).toBe(true);
   });
 
+  it("plays a player someone just switched to from the room's place, not its start", async () => {
+    const context = setup();
+    const { engine, sent, peerState } = context;
+    await joinPlaying(context, 300);
+    engine.handleState(peerState({ playing: false, position: 300 }));
+    await settle();
+    sent.length = 0;
+
+    // Another player for the same film, starting from its own beginning.
+    const next = new FakeVideo();
+    next.position = 0;
+    engine.bind(next.asVideo());
+    await settle();
+    next.userPlay();
+    await settle();
+
+    expect(sent).toMatchObject([{ playing: true }]);
+    expect(sent[0]?.position).toBeGreaterThan(299);
+    expect(next.position).toBeGreaterThan(299);
+  });
+
+  it("keeps the room where it is when the new player was already playing along", async () => {
+    const context = setup();
+    const { engine, sent } = context;
+    await joinPlaying(context, 300);
+    sent.length = 0;
+
+    const next = new FakeVideo();
+    next.position = 0;
+    engine.bind(next.asVideo());
+    await settle();
+    next.userPlay();
+    await settle();
+
+    expect(sent).toEqual([]);
+    expect(next.position).toBeGreaterThan(299);
+  });
+
   it("sends a play whose click was in another frame, once word of it arrives", async () => {
     let inputAt = Number.NEGATIVE_INFINITY;
     const context = setup({ lastInputAt: () => inputAt });
