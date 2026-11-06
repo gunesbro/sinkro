@@ -26,6 +26,9 @@ export function statusLine(status: SessionStatus | null): StatusLine {
   if (status.closeReason) return { tone: "danger", key: CLOSED_ROOM_KEYS[status.closeReason] };
   if (status.connection !== "connected") return { tone: "danger", key: "connLost" };
   if (!status.hasVideo) return { tone: "ok", key: "live" };
+  // Everyone is at the live edge, and nothing is synced, so there's nothing to catch up on.
+  if (status.isLive && !status.hold && !status.needsGesture)
+    return { tone: "ok", key: "liveStream" };
   // Waiting on an ad or a click isn't catching up, whatever the drift says.
   if (status.hold || status.needsGesture) return { tone: "warn", key: "onHold" };
   if (status.drift !== null && Math.abs(status.drift) >= IN_SYNC_SECONDS) {

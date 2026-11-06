@@ -446,5 +446,11 @@
   },
   "serverSetup": {
     "message": "Kendi sunucunu nasıl kurarsın? (GitHub)"
+  },
+  "liveStream": {
+    "message": "Canlı yayın"
+  },
+  "liveTime": {
+    "message": "CANLI"
   }
 }

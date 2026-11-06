@@ -137,8 +137,9 @@ function renderRoom(): void {
       : "";
   element("people").textContent = people;
   element("spread").textContent = spread;
-  element("timecode").textContent =
-    status?.position !== undefined && status.position !== null
+  element("timecode").textContent = status?.isLive
+    ? t("liveTime")
+    : status?.position !== undefined && status.position !== null
       ? (formatTimecode(status.position) ?? "")
       : "";
 

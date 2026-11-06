@@ -766,6 +766,62 @@ describe("actions that cross", () => {
   });
 });
 
+describe("a live stream", () => {
+  const live = () => setup({ isLive: () => true });
+
+  it("isn't moved to the room's position, paused or started", async () => {
+    const context = live();
+    const { engine, video, sent, peerState } = context;
+    engine.bind(video.asVideo());
+    video.position = 12;
+    engine.handleJoined({ clientId: ME, state: peerState({ position: 7000 }), peers: 2 });
+    await play(video, 2000);
+
+    expect(video.seekCalls).toBe(0);
+    expect(video.paused).toBe(true);
+    expect(sent).toEqual([]);
+  });
+
+  it("doesn't follow what others do", async () => {
+    const context = live();
+    const { engine, video, peerState } = context;
+    engine.bind(video.asVideo());
+    video.position = 12;
+    video.userPlay();
+    engine.handleJoined({ clientId: ME, state: null, peers: 2 });
+    await settle();
+    engine.handleState(peerState({ playing: false, position: 500 }));
+    await play(video, 1000);
+
+    expect(video.paused).toBe(false);
+    expect(video.seekCalls).toBe(0);
+  });
+
+  it("doesn't send what the viewer does", async () => {
+    const context = live();
+    const { engine, video, sent } = context;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: null, peers: 2 });
+    await settle();
+    video.userPlay();
+    video.pause();
+    video.userSeek(40);
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(sent).toEqual([]);
+  });
+
+  it("says so, with no drift to report", async () => {
+    const context = live();
+    const { engine, video, peerState } = context;
+    engine.bind(video.asVideo());
+    engine.handleJoined({ clientId: ME, state: peerState({ position: 100 }), peers: 2 });
+    await settle();
+
+    expect(engine.snapshot()).toMatchObject({ isLive: true, drift: null });
+  });
+});
+
 describe("message order", () => {
   it("ignores its own echo", async () => {
     const context = setup();
