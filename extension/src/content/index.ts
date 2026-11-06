@@ -645,8 +645,10 @@ class FrameSession {
     });
     this.badgeTimer = setInterval(() => {
       this.checkRoomPage();
+      const video = this.tracker.video();
+      // A preview isn't the film, so the badge doesn't sit on it: off a film it has its own spot.
       this.badge?.update(
-        this.isHoverPreview() ? null : this.tracker.video(),
+        this.isHoverPreview() || previewLike(video) ? null : video,
         this.room?.status() ?? null,
       );
     }, BADGE_UPDATE_MS);

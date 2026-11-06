@@ -421,10 +421,10 @@
     }
   },
   "oneBehindHelp": {
-    "message": "1 kişi başka bir videoda."
+    "message": "1 kişi başka bir sayfada."
   },
   "othersBehindHelp": {
-    "message": "$COUNT$ kişi başka bir videoda.",
+    "message": "$COUNT$ kişi başka bir sayfada.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -457,6 +457,6 @@
     "message": "Canlı yayınlar eşitlenmiyor"
   },
   "liveNoticeHelp": {
-    "message": "Herkes kendi canlı noktasından izler, bu yüzden Sinkro burada kimseyi durdurmaz ya da sarmaz. Başka yayına geçenleri yine gösterir."
+    "message": "Herkes kendi canlı noktasından izler, bu yüzden Sinkro burada kimseyi durdurmaz ya da sarmaz. Başka sayfaya geçenleri yine gösterir."
   }
 }

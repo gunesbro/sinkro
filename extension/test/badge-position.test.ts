@@ -50,6 +50,22 @@ describe("placeBadge", () => {
   });
 });
 
+describe("placeBadge's card near the window's left edge", () => {
+  // A preview-sized video at the far left, like a feed's first tile.
+  const tile = { left: 10, top: 100, width: 270, height: 150 };
+
+  it("opens rightwards when opening leftwards would go off the window", () => {
+    expect(placeBadge(tile, pill, viewport, null, undefined, 300).horizontal).toEqual({
+      side: "left",
+      px: 10 + 270 - 100 - 12,
+    });
+  });
+
+  it("opens leftwards as usual when there's room", () => {
+    expect(placeBadge(video, pill, viewport, null, undefined, 300).horizontal.side).toBe("right");
+  });
+});
+
 describe("positionAt", () => {
   it("turns a point into a share of the room to move in", () => {
     expect(positionAt(video, pill, 100 + 350, 50 + 209)).toEqual({ x: 0.5, y: 0.5 });
