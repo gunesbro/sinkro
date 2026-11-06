@@ -149,6 +149,15 @@ async function viewer(name, path) {
     API,
   );
   const tab = await context.newPage();
+  // What this viewer tells the room, to explain a failure: frames are listed with when they went.
+  const started = Date.now();
+  const sent = [];
+  tab.on("websocket", (ws) =>
+    ws.on("framesent", (f) => {
+      if (typeof f.payload === "string" && f.payload.startsWith("{"))
+        sent.push(`+${Date.now() - started}ms ${f.payload}`);
+    }),
+  );
   await tab.goto(WEB + path);
   await wait(1000);
   await tab.bringToFront();
@@ -167,6 +176,7 @@ async function viewer(name, path) {
     tabId,
     popupUrl,
     frameVideo,
+    sent,
     status: () =>
       control.evaluate((t) => chrome.tabs.sendMessage(t, { type: "session/status" }), tabId),
     join: (code) =>
@@ -251,7 +261,9 @@ try {
   check(
     "the viewer with the room's cut isn't told anything",
     (await a.status())?.sourceMismatch === null,
-    JSON.stringify((await a.status())?.sourceMismatch),
+    JSON.stringify((await a.status())?.sourceMismatch) +
+      " | B sent: " +
+      JSON.stringify(b.sent.filter((x) => !x.includes('"ping"'))),
   );
 
   // Got it: the card goes for this pair of lengths. The card sits in a closed shadow root, so
