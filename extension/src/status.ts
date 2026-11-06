@@ -110,8 +110,9 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
     if (status.isFloatingPlayer) {
       return { ...notice("warn", "youMoved", "return"), bodyKey: "youMovedFloatingHelp" };
     }
-    // With no video here it's another page, and calling it another video would be wrong.
-    if (!status.hasVideo)
+    // With no video here it's another page, and calling it another video would be wrong. A muted
+    // preview, or a player the site left behind out of sight, is no film to bring anyone to.
+    if (!status.hasVideo || status.isPreviewLike)
       return { ...notice("warn", "youMoved", "return"), titleKey: "youLeftPage" };
     // Nobody's left on the room's video, so there's no going back to anyone: it's moving it here
     // that helps, and whoever is already on this page joins by themselves.

@@ -241,7 +241,11 @@ export class VideoBadge {
     if (this.isHovering && !isHeld) return;
     // Without a video big enough to sit on, the window will do.
     const target = box && fits ? box : new DOMRect(0, 0, viewport.width, viewport.height);
-    this.place(target, hasSpot ? undefined : this.clearOfSiteBar(viewport));
+    // The spot the viewer chose is a spot on the video. Off it, the card goes where it's always
+    // found, the top right, rather than wherever that spot lands in the window: at the bottom
+    // of a narrow window it's easy to miss, or off it altogether.
+    if (hasSpot) this.place(target);
+    else this.place(target, this.clearOfSiteBar(viewport), null);
   }
 
   /** Lets the viewer put the badge where it doesn't hide a player's own buttons. */
@@ -316,9 +320,9 @@ export class VideoBadge {
     return bar ? bar.bottom + BELOW_BAR_PX : undefined;
   }
 
-  private place(box: DOMRect, minTop?: number): void {
+  private place(box: DOMRect, minTop?: number, position = this.position): void {
     const viewport = { width: window.innerWidth, height: window.innerHeight };
-    const { horizontal, vertical } = placeBadge(box, CHIP_AT_REST, viewport, this.position, minTop);
+    const { horizontal, vertical } = placeBadge(box, CHIP_AT_REST, viewport, position, minTop);
 
     const { style } = this.stack;
     style.left = horizontal.side === "left" ? `${horizontal.px}px` : "auto";

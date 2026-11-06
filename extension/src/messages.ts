@@ -26,6 +26,8 @@ export type SessionStatus = EngineSnapshot & {
   spread: number | null;
   /** The video is a small one pinned over the page, so the address doesn't say which it is. */
   isFloatingPlayer: boolean;
+  /** The video here is muted and small, or not shown: not one to bring the room to. */
+  isPreviewLike: boolean;
   /** This page is the room's video's, whether or not its player has made a video yet. */
   isOnRoomPage: boolean;
   /** The address moved on but the room's film is still playing, as in a miniplayer. */

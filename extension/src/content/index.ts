@@ -28,7 +28,12 @@ import {
   saveRemembered,
   selectorFor,
 } from "./detection/remembered";
-import { isFloatingPlayer, isHoverPreview, isPreviewSized } from "./detection/floating";
+import {
+  isFloatingPlayer,
+  isHoverPreview,
+  isPreviewLike,
+  isPreviewSized,
+} from "./detection/floating";
 import { VideoTracker } from "./detection/tracker";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
@@ -39,6 +44,8 @@ import { Arrivals } from "./sync/arrivals";
 
 const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
+/** How soon to try again when the badge couldn't get its words from the background. */
+const BADGE_RETRY_MS = 1000;
 /** How often a viewer looks at their own drift. Looking is free; telling the room isn't. */
 const DRIFT_CHECK_MS = 5000;
 /**
@@ -252,6 +259,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       isFilmStillPlaying: hooks.isFilmStillPlaying(),
       isOnRoomPage: hooks.isOnRoomPage(),
       isFloatingPlayer: isFloatingPlayer(tracker.video()),
+      isPreviewLike: previewLike(tracker.video()),
     }),
     stop: () => {
       clearInterval(driftTimer);
@@ -261,6 +269,12 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       engine.stop();
     },
   };
+}
+
+function previewLike(video: HTMLVideoElement | null): boolean {
+  return (
+    video !== null && isPreviewLike(video, { width: window.innerWidth, height: window.innerHeight })
+  );
 }
 
 /** Browsers leave content scripts running when their extension is updated or reloaded. */
@@ -284,6 +298,7 @@ class FrameSession {
   private isStopped = false;
   private badge: VideoBadge | null = null;
   private badgeTimer: ReturnType<typeof setInterval> | null = null;
+  private badgeRetry: ReturnType<typeof setTimeout> | null = null;
   private pageTimer: ReturnType<typeof setInterval> | null = null;
   private readonly installedTimer: ReturnType<typeof setInterval>;
   private readonly remoteNotices = new ChangeNotices((change, rate) => {
@@ -583,7 +598,18 @@ class FrameSession {
       send<Messages>({ type: "i18n/messages" }),
       loadBadgePosition(location.hostname).catch(() => null),
     ]);
-    if (!messages || !this.room || this.badge) return;
+    if (!this.room || this.badge) return;
+    // The background can be slow to wake, and giving up would leave this page without a badge,
+    // or a card the viewer has to act on, for as long as it's open.
+    if (!messages) {
+      if (this.badgeRetry === null) {
+        this.badgeRetry = setTimeout(() => {
+          this.badgeRetry = null;
+          void this.startBadge();
+        }, BADGE_RETRY_MS);
+      }
+      return;
+    }
 
     this.badge = new VideoBadge({
       messages,
@@ -620,6 +646,8 @@ class FrameSession {
   }
 
   private stopBadge(): void {
+    if (this.badgeRetry !== null) clearTimeout(this.badgeRetry);
+    this.badgeRetry = null;
     if (this.badgeTimer !== null) clearInterval(this.badgeTimer);
     this.badgeTimer = null;
     this.badge?.stop();
