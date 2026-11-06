@@ -1,6 +1,6 @@
 {
   "name": "@sinkro/extension",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "check:locales": "node scripts/check-locales.mjs",
     "lint:firefox": "web-ext lint --source-dir dist/firefox",
-    "test": "vitest run"
+    "test": "vitest run",
+    "package": "npm run build && web-ext build --source-dir dist/chrome --artifacts-dir release --filename sinkro-chrome-{version}.zip --overwrite-dest && web-ext build --source-dir dist/firefox --artifacts-dir release --filename sinkro-firefox-{version}.zip --overwrite-dest"
   },
   "devDependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",
