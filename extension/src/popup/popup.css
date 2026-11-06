@@ -437,7 +437,8 @@ footer {
   font-size: 12px;
 }
 
-footer a {
+footer a,
+.settings-link {
   display: inline-flex;
   align-items: center;
   flex: none;

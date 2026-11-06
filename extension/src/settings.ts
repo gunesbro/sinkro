@@ -17,16 +17,30 @@ export function roomSocketUrl(serverUrl: string, code: string): string {
   return `${serverUrl.replace(/^http/, "ws")}/rooms/${encodeURIComponent(code)}/ws`;
 }
 
-export async function getServerUrl(): Promise<string> {
+/** The server the viewer chose for themselves, or null for Sinkro's own. */
+export async function getCustomServerUrl(): Promise<string | null> {
   const stored = await chrome.storage.local.get(SERVER_URL_KEY);
   const saved = stored[SERVER_URL_KEY];
-  return (typeof saved === "string" && normalizeServerUrl(saved)) || DEFAULT_SERVER_URL;
+  const serverUrl = typeof saved === "string" ? normalizeServerUrl(saved) : null;
+  return serverUrl && serverUrl !== DEFAULT_SERVER_URL ? serverUrl : null;
 }
 
-/** Returns false if the URL was rejected. */
+export async function getServerUrl(): Promise<string> {
+  return (await getCustomServerUrl()) ?? DEFAULT_SERVER_URL;
+}
+
+/**
+ * An empty field, or Sinkro's own address, goes back to Sinkro's server. Returns false if the
+ * address was rejected.
+ */
 export async function setServerUrl(input: string): Promise<boolean> {
+  if (input.trim() === "") {
+    await chrome.storage.local.remove(SERVER_URL_KEY);
+    return true;
+  }
   const serverUrl = normalizeServerUrl(input);
   if (!serverUrl) return false;
-  await chrome.storage.local.set({ [SERVER_URL_KEY]: serverUrl });
+  if (serverUrl === DEFAULT_SERVER_URL) await chrome.storage.local.remove(SERVER_URL_KEY);
+  else await chrome.storage.local.set({ [SERVER_URL_KEY]: serverUrl });
   return true;
 }

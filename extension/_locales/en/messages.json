@@ -177,7 +177,7 @@
     "message": "Server address"
   },
   "serverHelp": {
-    "message": "Running your own server? Put its address here. It applies to the next room you join."
+    "message": "Leave it empty to use Sinkro's server. Running your own? Put its address here. It applies to the next room you join."
   },
   "serverInvalid": {
     "message": "Enter a full address that starts with http:// or https://."
@@ -440,5 +440,11 @@
   },
   "everyoneLeftHelp": {
     "message": "To make this the room's video, press Bring everyone here. Anyone already on this page joins by themselves."
+  },
+  "serverDefault": {
+    "message": "Sinkro's server (default)"
+  },
+  "serverSetup": {
+    "message": "How to run your own server (GitHub)"
   }
 }
