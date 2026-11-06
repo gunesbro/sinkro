@@ -23,8 +23,15 @@ if (unknown.length > 0) {
 function run(name) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [join(here, `${name}.e2e.mjs`)], { stdio: "inherit" });
-    // Longer than the longest scenario, so only a hang reaches it.
-    const timer = setTimeout(() => child.kill("SIGKILL"), 15 * 60 * 1000);
+    // Longer than the longest scenario, so only a hang reaches it. A long soak adds its own length.
+    const soakMs = Number(process.env.SINKRO_SOAK ?? 0) * 1000;
+    const limitMs = 15 * 60 * 1000 + (Number.isFinite(soakMs) ? soakMs : 0);
+    const timer = setTimeout(() => {
+      console.log(
+        `${name} took longer than ${Math.round(limitMs / 60_000)} minutes, so it was stopped.`,
+      );
+      child.kill("SIGKILL");
+    }, limitMs);
     child.on("exit", (code) => {
       clearTimeout(timer);
       resolve(code === 0);
