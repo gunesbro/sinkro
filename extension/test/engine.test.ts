@@ -1386,6 +1386,91 @@ describe("a page's video starting by itself just after joining", () => {
     expect(video.paused).toBe(true);
   });
 
+  it("doesn't take the room to the start when a player loads another source into its element", async () => {
+    const context = setup();
+    const { video, sent } = context;
+    await joinPlaying(context, 600);
+    await play(video, 5000);
+    sent.length = 0;
+
+    // Choosing another translator's player: the same element empties, plays from the start, and
+    // the player puts it at the start a few more times. All straight after the viewer's click.
+    video.reload();
+    video.position = 0;
+    video.userPlay();
+    await settle();
+    video.userSeek(0);
+    await settle();
+    video.userSeek(0.5);
+    await settle();
+    await play(video, 2000);
+
+    expect(sent).toEqual([]);
+    expect(video.position).toBeGreaterThan(600);
+  });
+
+  it("drops the move to the start a player makes just before loading another source", async () => {
+    const context = setup();
+    const { video, sent } = context;
+    await joinPlaying(context, 600);
+    await play(video, 5000);
+    sent.length = 0;
+
+    // The old source goes to the start first, then the element empties for the new one.
+    video.userSeek(0);
+    await vi.advanceTimersByTimeAsync(100);
+    video.reload();
+    video.position = 0;
+    video.userPlay();
+    await play(video, 2000);
+
+    expect(sent).toEqual([]);
+    expect(video.position).toBeGreaterThan(600);
+  });
+
+  it("still sends a viewer's own move back to the start, a moment later", async () => {
+    const context = setup();
+    const { video, sent } = context;
+    await joinPlaying(context, 600);
+    await play(video, 5000);
+    sent.length = 0;
+
+    video.userSeek(0);
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(sent).toMatchObject([{ position: 0 }]);
+  });
+
+  it("doesn't send the speed a player puts back on a new source", async () => {
+    const context = setup();
+    const { video, sent } = context;
+    await joinPlaying(context, 600);
+    await play(video, 5000);
+    sent.length = 0;
+
+    // The player remembers the speed a correction had set, and puts it back after loading.
+    video.reload();
+    video.userSetRate(1.04);
+    await play(video, 1000);
+
+    expect(sent).toEqual([]);
+    expect(video.playbackRate).toBeLessThan(1.04);
+  });
+
+  it("still sends a seek of the viewer's own elsewhere, just after a new source", async () => {
+    const context = setup();
+    const { video, sent } = context;
+    await joinPlaying(context, 600);
+    await play(video, 5000);
+    sent.length = 0;
+
+    video.reload();
+    video.userSeek(1200);
+    await settle();
+
+    expect(sent).toMatchObject([{ position: 1200 }]);
+  });
+
   it("plays a player someone just switched to from the room's place, not its start", async () => {
     const context = setup();
     const { engine, sent, peerState } = context;
