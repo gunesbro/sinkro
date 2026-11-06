@@ -66,6 +66,7 @@ function setup() {
     onAds: vi.fn(),
     onSpread: vi.fn(),
     onLeftBehind: vi.fn(),
+    onFilms: vi.fn(),
     onDisconnected: vi.fn(),
     onStatus: vi.fn(),
   };

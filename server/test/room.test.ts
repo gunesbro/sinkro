@@ -621,6 +621,81 @@ describe("saving states", () => {
   });
 });
 
+describe("everyone's film", () => {
+  it("is told to the others, without their own", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "film", duration: 1200, source: "sealed" });
+
+    expect(await b.next()).toEqual({
+      type: "films",
+      films: [{ duration: 1200, source: "sealed", count: 1 }],
+    });
+    expect(await a.next()).toEqual({ type: "films", films: [] });
+  });
+
+  it("counts alike ones together", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    const { client: c } = await join(code);
+    await a.next();
+    await a.next();
+    await b.next();
+    b.send({ type: "film", duration: 600.2, source: "s" });
+    await a.next();
+    c.send({ type: "film", duration: 599.9, source: "s" });
+
+    const message = (await a.next()) as {
+      films: { duration: number; source: string; count: number }[];
+    };
+    expect(message.films).toHaveLength(1);
+    expect(message.films[0]).toMatchObject({ source: "s", count: 2 });
+    expect(message.films[0]?.duration).toBeCloseTo(600, 0);
+  });
+
+  it("forgets someone's film when they leave", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    b.send({ type: "film", duration: 600 });
+    await a.next();
+    b.close();
+    expect(await a.next()).toEqual({ type: "peers", count: 1 });
+    expect(await a.next()).toEqual({ type: "films", films: [] });
+  });
+
+  it("leaves out someone on another page", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    b.send({ type: "film", duration: 600 });
+    await a.next();
+    b.send({ type: "behind", behind: true });
+    expect(await a.next()).toEqual({ type: "left_behind", count: 1 });
+    expect(await a.next()).toEqual({ type: "films", films: [] });
+  });
+
+  it("is told to someone joining", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    a.send({ type: "film", duration: 900 });
+    await a.next();
+    const { client: b } = await join(code);
+    expect(await b.next()).toEqual({ type: "films", films: [{ duration: 900, count: 1 }] });
+  });
+
+  it("needs joining first", async () => {
+    const client = await connect(await createRoom());
+    client.send({ type: "film", duration: 900 });
+    expect(await client.next()).toEqual({ type: "error", code: "not_joined" });
+  });
+});
+
 describe("actions that cross", () => {
   it("keeps both a pause and a seek sent at once", async () => {
     const code = await createRoom();

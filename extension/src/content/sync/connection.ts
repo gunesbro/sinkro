@@ -3,11 +3,13 @@ import {
   PROTOCOL_VERSION,
   parseServerMessage,
   type ClientMessage,
+  type Film,
   type OutgoingState,
   type PlaybackState,
   type RoomState,
 } from "../../../../server/src/protocol";
 import type { ServerClock } from "./clock";
+import type { OthersFilm } from "./film-match";
 
 /** Must match the auto-response registered by the room. */
 const KEEPALIVE = "keepalive";
@@ -42,6 +44,8 @@ export type ConnectionEvents = {
   onSpread: (seconds: number) => void;
   /** How many others haven't come to the room's video yet. */
   onLeftBehind: (count: number) => void;
+  /** The films the others on the room's video have. */
+  onFilms: (films: OthersFilm[]) => void;
   /** Someone moved the room to another video. `fresh` means it's a different film. */
   onVideo: (sealed: string, fresh: boolean) => void;
   onRejected: () => void;
@@ -138,6 +142,10 @@ export class RoomConnection {
     return this.joined && this.send({ type: "drift", seconds });
   }
 
+  sendFilm(film: Film): boolean {
+    return this.joined && this.send({ type: "film", ...film });
+  }
+
   sendBehind(behind: boolean): boolean {
     return this.joined && this.send({ type: "behind", behind });
   }
@@ -217,6 +225,9 @@ export class RoomConnection {
         return;
       case "left_behind":
         events.onLeftBehind(message.count);
+        return;
+      case "films":
+        events.onFilms(message.films);
         return;
       case "video":
         if (message.sealed !== null) events.onVideo(message.sealed, message.fresh === true);

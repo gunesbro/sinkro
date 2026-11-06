@@ -366,7 +366,7 @@
     "message": "Farklı bir kaynak olabilir"
   },
   "sourceMismatchHelp": {
-    "message": "Senin videon $MINE$, odanınki $ROOM$. Herkes aynı oynatıcıyı seçmeli.",
+    "message": "Senin videon $MINE$, diğerlerininki $ROOM$. Herkes aynı oynatıcıyı seçmeli.",
     "placeholders": {
       "mine": {
         "content": "$1",
@@ -379,7 +379,7 @@
     }
   },
   "sourceMismatchHostHelp": {
-    "message": "Senin videon $MINE$, odanınki $ROOM$ ve $HOST$ oynatıcısından. Herkes aynı oynatıcıyı seçmeli.",
+    "message": "Senin videon $MINE$, diğerlerininki $ROOM$ ve $HOST$ oynatıcısından. Herkes aynı oynatıcıyı seçmeli.",
     "placeholders": {
       "mine": {
         "content": "$1",
