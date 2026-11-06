@@ -80,4 +80,35 @@ describe("a video's length", () => {
     later(60_000);
     expect(lengths.settledLength(stream)).toBeNull();
   });
+
+  it("takes the player's word for it, where the length doesn't say", () => {
+    let marked = true;
+    const lengths = new VideoLengths(
+      () => 0,
+      () => "/watch?v=live",
+      () => marked,
+    );
+    const stream = { duration: 3600, currentSrc: "blob:a" };
+    expect(lengths.isLive(stream)).toBe(true);
+    expect(lengths.settledLength(stream)).toBeNull();
+    // Rewound: the badge says "go to live" now, and the stream is still live.
+    marked = false;
+    expect(lengths.isLive(stream)).toBe(true);
+  });
+
+  it("forgets it on another video at the same path, told apart by its query", () => {
+    let page = "/watch?v=live";
+    let marked = true;
+    const lengths = new VideoLengths(
+      () => 0,
+      () => page,
+      () => marked,
+    );
+    const video = { duration: 3600, currentSrc: "blob:a" };
+    expect(lengths.isLive(video)).toBe(true);
+    page = "/watch?v=recording";
+    marked = false;
+    Object.assign(video, { duration: 1200, currentSrc: "blob:b" });
+    expect(lengths.isLive(video)).toBe(false);
+  });
 });
