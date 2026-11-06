@@ -230,9 +230,9 @@ describe("noticeFor", () => {
   });
 
   describe("a live stream", () => {
-    it("says it's live rather than in sync or catching up", () => {
+    it("says it's live and not synced, in amber rather than green", () => {
       expect(statusLine({ ...connected, isLive: true, drift: 40 })).toEqual({
-        tone: "ok",
+        tone: "warn",
         key: "liveStream",
       });
     });
