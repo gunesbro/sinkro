@@ -37,11 +37,17 @@ import { ChangeNotices, type ChangeDetails } from "./sync/notices";
 
 const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
-/** How often a viewer looks at their own drift, to tell the room: each message counts against the server's daily quota. */
+/** How often a viewer looks at their own drift. Looking is free; telling the room isn't. */
 const DRIFT_CHECK_MS = 5000;
-/** A drift is only told again once it's moved this much, or this long has passed. */
+/**
+ * A drift is told once after each change of state, then only when it's moved this much: every
+ * message counts against the server's daily quota, and a steady drift has nothing new to say.
+ */
 const DRIFT_STEP_SECONDS = 0.03;
-const DRIFT_HEARTBEAT_MS = 15_000;
+/** Right after a change of state, drift is about the seek still landing, not the viewer. */
+const DRIFT_SETTLE_MS = 2000;
+/** Past this the engine seeks, so the drift is about to vanish rather than worth telling. */
+const DRIFT_SEEKING_SECONDS = 2;
 /** Two lengths further apart than this are two different cuts of the film. */
 const SAME_LENGTH_SECONDS = 2;
 /** Sites change address without loading a page, and not always through anything hookable. */
@@ -101,7 +107,12 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   let ownId: string | null = null;
   let spread: number | null = null;
   let lastDriftSent: number | null = null;
-  let lastDriftSentAt = 0;
+  let lastStateAt = 0;
+  // The room forgets everyone's drift on each change of state, and with an old connection.
+  const tellDriftAgain = () => {
+    lastDriftSent = null;
+    lastStateAt = Date.now();
+  };
   let isOnAd = false;
 
   const engine = new SyncEngine({
@@ -132,12 +143,14 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         othersOnAd = message.ads ?? 0;
         if (message.video) hooks.onRoomVideo(message.video, false);
         engine.handleJoined(message);
+        tellDriftAgain();
         // The room forgot this along with the old connection.
         if (isOnAd) connection.sendAdState(true);
       },
       onState: (state) => {
         if (state.from !== ownId) hooks.onOthersState(state);
         engine.handleState(state);
+        tellDriftAgain();
       },
       onPeers: (count) => {
         peers = count;
@@ -168,19 +181,17 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
 
   engine.bind(tracker.video());
   // Each viewer only knows their own drift, so they tell the room, which says how far apart
-  // the furthest two are. A paused room or one on hold has nothing to say.
+  // the furthest two are. It's only for showing: each viewer corrects their own drift without it.
+  // A paused room or one on hold has nothing to say.
   const driftTimer = setInterval(() => {
     const { drift, hold, paused } = engine.snapshot();
     if (drift === null || hold || paused || connectionStatus !== "connected") return;
-    const now = Date.now();
-    const hasMoved =
-      lastDriftSent === null || Math.abs(drift - lastDriftSent) >= DRIFT_STEP_SECONDS;
-    if (!hasMoved && now - lastDriftSentAt < DRIFT_HEARTBEAT_MS) return;
-    const rounded = Math.round(drift * 1000) / 1000;
-    if (connection.sendDrift(rounded)) {
-      lastDriftSent = rounded;
-      lastDriftSentAt = now;
+    if (Date.now() - lastStateAt < DRIFT_SETTLE_MS || Math.abs(drift) > DRIFT_SEEKING_SECONDS) {
+      return;
     }
+    if (lastDriftSent !== null && Math.abs(drift - lastDriftSent) < DRIFT_STEP_SECONDS) return;
+    const rounded = Math.round(drift * 1000) / 1000;
+    if (connection.sendDrift(rounded)) lastDriftSent = rounded;
   }, DRIFT_CHECK_MS);
   const onOnline = () => connection.retryNow();
   window.addEventListener("online", onOnline);

@@ -135,8 +135,12 @@ async function launch(name, { autoplay = true, path = "/", untouched = false } =
   video.on("pageerror", (e) => errors.push(e.message));
   const sockets = [];
   const pongs = [];
+  const drifts = [];
   video.on("websocket", (ws) => {
     sockets.push(ws.url());
+    ws.on("framesent", (f) => {
+      if (typeof f.payload === "string" && f.payload.includes('"drift"')) drifts.push(Date.now());
+    });
     ws.on("framereceived", (f) => {
       if (typeof f.payload !== "string" || !f.payload.includes('"pong"')) return;
       const m = JSON.parse(f.payload);
@@ -173,6 +177,7 @@ async function launch(name, { autoplay = true, path = "/", untouched = false } =
     video,
     tabId,
     pongs,
+    drifts,
     errors,
     sockets,
     send: (message) => control.evaluate((m) => chrome.runtime.sendMessage(m), message),
@@ -460,7 +465,8 @@ try {
   await wait(3000);
   let worst = 0;
   const samples = [];
-  const soakEnd = Date.now() + Number(soakSeconds) * 1000;
+  const soakStart = Date.now();
+  const soakEnd = soakStart + Number(soakSeconds) * 1000;
   while (Date.now() < soakEnd) {
     const { gap } = await spread(viewers);
     samples.push(gap);
@@ -479,6 +485,17 @@ try {
     `drift over ${soakSeconds} s stays under 0.5 s`,
     worst < 0.5,
     `worst ${worst.toFixed(3)} s, median ${samples[samples.length >> 1].toFixed(3)} s, ${samples.length} samples`,
+  );
+  // Each message counts against the server's daily quota, and steady play has nothing new.
+  const driftsDuringSoak = viewers.map((v) => v.drifts.filter((at) => at >= soakStart).length);
+  check(
+    "steady play tells the room its drift rarely",
+    driftsDuringSoak.every((count) => count <= Math.max(2, Number(soakSeconds) / 30)),
+    `${JSON.stringify(driftsDuringSoak)} drift messages in ${soakSeconds} s`,
+  );
+  check(
+    "and everyone still knows how far apart the room is",
+    (await Promise.all(viewers.map((v) => v.status()))).every((s) => typeof s.spread === "number"),
   );
 
   // ---- privacy
