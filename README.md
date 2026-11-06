@@ -51,21 +51,6 @@ No accounts and no analytics. Only these reach the server:
 
 The video itself never does. See the [privacy page](https://sinkro.pages.dev/privacy.html) for the details.
 
-## How it compares
-
-Checked in November 2026. Projects in this space come and go, so this changes.
-
-|                | Sites                        | People per room | Firefox | Price          | Source        |
-| -------------- | ---------------------------- | --------------- | ------- | -------------- | ------------- |
-| **Sinkro**     | Any site with a video        | Up to 50        | Yes     | Free           | Open (MIT)    |
-| Jelly Party    | Any site with a video        | Not stated      | Yes     | Free           | Open          |
-| VideoTogether  | Any site with a video        | Not stated      | No      | Free           | Open (Apache) |
-| Watch Together | Any site with a video        | 2               | Only    | Free           | Open (LGPL)   |
-| Duet           | Any site with a video        | 2               | Only    | Free           | Open (MIT)    |
-| Teleparty      | A fixed list of big services | Not stated      | No      | Free + premium | Closed        |
-
-Where Sinkro tries to be better: picking the right video on busy pages, staying in sync without visible jumps, and telling people what to do when something's off.
-
 ## FAQ
 
 **Does everyone need the extension?** Yes. The invite page offers to install it.
