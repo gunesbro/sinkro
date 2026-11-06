@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isHoverPreview, isPreviewSized, isSmallInWindow } from "../src/content/detection/floating";
+import {
+  isHoverPreview,
+  isPreviewLike,
+  isPreviewSized,
+  isSmallInWindow,
+} from "../src/content/detection/floating";
 
 const window = { width: 1600, height: 900 };
 
@@ -88,5 +93,24 @@ describe("isSmallInWindow", () => {
 
   it("has no answer in a window with no size", () => {
     expect(isSmallInWindow({ width: 100, height: 100 }, { width: 0, height: 0 })).toBe(false);
+  });
+});
+
+describe("isPreviewLike", () => {
+  const window = { width: 1000, height: 800 };
+  const video = (box: { width: number; height: number }, muted = true, volume = 1) => ({
+    muted,
+    volume,
+    getBoundingClientRect: () => ({ left: 0, top: 0, ...box }),
+  });
+
+  it.each([
+    ["a muted preview on a feed", video({ width: 400, height: 225 }), true],
+    ["one at volume zero", video({ width: 400, height: 225 }, false, 0), true],
+    ["a player the site kept out of sight", video({ width: 0, height: 0 }, false), true],
+    ["a film playing out loud", video({ width: 400, height: 225 }, false), false],
+    ["a big muted film", video({ width: 900, height: 506 }), false],
+  ])("%s: %s", (_, candidate, expected) => {
+    expect(isPreviewLike(candidate, window)).toBe(expected);
   });
 });
