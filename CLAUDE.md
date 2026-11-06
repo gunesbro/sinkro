@@ -67,4 +67,4 @@ Phase gate for MVP: 3 people, a 1-hour video, drift stays under 0.5 s.
 - One branch + one pull request per piece of work, in this order: repo skeleton → server → sync core → detection → popup UI → invite page → test suite.
 - Small, focused commits with clear messages. PR description says what changed, how it was tested, and what's left.
 - Accessibility is part of done: real `<button>`/`<label>`/`<input>`, 44 px touch targets, text contrast ≥ 4.5:1, `aria-label` on icon-only buttons.
-- Privacy is a feature: never add telemetry, never send page titles or URLs to the server beyond the sealed address and title of the room's video.
+- Privacy is a feature: never add telemetry, never send page titles or URLs to the server beyond the sealed address and title of the room's video. The room's socket opens from the page, so browsers send that site's `Origin` with it: never store or use it on the server, and keep the privacy page saying so.
