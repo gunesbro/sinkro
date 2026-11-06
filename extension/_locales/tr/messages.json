@@ -448,9 +448,15 @@
     "message": "Kendi sunucunu nasıl kurarsın? (GitHub)"
   },
   "liveStream": {
-    "message": "Canlı yayın"
+    "message": "Canlı · eşitleme yok"
   },
   "liveTime": {
     "message": "CANLI"
+  },
+  "liveNotice": {
+    "message": "Canlı yayınlar eşitlenmiyor"
+  },
+  "liveNoticeHelp": {
+    "message": "Herkes kendi canlı noktasından izler, bu yüzden Sinkro burada kimseyi durdurmaz ya da sarmaz. Başka yayına geçenleri yine gösterir."
   }
 }
