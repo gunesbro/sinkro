@@ -46,8 +46,8 @@ export type ClientMessage =
   /** Whether this viewer is sitting through an ad, so the others can choose to wait. */
   | { type: "ad"; watching: boolean }
   /**
-   * Whether this viewer was asked to come to the room's new video and hasn't yet, so whoever
-   * brought everyone can tell who's arrived. Only sent after someone brings everyone.
+   * Whether this viewer isn't on the room's video, so the others can tell who's with them: one
+   * that went elsewhere, or hasn't followed after someone brought everyone. Never which page.
    */
   | { type: "behind"; behind: boolean };
 
@@ -66,7 +66,7 @@ export type ServerMessage =
     }
   /** How many people other than the one receiving this are on an ad. */
   | { type: "ads"; count: number }
-  /** How many people other than the one receiving this haven't come to the room's video yet. */
+  /** How many people other than the one receiving this aren't on the room's video. */
   | { type: "left_behind"; count: number }
   /** How far apart the furthest two people are, from what each says of themselves. */
   | { type: "spread"; seconds: number }

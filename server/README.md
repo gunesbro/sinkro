@@ -46,9 +46,9 @@ A client that has joined may send `{"type":"drift","seconds":0.08}`, how far it 
 
 A client that has joined can send `{"type":"ad","watching":true}`. Everyone who has joined gets `{"type":"ads","count":n}`, counting the others on an ad, and someone joining gets it in `joined` as `ads`, when any are. It's kept with the connection, not in storage.
 
-## Someone who hasn't come yet
+## Someone on another video
 
-After someone brings everyone to a video, a client that has joined and hasn't followed yet sends `{"type":"behind","behind":true}`, and `false` once it has. Everyone who has joined gets `{"type":"left_behind","count":n}`, counting the others still to come, and someone joining gets it too when any are. It's kept with the connection, not in storage.
+A client that has joined and isn't on the room's video, because it went elsewhere or hasn't followed after someone brought everyone, sends `{"type":"behind","behind":true}`, and `false` once it's back. It says nothing about which page. Everyone who has joined gets `{"type":"left_behind","count":n}`, counting the others who aren't on it, and someone joining gets it too when any are. It's kept with the connection, not in storage.
 
 ## The room's video
 

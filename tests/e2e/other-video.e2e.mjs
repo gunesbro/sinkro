@@ -242,6 +242,12 @@ try {
     }),
   );
   check("and the sync doesn't go on hold", miniStatus.hold === null, String(miniStatus.hold));
+  await wait(1500);
+  check(
+    "nor is B told A is elsewhere",
+    (await b.status())?.othersBehind === 0,
+    String((await b.status())?.othersBehind),
+  );
   // A pause someone makes comes with a key or click, which is how it's told from a player's own.
   await a.tab.keyboard.press("Shift");
   await a.tab.evaluate(() => {
@@ -340,7 +346,13 @@ try {
     bStill.src.endsWith("film1.wav") && !bStill.paused && bStill.time > 290,
     JSON.stringify(bStill),
   );
-  check("B isn't told anything happened", (await kindOf(b)) === null);
+  check("B isn't moved or asked to follow", (await kindOf(b)) === null);
+  await until(async () => (await b.status())?.othersBehind === 1);
+  check(
+    "but B hears one person is on another video, and nothing about which",
+    (await b.status())?.othersBehind === 1,
+    String((await b.status())?.othersBehind),
+  );
   check("A's new video isn't dragged to the room's position", aOff.time < 30, String(aOff.time));
   await a.tab.bringToFront();
   await shot(a.tab, "you-moved-badge");
@@ -380,6 +392,12 @@ try {
     "going back returns to the film, in sync",
     Math.abs((await a.video()).time - (await b.video()).time) < 1 && !(await a.video()).paused,
     `${(await a.video()).time} / ${(await b.video()).time}`,
+  );
+  await until(async () => (await b.status())?.othersBehind === 0);
+  check(
+    "and B hears everyone is back",
+    (await b.status())?.othersBehind === 0,
+    String((await b.status())?.othersBehind),
   );
   await popupA2.close();
 
@@ -589,6 +607,39 @@ try {
     "and they're together",
     Math.abs(aAfterAd.time - bAfterAd.time) < 1.5,
     aAfterAd.time.toFixed(1) + " / " + bAfterAd.time.toFixed(1),
+  );
+
+  // ---- both go to the same new video on their own, without the buttons
+  await a.tab.evaluate(() => window.goTo(1));
+  await b.tab.evaluate(() => window.goTo(1));
+  await until(async () => (await kindOf(a)) === "you_moved" && (await kindOf(b)) === "you_moved");
+  await until(async () => (await a.status())?.othersBehind === 1);
+  const popupA5 = await a.openPopup();
+  await until(
+    async () => (await text(popupA5, "#alert-title")) === "Everyone left the room's video",
+  );
+  check(
+    "with everyone gone from the room's video, A is told so",
+    (await text(popupA5, "#alert-title")) === "Everyone left the room's video",
+    await text(popupA5, "#alert-title"),
+  );
+  await shot(popupA5, "everyone-left");
+  await popupA5.close();
+  await a.control.evaluate(
+    (t) => chrome.runtime.sendMessage({ type: "video/bring", tabId: t }),
+    a.tabId,
+  );
+  await until(async () => (await kindOf(a)) === null && (await kindOf(b)) === null);
+  check(
+    "A brings everyone, and B, already on that page, joins without pressing anything",
+    (await kindOf(a)) === null && (await kindOf(b)) === null,
+    JSON.stringify([await kindOf(a), await kindOf(b)]),
+  );
+  await until(async () => Math.abs((await a.video()).time - (await b.video()).time) < 1);
+  check(
+    "and they're together",
+    Math.abs((await a.video()).time - (await b.video()).time) < 1,
+    `${(await a.video()).time} / ${(await b.video()).time}`,
   );
 
   // ---- a page with no video on it still gets the card, and can only go back

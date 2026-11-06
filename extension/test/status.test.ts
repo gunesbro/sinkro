@@ -14,6 +14,7 @@ const connected: SessionStatus = {
   paused: false,
   othersOnAd: 0,
   othersBehind: 0,
+  isBehindDismissed: false,
   sourceMismatch: null,
   spread: null,
   isFilmStillPlaying: false,
@@ -226,6 +227,28 @@ describe("noticeFor", () => {
     });
   });
 
+  describe("everyone having left the room's video", () => {
+    const videoChange = { kind: "you_moved", title: "", host: "a.com" } as const;
+
+    it("says so, and offers making this the room's video", () => {
+      expect(noticeFor({ ...connected, peers: 3, othersBehind: 2, videoChange })).toMatchObject({
+        titleKey: "everyoneLeft",
+        bodyKey: "everyoneLeftHelp",
+        action: "bring",
+      });
+    });
+
+    it("isn't said while someone is still on it", () => {
+      const status = { ...connected, peers: 3, othersBehind: 1, videoChange };
+      expect(noticeFor(status)?.titleKey).toBe("youMoved");
+    });
+
+    it("isn't said to someone alone in the room", () => {
+      const status = { ...connected, peers: 1, othersBehind: 0, videoChange };
+      expect(noticeFor(status)?.titleKey).toBe("youMoved");
+    });
+  });
+
   describe("people who haven't come to the room's video yet", () => {
     it("says how many are here out of everyone, and how many are still to come", () => {
       expect(noticeFor({ ...connected, peers: 3, othersBehind: 1 })).toMatchObject({
@@ -243,6 +266,10 @@ describe("noticeFor", () => {
 
     it("doesn't push itself in front of the video being off screen", () => {
       expect(mustShowNotice(noticeFor({ ...connected, othersBehind: 1 }))).toBe(false);
+    });
+
+    it("stays away once put away", () => {
+      expect(noticeFor({ ...connected, othersBehind: 1, isBehindDismissed: true })).toBeNull();
     });
 
     it("gives way to the viewer's own ad", () => {

@@ -35,6 +35,7 @@ import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/
 import { filmOf, isSameFilm, type Film } from "./sync/same-film";
 import { SyncEngine, type PlaybackChange } from "./sync/engine";
 import { ChangeNotices, type ChangeDetails } from "./sync/notices";
+import { Arrivals } from "./sync/arrivals";
 
 const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
@@ -51,8 +52,6 @@ const DRIFT_SETTLE_MS = 2000;
 const DRIFT_SEEKING_SECONDS = 2;
 /** How often a viewer looks at whether they've come to the room's video. Looking is free. */
 const BEHIND_CHECK_MS = 1000;
-/** Following goes through a new page, so the room hears the old one go before the new one come. */
-const ARRIVAL_WAIT_MS = 15_000;
 /** Two lengths further apart than this are two different cuts of the film. */
 const SAME_LENGTH_SECONDS = 2;
 /** Sites change address without loading a page, and not always through anything hookable. */
@@ -125,17 +124,10 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   let othersBehind = 0;
   let dismissedBehind: number | null = null;
   let isBehind = false;
-  /** How many were in the room while someone was still to come, to tell arriving from leaving. */
-  let arrival: { peers: number; until: number } | null = null;
-  const checkArrival = () => {
-    if (!arrival) return;
-    if (Date.now() > arrival.until) {
-      arrival = null;
-    } else if (othersBehind === 0 && peers >= arrival.peers) {
-      arrival = null;
-      hooks.onEveryoneArrived();
-    }
-  };
+  const arrivals = new Arrivals({
+    onEveryoneHere: hooks.onEveryoneArrived,
+    isHere: () => hooks.videoChange() === null,
+  });
 
   const engine = new SyncEngine({
     now: Date.now,
@@ -159,6 +151,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     events: {
       onJoined: (message) => {
         peers = message.peers;
+        arrivals.setPeers(peers);
         ownId = message.clientId;
         if (message.state && message.state.from !== ownId) hooks.onOthersState(message.state);
         hooks.onPeopleChange(peers);
@@ -180,20 +173,12 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         peers = count;
         hooks.onPeopleChange(count);
         engine.handlePeers(count);
-        checkArrival();
+        arrivals.setPeers(count);
       },
       onLeftBehind: (count) => {
-        if (count > 0) {
-          arrival = {
-            peers: Math.max(peers, arrival?.peers ?? 0),
-            until: Number.POSITIVE_INFINITY,
-          };
-        } else if (arrival) {
-          arrival.until = Date.now() + ARRIVAL_WAIT_MS;
-        }
         if (count !== othersBehind) dismissedBehind = null;
         othersBehind = count;
-        checkArrival();
+        arrivals.setOthersAway(count);
       },
       onSpread: (seconds) => {
         spread = seconds;
@@ -205,6 +190,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       },
       onVideo: (sealed, fresh) => {
         if (fresh) engine.forgetTimeline();
+        arrivals.roomMoved();
         hooks.onRoomVideo(sealed, true);
       },
       onRejected: () => engine.handleRejected(),
@@ -231,9 +217,11 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     const rounded = Math.round(drift * 1000) / 1000;
     if (connection.sendDrift(rounded)) lastDriftSent = rounded;
   }, DRIFT_CHECK_MS);
-  // Only after someone brings everyone: wandering off to another page tells the room nothing.
+  // Only a yes or no, so the others can tell who's with them. Which page this is stays here: its
+  // address only leaves when someone brings everyone to it. A miniplayer still playing the
+  // film has no video change, so it counts as here.
   const behindTimer = setInterval(() => {
-    const behind = hooks.videoChange()?.kind === "room_moved";
+    const behind = hooks.videoChange() !== null;
     if (behind === isBehind || connectionStatus !== "connected") return;
     if (connection.sendBehind(behind)) isBehind = behind;
   }, BEHIND_CHECK_MS);
@@ -255,7 +243,8 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       closeReason,
       peers,
       othersOnAd,
-      othersBehind: othersBehind === dismissedBehind ? 0 : othersBehind,
+      othersBehind,
+      isBehindDismissed: othersBehind === dismissedBehind,
       spread: peers > 1 ? spread : null,
       // An ad has a length of its own, which says nothing about the source.
       sourceMismatch: engine.snapshot().hold ? null : hooks.sourceMismatch(),
