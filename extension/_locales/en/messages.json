@@ -434,5 +434,11 @@
   },
   "notifyEveryoneHere": {
     "message": "Everyone's here"
+  },
+  "everyoneLeft": {
+    "message": "Everyone left the room's video"
+  },
+  "everyoneLeftHelp": {
+    "message": "To make this the room's video, press Bring everyone here. Anyone already on this page joins by themselves."
   }
 }

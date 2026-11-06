@@ -434,5 +434,11 @@
   },
   "notifyEveryoneHere": {
     "message": "Herkes burada"
+  },
+  "everyoneLeft": {
+    "message": "Herkes odanın videosundan ayrıldı"
+  },
+  "everyoneLeftHelp": {
+    "message": "Bu videoyu odanın videosu yapmak için Hepsini buraya getir'e bas. Bu sayfada olanlar kendiliğinden katılır."
   }
 }

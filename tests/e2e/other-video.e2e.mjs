@@ -609,6 +609,39 @@ try {
     aAfterAd.time.toFixed(1) + " / " + bAfterAd.time.toFixed(1),
   );
 
+  // ---- both go to the same new video on their own, without the buttons
+  await a.tab.evaluate(() => window.goTo(1));
+  await b.tab.evaluate(() => window.goTo(1));
+  await until(async () => (await kindOf(a)) === "you_moved" && (await kindOf(b)) === "you_moved");
+  await until(async () => (await a.status())?.othersBehind === 1);
+  const popupA5 = await a.openPopup();
+  await until(
+    async () => (await text(popupA5, "#alert-title")) === "Everyone left the room's video",
+  );
+  check(
+    "with everyone gone from the room's video, A is told so",
+    (await text(popupA5, "#alert-title")) === "Everyone left the room's video",
+    await text(popupA5, "#alert-title"),
+  );
+  await shot(popupA5, "everyone-left");
+  await popupA5.close();
+  await a.control.evaluate(
+    (t) => chrome.runtime.sendMessage({ type: "video/bring", tabId: t }),
+    a.tabId,
+  );
+  await until(async () => (await kindOf(a)) === null && (await kindOf(b)) === null);
+  check(
+    "A brings everyone, and B, already on that page, joins without pressing anything",
+    (await kindOf(a)) === null && (await kindOf(b)) === null,
+    JSON.stringify([await kindOf(a), await kindOf(b)]),
+  );
+  await until(async () => Math.abs((await a.video()).time - (await b.video()).time) < 1);
+  check(
+    "and they're together",
+    Math.abs((await a.video()).time - (await b.video()).time) < 1,
+    `${(await a.video()).time} / ${(await b.video()).time}`,
+  );
+
   // ---- a page with no video on it still gets the card, and can only go back
   await a.tab.goto(`${WEB}/browse`);
   await until(async () => (await kindOf(a)) === "you_moved");

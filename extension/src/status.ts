@@ -113,6 +113,11 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
     // With no video here it's another page, and calling it another video would be wrong.
     if (!status.hasVideo)
       return { ...notice("warn", "youMoved", "return"), titleKey: "youLeftPage" };
+    // Nobody's left on the room's video, so there's no going back to anyone: it's moving it here
+    // that helps, and whoever is already on this page joins by themselves.
+    if (status.peers > 1 && status.othersBehind >= status.peers - 1) {
+      return notice("warn", "everyoneLeft", "bring");
+    }
     return notice("warn", "youMoved", "bring");
   }
   if (status.videoChange?.kind === "room_moved") {
