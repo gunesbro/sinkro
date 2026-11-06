@@ -50,7 +50,8 @@ function wav(seconds) {
   b.writeUInt32LE(data, 40);
   return b;
 }
-const media = wav(3600);
+// The soak starts about 20 minutes in, and the checks after it need the film still going.
+const media = wav(Math.max(3600, 2400 + Number(soakSeconds)));
 const pageFor = (
   src,
 ) => `<!doctype html><title>t</title><button id=play onclick="document.querySelector('video').play()">play</button>
@@ -499,11 +500,25 @@ try {
   );
 
   // ---- privacy
-  const keys = Object.keys(obs.latest()).sort().join(",");
+  // A viewer's own state also carries the film's length and its player's site, sealed.
+  const latest = obs.latest();
+  const allowed = [
+    "duration",
+    "from",
+    "playing",
+    "position",
+    "rate",
+    "sentAt",
+    "seq",
+    "source",
+    "type",
+  ];
+  const keys = Object.keys(latest).sort();
   check(
     "only playback state crosses the wire",
-    keys === "from,playing,position,rate,sentAt,seq,type",
-    keys,
+    keys.every((key) => allowed.includes(key)) &&
+      !/https?:|\/\/|localhost/.test(String(latest.source ?? "")),
+    keys.join(","),
   );
 
   // ---- page CSP
