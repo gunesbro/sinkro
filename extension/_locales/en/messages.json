@@ -448,9 +448,15 @@
     "message": "How to run your own server (GitHub)"
   },
   "liveStream": {
-    "message": "Live stream"
+    "message": "Live · not synced"
   },
   "liveTime": {
     "message": "LIVE"
+  },
+  "liveNotice": {
+    "message": "Live streams aren't synced"
+  },
+  "liveNoticeHelp": {
+    "message": "Everyone watches from their own live point, so Sinkro doesn't pause or move anyone here. It still shows who's on another stream."
   }
 }

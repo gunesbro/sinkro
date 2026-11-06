@@ -203,7 +203,15 @@ function renderRoom(): void {
     bodyKey: "floatingPlayerHelp",
     action: null,
   };
-  const shownNotice = notice ?? (status?.isFloatingPlayer ? floatingNotice : null);
+  // Says what "live" means for the room, in the popup only, so it never sits over the stream.
+  const liveNotice: Notice = {
+    tone: "idle",
+    titleKey: "liveNotice",
+    bodyKey: "liveNoticeHelp",
+    action: null,
+  };
+  const shownNotice =
+    notice ?? (status?.isFloatingPlayer ? floatingNotice : status?.isLive ? liveNotice : null);
   element("alert").hidden = !shownNotice;
   if (shownNotice) {
     setDot("alert-dot", shownNotice.tone);

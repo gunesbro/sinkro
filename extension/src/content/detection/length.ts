@@ -12,18 +12,33 @@ export type MeasuredVideo = Pick<HTMLVideoElement, "duration" | "currentSrc">;
 
 export class VideoLengths {
   private readonly seen = new WeakMap<MeasuredVideo, Seen>();
+  /**
+   * The page each video was last seen live on. Going back into a stream's past, a player can
+   * swap its endless length for a fixed one, and that's still the stream: it stays live until
+   * the page changes, to a recording say.
+   */
+  private readonly liveOn = new WeakMap<MeasuredVideo, string>();
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(
+    private readonly now: () => number = Date.now,
+    private readonly page: () => string = () => location.pathname,
+  ) {}
 
   /** A live stream, by an endless length or by one that keeps growing. */
   isLive(video: MeasuredVideo): boolean {
-    return this.look(video)?.isLive ?? video.duration === Number.POSITIVE_INFINITY;
+    const isLive = this.look(video)?.isLive ?? video.duration === Number.POSITIVE_INFINITY;
+    if (isLive) {
+      this.liveOn.set(video, this.page());
+      return true;
+    }
+    return this.liveOn.get(video) === this.page();
   }
 
   /** A length that's been the same for a while, worth telling others or comparing with theirs. */
   settledLength(video: MeasuredVideo): number | null {
+    if (this.isLive(video)) return null;
     const seen = this.look(video);
-    if (!seen || seen.isLive || this.now() - seen.at < SETTLED_MS) return null;
+    if (!seen || this.now() - seen.at < SETTLED_MS) return null;
     return video.duration;
   }
 
