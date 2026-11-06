@@ -564,7 +564,7 @@ describe("drift", () => {
     const context = setup();
     await joinPlaying(context);
     const { video } = context;
-    video.position += 0.25;
+    video.position += 0.1;
     await play(video, 2000);
 
     expect(video.playbackRate).toBe(1);
@@ -583,7 +583,7 @@ describe("drift", () => {
 
     await play(video, 40_000);
     expect(video.playbackRate).toBe(1);
-    expect(Math.abs(engine.snapshot().drift ?? 9)).toBeLessThan(0.3);
+    expect(Math.abs(engine.snapshot().drift ?? 9)).toBeLessThan(0.15);
     expect(engine.snapshot().correcting).toBe(false);
     expect(video.seekCalls).toBe(0);
     expect(sent).toEqual([]);

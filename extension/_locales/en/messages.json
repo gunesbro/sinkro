@@ -397,5 +397,14 @@
   },
   "gotIt": {
     "message": "Got it"
+  },
+  "spreadWithin": {
+    "message": "everyone within $SECONDS$ s",
+    "placeholders": {
+      "seconds": {
+        "content": "$1",
+        "example": "0.12"
+      }
+    }
   }
 }

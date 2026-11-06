@@ -41,6 +41,8 @@ export type ClientMessage =
   | { type: "video/get" }
   /** `fresh` means it's a different film, so the room's position no longer means anything. */
   | { type: "video/set"; sealed: string; fresh?: boolean }
+  /** How far this viewer is from the room's timeline, ahead positive, for the room's spread. */
+  | { type: "drift"; seconds: number }
   /** Whether this viewer is sitting through an ad, so the others can choose to wait. */
   | { type: "ad"; watching: boolean };
 
@@ -59,6 +61,8 @@ export type ServerMessage =
     }
   /** How many people other than the one receiving this are on an ad. */
   | { type: "ads"; count: number }
+  /** How far apart the furthest two people are, from what each says of themselves. */
+  | { type: "spread"; seconds: number }
   | ({ type: "state" } & RoomState)
   | { type: "peers"; count: number }
   | { type: "pong"; clientTime: number; serverTime: number }
@@ -72,6 +76,8 @@ const MAX_SEALED_VIDEO_LENGTH = 3900;
 const MAX_POSITION_SECONDS = 7 * 24 * 60 * 60;
 /** Room for a sealed host name of up to 253 characters. */
 const MAX_SOURCE_LENGTH = 400;
+/** Past this, a viewer is seeking, not drifting. */
+const MAX_DRIFT_SECONDS = 60;
 // The range browsers accept for HTMLMediaElement.playbackRate.
 export const MIN_RATE = 0.0625;
 export const MAX_RATE = 16;
@@ -150,6 +156,10 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
       const playback = parsePlayback(message);
       return playback && { type: "state", ...playback };
     }
+    case "drift":
+      return isFiniteNumber(message.seconds) && Math.abs(message.seconds) <= MAX_DRIFT_SECONDS
+        ? { type: "drift", seconds: message.seconds }
+        : null;
     case "ad":
       return typeof message.watching === "boolean"
         ? { type: "ad", watching: message.watching }
@@ -202,6 +212,10 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       return isFiniteNumber(message.count) ? { type: "peers", count: message.count } : null;
     case "ads":
       return isFiniteNumber(message.count) ? { type: "ads", count: message.count } : null;
+    case "spread":
+      return isFiniteNumber(message.seconds) && message.seconds >= 0
+        ? { type: "spread", seconds: message.seconds }
+        : null;
     case "video":
       return typeof message.sealed === "string" || message.sealed === null
         ? {

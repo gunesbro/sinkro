@@ -5,7 +5,10 @@ import type { SessionStatus } from "./messages";
 
 export type Tone = "ok" | "warn" | "danger" | "idle";
 
-/** Matches when the engine starts correcting: below it, the viewer can't tell they're off. */
+/**
+ * Below this the viewer can't tell they're off, so the status says in sync. The engine starts
+ * correcting sooner, so two people stay close, and saying "catching up" for that would flicker.
+ */
 const IN_SYNC_SECONDS = 0.3;
 
 export type StatusLine = { tone: Tone; key: string };

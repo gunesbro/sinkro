@@ -37,6 +37,8 @@ export type ConnectionEvents = {
   onPeers: (count: number) => void;
   /** How many others are on an ad. */
   onAds: (count: number) => void;
+  /** How far apart the furthest two people in the room are. */
+  onSpread: (seconds: number) => void;
   /** Someone moved the room to another video. `fresh` means it's a different film. */
   onVideo: (sealed: string, fresh: boolean) => void;
   onRejected: () => void;
@@ -129,6 +131,10 @@ export class RoomConnection {
     return this.joined && this.send({ type: "state", ...state });
   }
 
+  sendDrift(seconds: number): boolean {
+    return this.joined && this.send({ type: "drift", seconds });
+  }
+
   sendAdState(watching: boolean): boolean {
     return this.joined && this.send({ type: "ad", watching });
   }
@@ -198,6 +204,9 @@ export class RoomConnection {
         return;
       case "ads":
         events.onAds(message.count);
+        return;
+      case "spread":
+        events.onSpread(message.seconds);
         return;
       case "video":
         if (message.sealed !== null) events.onVideo(message.sealed, message.fresh === true);

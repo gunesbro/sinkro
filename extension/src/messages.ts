@@ -18,6 +18,8 @@ export type SessionStatus = EngineSnapshot & {
   /** How many others are on an ad. */
   othersOnAd: number;
   sourceMismatch: SourceMismatch | null;
+  /** How far apart the furthest two people are, in seconds, once at least two have said. */
+  spread: number | null;
   /** The video is a small one pinned over the page, so the address doesn't say which it is. */
   isFloatingPlayer: boolean;
   /** This page is the room's video's, whether or not its player has made a video yet. */

@@ -37,6 +37,11 @@ import { ChangeNotices, type ChangeDetails } from "./sync/notices";
 
 const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
+/** How often a viewer looks at their own drift, to tell the room: each message counts against the server's daily quota. */
+const DRIFT_CHECK_MS = 5000;
+/** A drift is only told again once it's moved this much, or this long has passed. */
+const DRIFT_STEP_SECONDS = 0.03;
+const DRIFT_HEARTBEAT_MS = 15_000;
 /** Two lengths further apart than this are two different cuts of the film. */
 const SAME_LENGTH_SECONDS = 2;
 /** Sites change address without loading a page, and not always through anything hookable. */
@@ -94,6 +99,9 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   let peers = 0;
   let othersOnAd = 0;
   let ownId: string | null = null;
+  let spread: number | null = null;
+  let lastDriftSent: number | null = null;
+  let lastDriftSentAt = 0;
   let isOnAd = false;
 
   const engine = new SyncEngine({
@@ -136,6 +144,9 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         hooks.onPeopleChange(count);
         engine.handlePeers(count);
       },
+      onSpread: (seconds) => {
+        spread = seconds;
+      },
       onAds: (count) => {
         const hadAny = othersOnAd > 0;
         othersOnAd = count;
@@ -156,6 +167,21 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   });
 
   engine.bind(tracker.video());
+  // Each viewer only knows their own drift, so they tell the room, which says how far apart
+  // the furthest two are. A paused room or one on hold has nothing to say.
+  const driftTimer = setInterval(() => {
+    const { drift, hold, paused } = engine.snapshot();
+    if (drift === null || hold || paused || connectionStatus !== "connected") return;
+    const now = Date.now();
+    const hasMoved =
+      lastDriftSent === null || Math.abs(drift - lastDriftSent) >= DRIFT_STEP_SECONDS;
+    if (!hasMoved && now - lastDriftSentAt < DRIFT_HEARTBEAT_MS) return;
+    const rounded = Math.round(drift * 1000) / 1000;
+    if (connection.sendDrift(rounded)) {
+      lastDriftSent = rounded;
+      lastDriftSentAt = now;
+    }
+  }, DRIFT_CHECK_MS);
   const onOnline = () => connection.retryNow();
   window.addEventListener("online", onOnline);
   connection.start();
@@ -171,6 +197,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       closeReason,
       peers,
       othersOnAd,
+      spread: peers > 1 ? spread : null,
       // An ad has a length of its own, which says nothing about the source.
       sourceMismatch: engine.snapshot().hold ? null : hooks.sourceMismatch(),
       videoChange: hooks.videoChange(),
@@ -179,6 +206,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       isFloatingPlayer: isFloatingPlayer(tracker.video()),
     }),
     stop: () => {
+      clearInterval(driftTimer);
       window.removeEventListener("online", onOnline);
       connection.stop();
       engine.stop();

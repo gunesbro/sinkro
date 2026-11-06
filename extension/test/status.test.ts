@@ -14,6 +14,7 @@ const connected: SessionStatus = {
   paused: false,
   othersOnAd: 0,
   sourceMismatch: null,
+  spread: null,
   isFilmStillPlaying: false,
   isFloatingPlayer: false,
   isOnRoomPage: false,

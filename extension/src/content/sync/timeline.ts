@@ -1,14 +1,21 @@
 import type { PlaybackState } from "../../../../server/src/protocol";
 
-/** Below this, people can't tell two screens apart, so nothing is corrected. */
-export const IGNORE_DRIFT_SECONDS = 0.3;
-/** A correction runs until drift is this small, or it would stall just under the limit above. */
-const SETTLED_DRIFT_SECONDS = 0.1;
+/**
+ * Below this, nothing is corrected. Each viewer is measured against the room's timeline, so
+ * two people can be up to twice this apart, which is why it's half of what anyone could notice.
+ */
+export const IGNORE_DRIFT_SECONDS = 0.15;
+/**
+ * A correction runs until drift is this small, or it would stall just under the limit above.
+ * Not smaller: away from 1x some browsers report the position about 0.05 s late, and a
+ * correction aiming below that never ends.
+ */
+const SETTLED_DRIFT_SECONDS = 0.08;
 /** Above this, catching up by speed would take too long. */
 const SEEK_DRIFT_SECONDS = 2;
 /** The speed change stays within ±5% so it can't be heard or seen. */
 const MAX_RATE_CHANGE = 0.05;
-/** Speed change per second of drift: 0.3 s plays at ±3%, 0.5 s and up at ±5%. */
+/** Speed change per second of drift: 0.15 s plays at ±1.5%, 0.5 s and up at ±5%. */
 const RATE_CHANGE_PER_SECOND = 0.1;
 
 /** Where the shared timeline is at this moment, in seconds into the video. */
