@@ -46,6 +46,15 @@ npm run check   # formatting, types, locale files, builds, Firefox lint
 npm run dev -w server
 ```
 
+**Run the browser tests**
+
+```sh
+npx playwright-core install chromium   # once
+npm run test:e2e                        # every scenario, or name some: npm run test:e2e -- sync popup
+```
+
+See [tests/README.md](tests/README.md) for what they cover.
+
 ## License
 
 [MIT](LICENSE)
