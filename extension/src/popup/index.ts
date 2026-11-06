@@ -135,7 +135,8 @@ function renderRoom(): void {
           }),
         ])
       : "";
-  element("people").textContent = [people, spread].filter(Boolean).join(" · ");
+  element("people").textContent = people;
+  element("spread").textContent = spread;
   element("timecode").textContent =
     status?.position !== undefined && status.position !== null
       ? (formatTimecode(status.position) ?? "")
