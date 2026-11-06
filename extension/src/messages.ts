@@ -19,6 +19,8 @@ export type SessionStatus = EngineSnapshot & {
   othersOnAd: number;
   /** How many others haven't come to the video someone brought everyone to. */
   othersBehind: number;
+  /** The viewer put away the notice about it, which stays away until the count changes. */
+  isBehindDismissed: boolean;
   sourceMismatch: SourceMismatch | null;
   /** How far apart the furthest two people are, in seconds, once at least two have said. */
   spread: number | null;

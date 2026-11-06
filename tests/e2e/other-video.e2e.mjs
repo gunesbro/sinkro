@@ -242,6 +242,12 @@ try {
     }),
   );
   check("and the sync doesn't go on hold", miniStatus.hold === null, String(miniStatus.hold));
+  await wait(1500);
+  check(
+    "nor is B told A is elsewhere",
+    (await b.status())?.othersBehind === 0,
+    String((await b.status())?.othersBehind),
+  );
   // A pause someone makes comes with a key or click, which is how it's told from a player's own.
   await a.tab.keyboard.press("Shift");
   await a.tab.evaluate(() => {
@@ -340,7 +346,13 @@ try {
     bStill.src.endsWith("film1.wav") && !bStill.paused && bStill.time > 290,
     JSON.stringify(bStill),
   );
-  check("B isn't told anything happened", (await kindOf(b)) === null);
+  check("B isn't moved or asked to follow", (await kindOf(b)) === null);
+  await until(async () => (await b.status())?.othersBehind === 1);
+  check(
+    "but B hears one person is on another video, and nothing about which",
+    (await b.status())?.othersBehind === 1,
+    String((await b.status())?.othersBehind),
+  );
   check("A's new video isn't dragged to the room's position", aOff.time < 30, String(aOff.time));
   await a.tab.bringToFront();
   await shot(a.tab, "you-moved-badge");
@@ -380,6 +392,12 @@ try {
     "going back returns to the film, in sync",
     Math.abs((await a.video()).time - (await b.video()).time) < 1 && !(await a.video()).paused,
     `${(await a.video()).time} / ${(await b.video()).time}`,
+  );
+  await until(async () => (await b.status())?.othersBehind === 0);
+  check(
+    "and B hears everyone is back",
+    (await b.status())?.othersBehind === 0,
+    String((await b.status())?.othersBehind),
   );
   await popupA2.close();
 

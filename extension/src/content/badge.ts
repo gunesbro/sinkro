@@ -333,7 +333,14 @@ export class VideoBadge {
   private renderPill(status: SessionStatus): void {
     const line = statusLine(status);
     const label = translate(this.messages, line.key);
-    const count = status.peers > 0 ? String(status.peers) : "";
+    // Out of everyone, how many are on this video, when someone isn't.
+    const here = status.peers - status.othersBehind;
+    const count =
+      status.peers <= 0
+        ? ""
+        : here < status.peers
+          ? `${Math.max(here, 1)}/${status.peers}`
+          : String(status.peers);
     const text = `${label} ${count}`;
     if (text !== this.lastPillText) {
       this.lastPillText = text;
@@ -341,9 +348,11 @@ export class VideoBadge {
       this.pillText.textContent = label;
       this.pillCount.textContent = count;
       this.lastPillLabel =
-        status.peers > 0
-          ? `${label}. ${translate(this.messages, "people", [String(status.peers)])}`
-          : label;
+        status.peers <= 0
+          ? label
+          : here < status.peers
+            ? `${label}. ${translate(this.messages, "othersBehind", [String(Math.max(here, 1)), String(status.peers)])}`
+            : `${label}. ${translate(this.messages, "people", [String(status.peers)])}`;
       if (!this.isMoving) this.pill.setAttribute("aria-label", this.lastPillLabel);
     }
     this.dot.style.background = TONE_COLORS[line.tone];

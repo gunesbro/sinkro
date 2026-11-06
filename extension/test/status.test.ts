@@ -14,6 +14,7 @@ const connected: SessionStatus = {
   paused: false,
   othersOnAd: 0,
   othersBehind: 0,
+  isBehindDismissed: false,
   sourceMismatch: null,
   spread: null,
   isFilmStillPlaying: false,
@@ -243,6 +244,10 @@ describe("noticeFor", () => {
 
     it("doesn't push itself in front of the video being off screen", () => {
       expect(mustShowNotice(noticeFor({ ...connected, othersBehind: 1 }))).toBe(false);
+    });
+
+    it("stays away once put away", () => {
+      expect(noticeFor({ ...connected, othersBehind: 1, isBehindDismissed: true })).toBeNull();
     });
 
     it("gives way to the viewer's own ad", () => {

@@ -144,7 +144,7 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
     }
     return notice("idle", "noVideo", "pick");
   }
-  if (status.othersBehind > 0) {
+  if (status.othersBehind > 0 && !status.isBehindDismissed) {
     const here = Math.max(status.peers - status.othersBehind, 1);
     return {
       tone: "idle",
