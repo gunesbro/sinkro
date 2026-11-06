@@ -1386,6 +1386,30 @@ describe("a page's video starting by itself just after joining", () => {
     expect(video.paused).toBe(true);
   });
 
+  it("sends a play whose click was in another frame, once word of it arrives", async () => {
+    let inputAt = Number.NEGATIVE_INFINITY;
+    const context = setup({ lastInputAt: () => inputAt });
+    const { engine, video, sent, peerState } = context;
+    engine.bind(video.asVideo());
+    engine.handleJoined({
+      clientId: ME,
+      state: peerState({ playing: false, position: 9 }),
+      peers: 2,
+    });
+    await settle();
+    sent.length = 0;
+
+    // The player's button is in another frame: the video plays first, the word comes after.
+    video.position = 9;
+    video.userPlay();
+    await vi.advanceTimersByTimeAsync(100);
+    inputAt = Date.now();
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(sent).toMatchObject([{ playing: true }]);
+    expect(video.paused).toBe(false);
+  });
+
   it("still sends what the viewer does, with a click or key, straight away", async () => {
     let inputAt = Number.NEGATIVE_INFINITY;
     const context = setup({ lastInputAt: () => inputAt });

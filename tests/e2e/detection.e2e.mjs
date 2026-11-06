@@ -649,11 +649,9 @@ try {
     );
     const frame = await until(() => s.page.frames().find((f) => f.url().startsWith(OTHER)));
     await wait(2500);
-    // A person acts with a key or a click, inside the frame where the video is. Headless
-    // Chromium doesn't deliver input to a frame from another address, so the key is sent there.
-    await frame.evaluate(() =>
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift" })),
-    );
+    // A person acts on the page around the player, as when its buttons sit outside the frame
+    // holding the video. Word of it reaches that frame through the background.
+    await s.page.keyboard.press("Shift");
     await frame.evaluate(() => {
       window.v.currentTime = 900;
       return window.v.play();
