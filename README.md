@@ -15,13 +15,12 @@ Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox
 
 ## Install
 
-Sinkro isn't in the extension stores yet. To try it now, build it yourself:
+Sinkro isn't in the extension stores yet. To try it now, take the latest package from [Releases](https://github.com/gunesbro/sinkro/releases):
 
-1. Install [Node.js](https://nodejs.org/) 24, then run `npm ci` and `npm run build` in this repository.
-2. Open `chrome://extensions` or `edge://extensions` and turn on developer mode.
-3. Choose **Load unpacked** and select `extension/dist/chrome`.
+- **Chrome or Edge:** download `sinkro-chrome-….zip` and unzip it. Open `chrome://extensions` or `edge://extensions`, turn on developer mode, choose **Load unpacked** and select the unzipped folder.
+- **Firefox:** if the release has an `.xpi` file, open it in Firefox to install. Otherwise download `sinkro-firefox-….zip`, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on** and pick the zip; it goes away when Firefox closes.
 
-For Firefox, see [Development](#development).
+Everyone in a room installs it the same way. To build it yourself instead, see [Development](#development).
 
 ## How to use it
 
