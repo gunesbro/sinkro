@@ -53,8 +53,12 @@ const BELOW_BAR_PX = 8;
 const TOP_OF_WINDOW_PX = 28;
 /** Anything covering more of the video than this is an overlay of some kind, not a bar. */
 const MAX_BAR_SHARE_OF_VIDEO = 0.5;
+/** Taller than this share of the window, and it's a layer over the page, not its bar. */
+const MAX_BAR_SHARE_OF_WINDOW_HEIGHT = 0.25;
 /** Every card the same width, so its buttons line up whatever they say. */
 const CARD_WIDTH_PX = 288;
+/** The widest the pill and card together get. */
+const STACK_MAX_WIDTH_PX = 300;
 /** A pointer on the badge must never reach the player underneath. */
 const SWALLOWED_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick"];
 
@@ -110,6 +114,9 @@ function siteBarAt(
     if (video && containsAcrossShadow(node, video)) return null;
 
     const box = node.getBoundingClientRect();
+    // A site's bar is short. Something taller, like a cookie or sign-in layer dimming the whole
+    // page, would push the badge below it, off the window.
+    if (box.height > window.innerHeight * MAX_BAR_SHARE_OF_WINDOW_HEIGHT) return null;
     const videoBox = video?.getBoundingClientRect();
     const limit = videoBox
       ? videoBox.width * videoBox.height * MAX_BAR_SHARE_OF_VIDEO
@@ -322,7 +329,14 @@ export class VideoBadge {
 
   private place(box: DOMRect, minTop?: number, position = this.position): void {
     const viewport = { width: window.innerWidth, height: window.innerHeight };
-    const { horizontal, vertical } = placeBadge(box, CHIP_AT_REST, viewport, position, minTop);
+    const { horizontal, vertical } = placeBadge(
+      box,
+      CHIP_AT_REST,
+      viewport,
+      position,
+      minTop,
+      STACK_MAX_WIDTH_PX,
+    );
 
     const { style } = this.stack;
     style.left = horizontal.side === "left" ? `${horizontal.px}px` : "auto";
@@ -641,7 +655,7 @@ export class VideoBadge {
 
   private buildContent(root: ShadowRoot): void {
     this.stack.style.cssText = `position: fixed; display: none; flex-direction: column;
-      align-items: flex-end; gap: 10px; max-width: 300px; font-family: ${FONT}; color: ${TEXT};`;
+      align-items: flex-end; gap: 10px; max-width: ${STACK_MAX_WIDTH_PX}px; font-family: ${FONT}; color: ${TEXT};`;
 
     this.pill.setAttribute("role", "status");
     this.pill.style.cssText = `display: flex; align-items: center; gap: 8px; box-sizing: border-box;

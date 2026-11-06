@@ -421,10 +421,10 @@
     }
   },
   "oneBehindHelp": {
-    "message": "One person is on another video."
+    "message": "One person is on another page."
   },
   "othersBehindHelp": {
-    "message": "$COUNT$ people are on another video.",
+    "message": "$COUNT$ people are on another page.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -457,6 +457,6 @@
     "message": "Live streams aren't synced"
   },
   "liveNoticeHelp": {
-    "message": "Everyone watches from their own live point, so Sinkro doesn't pause or move anyone here. It still shows who's on another stream."
+    "message": "Everyone watches from their own live point, so Sinkro doesn't pause or move anyone here. It still shows who's on another page."
   }
 }

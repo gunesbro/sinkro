@@ -58,10 +58,15 @@ export function placeBadge(
   viewport: Size,
   position: BadgePosition | null,
   minTop = INSET_PX,
+  /** How wide the card under the pill gets, so it doesn't open off the edge of the window. */
+  cardWidth = 0,
 ): Placement {
   const { left, top } = spotOf(video, pill, position);
 
-  const alignRight = !position || position.x > 0.5;
+  // The card opens from the pill's right edge leftwards. On a small video near the window's
+  // left edge there's no room for that, so it opens rightwards from the pill's left instead.
+  const fitsLeftwards = left + pill.width - cardWidth >= INSET_PX;
+  const alignRight = (!position || position.x > 0.5) && fitsLeftwards;
   const opensUp = position !== null && position.y > 0.5;
 
   return {

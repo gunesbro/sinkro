@@ -351,7 +351,7 @@ try {
   check("B isn't moved or asked to follow", (await kindOf(b)) === null);
   await until(async () => (await b.status())?.othersBehind === 1);
   check(
-    "but B hears one person is on another video, and nothing about which",
+    "but B hears one person is on another page, and nothing about which",
     (await b.status())?.othersBehind === 1,
     String((await b.status())?.othersBehind),
   );
