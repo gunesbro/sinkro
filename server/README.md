@@ -70,7 +70,15 @@ All messages are JSON text of at most 4096 characters. The types are in [`src/pr
 | ←         | `{type:"error",code}`                                  | `invalid_message`, `not_joined` or `rate_limited`     |
 | →         | `keepalive`                                            | Plain text; answered with `keepalive`                 |
 
-The room keeps one shared timeline, the latest `state`. While it's playing, the target position is `position + rate * (serverNow - sentAt) / 1000`.
+The room keeps one shared timeline, the latest `state`.
+
+## Actions that cross
+
+A `state` may say what the viewer's action changed, `"changed":["playing"]` (or `"position"`, `"rate"`), and `basis`, the `seq` of the room's state the sender last knew. The room then applies only those parts and keeps the rest of its own, so a pause and a seek sent at the same moment both stick: the room ends up paused where the seek went. Where two change the same part, the later one wins. A pause, play or change of speed carries a position only because it happened somewhere: if someone moved the room since the sender's `basis`, the room's own timeline is used instead, so the move isn't undone. The combined state goes to everyone, sender included, and may differ from what the sender sent. A `state` without `changed` and `basis` replaces the room's whole, as older clients expect.
+
+## The shared timeline
+
+While it's playing, the target position is `position + rate * (serverNow - sentAt) / 1000`.
 
 If `sentAt` is more than 30 seconds from server time, the server replaces it with the server time. Each connection can send 50 messages per 10 seconds, and a room holds 50 connections.
 

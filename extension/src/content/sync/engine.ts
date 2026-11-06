@@ -1,6 +1,8 @@
 import {
   MAX_RATE,
   MIN_RATE,
+  type OutgoingState,
+  type PlaybackField,
   type PlaybackState,
   type RoomState,
 } from "../../../../server/src/protocol";
@@ -68,7 +70,7 @@ export type EngineDeps = {
   now: () => number;
   serverNow: () => number;
   /** Returns false if the message couldn't be handed to the connection. */
-  send: (state: PlaybackState) => boolean;
+  send: (state: OutgoingState) => boolean;
   /** Says why the video can't follow the room right now, such as an ad playing. */
   holdFor?: (roomPosition: number | null) => Hold | null;
   onHoldChange?: (hold: Hold | null) => void;
@@ -207,8 +209,17 @@ export class SyncEngine {
 
     if (state.from === this.clientId) {
       this.unacked = Math.max(0, this.unacked - 1);
-      // The room may have replaced sentAt if this clock is badly wrong, so its copy wins.
-      if (this.unacked === 0 && this.publishTimer === null) this.setTimeline(state);
+      if (this.unacked > 0 || this.publishTimer !== null || this.pauseCheckTimer !== null) return;
+      // The room combines what crossed: our pause with someone's seek comes back paused at
+      // their seek. So our own state can come back different, and then it's followed too.
+      // The room may also have replaced sentAt if this clock is badly wrong: its copy wins.
+      const change = this.describeChange(state);
+      const jumped = this.hasJumped(state);
+      this.setTimeline(state);
+      if (change) {
+        this.apply(true);
+        this.deps.onRemoteChange?.(change, { rate: state.rate, jumped });
+      }
       return;
     }
     // A state of ours that was lost has no echo coming, and waiting on it for good would
@@ -234,6 +245,17 @@ export class SyncEngine {
     if (Math.abs(timeline.rate - next.rate) >= RATE_EPSILON) return "rate";
 
     return this.hasJumped(next) ? "seeked" : null;
+  }
+
+  /** What a viewer's action changed, so the room keeps what others changed meanwhile. */
+  private changedFields(next: PlaybackState): PlaybackField[] {
+    const { timeline } = this;
+    if (!timeline) return [];
+    const fields: PlaybackField[] = [];
+    if (timeline.playing !== next.playing) fields.push("playing");
+    if (this.hasJumped(next)) fields.push("position");
+    if (Math.abs(timeline.rate - next.rate) >= RATE_EPSILON) fields.push("rate");
+    return fields;
   }
 
   private hasJumped(next: PlaybackState): boolean {
@@ -648,7 +670,12 @@ export class SyncEngine {
       sentAt: this.deps.serverNow(),
       ...this.deps.filmDetails?.(),
     };
-    if (!this.deps.send(state)) return;
+    // Only for what the viewer did. A state the engine sends to start or restore the timeline,
+    // or one that changed nothing the room can name, replaces the room's whole, as before.
+    const changed = isViewersAction ? this.changedFields(state) : [];
+    const outgoing: OutgoingState =
+      changed.length > 0 ? { ...state, changed, basis: this.lastSeq } : state;
+    if (!this.deps.send(outgoing)) return;
 
     const change = isViewersAction && !this.isAlone ? this.describeChange(state) : null;
     const jumped = this.hasJumped(state);

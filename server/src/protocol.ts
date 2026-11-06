@@ -29,13 +29,22 @@ export type PlaybackState = {
   source?: string;
 };
 
+/** The parts of a playback state a viewer's action can change. */
+export type PlaybackField = "playing" | "position" | "rate";
+const PLAYBACK_FIELDS: readonly PlaybackField[] = ["playing", "position", "rate"];
+
 export type ClientMessage =
   /**
    * `viewer` is a random value from one page's connection, kept through its reconnects, so a
    * socket whose network dropped isn't counted alongside the one replacing it.
    */
   | { type: "join"; protocol: number; viewer?: string }
-  | ({ type: "state" } & PlaybackState)
+  /**
+   * `changed` says what the viewer's action changed, and `basis` is the `seq` of the room's
+   * state they last knew, so the room can combine actions that cross. Without them the state
+   * replaces the room's whole.
+   */
+  | ({ type: "state" } & PlaybackState & { changed?: PlaybackField[]; basis?: number })
   | { type: "ping"; clientTime: number }
   /** The room's video, sealed. Both work without joining. Setting it tells everyone who joined. */
   | { type: "video/get" }
@@ -53,6 +62,9 @@ export type ClientMessage =
 
 /** A playback state as accepted by the room. `seq` orders states; higher wins. */
 export type RoomState = PlaybackState & { seq: number; from: string };
+
+/** A state as a client sends it: what the viewer's action changed, and the state they knew. */
+export type OutgoingState = PlaybackState & { changed?: PlaybackField[]; basis?: number };
 
 export type ServerMessage =
   | {
@@ -161,7 +173,15 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
         : null;
     case "state": {
       const playback = parsePlayback(message);
-      return playback && { type: "state", ...playback };
+      if (!playback) return null;
+      // Optional, so a bad one is dropped and the state replaces the room's, as before.
+      const changed = Array.isArray(message.changed)
+        ? PLAYBACK_FIELDS.filter((field) => (message.changed as unknown[]).includes(field))
+        : [];
+      const { basis } = message;
+      const merging =
+        changed.length > 0 && isFiniteNumber(basis) && basis >= 0 ? { changed, basis } : {};
+      return { type: "state", ...playback, ...merging };
     }
     case "drift":
       return isFiniteNumber(message.seconds) && Math.abs(message.seconds) <= MAX_DRIFT_SECONDS

@@ -393,6 +393,34 @@ try {
     (r) => near(r.rate, 1, 0.06),
   );
 
+  // ---- two people at the same moment: A pauses while B seeks, before either hears the other
+  await until(async () => (await spread(viewers)).gap < 0.3, 20000);
+  const crossTo = Math.round((await b.read()).t) + 120;
+  await a.video.keyboard.press("Shift");
+  await b.video.keyboard.press("Shift");
+  await Promise.all([
+    a.act(() => document.querySelector("video").pause()),
+    b.act((t) => {
+      document.querySelector("video").currentTime = t;
+    }, crossTo),
+  ]);
+  const crossed = await until(async () => {
+    const all = await Promise.all(viewers.map((v) => v.read()));
+    return all.every((r) => r.paused && near(r.t, crossTo, 1)) && all;
+  }, 10000);
+  check(
+    "a pause and a seek at the same moment both stick, for everyone",
+    !!crossed,
+    JSON.stringify(
+      (await Promise.all(viewers.map((v) => v.read()))).map((r) => [+r.t.toFixed(2), r.paused]),
+    ),
+  );
+  await action(
+    "A plays after the crossing",
+    () => a.act(() => document.querySelector("video").play()),
+    (r) => !r.paused && r.t >= crossTo - 1,
+  );
+
   // ---- drift correction on real playback: the room's timeline moves, viewers must follow
   await until(async () => (await spread(viewers)).gap < 0.3, 20000);
   let before = obs.states.length;
