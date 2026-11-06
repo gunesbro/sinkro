@@ -177,7 +177,7 @@
     "message": "Sunucu adresi"
   },
   "serverHelp": {
-    "message": "Kendi sunucunu mu çalıştırıyorsun? Adresini buraya yaz. Katılacağın sonraki odada geçerli olur."
+    "message": "Boş bırakırsan Sinkro sunucusu kullanılır. Kendi sunucunu mu çalıştırıyorsun? Adresini buraya yaz. Katılacağın sonraki odada geçerli olur."
   },
   "serverInvalid": {
     "message": "http:// veya https:// ile başlayan tam bir adres gir."
@@ -440,5 +440,8 @@
   },
   "everyoneLeftHelp": {
     "message": "Bu videoyu odanın videosu yapmak için Hepsini buraya getir'e bas. Bu sayfada olanlar kendiliğinden katılır."
+  },
+  "serverDefault": {
+    "message": "Sinkro sunucusu (varsayılan)"
   }
 }

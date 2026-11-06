@@ -413,6 +413,17 @@ try {
     (await popupB.inputValue("#server-input")) === API,
     await popupB.inputValue("#server-input"),
   );
+  await popupB.fill("#server-input", "");
+  await popupB.click("#settings-form button[type=submit]");
+  await until(async () => popupB.locator("#home").isVisible());
+  await popupB.click("#open-settings");
+  check(
+    "emptied, it goes back to Sinkro's server without spelling out its address",
+    (await popupB.inputValue("#server-input")) === "" &&
+      (await popupB.getAttribute("#server-input", "placeholder")) === "Sinkro's server (default)" &&
+      (await popupB.evaluate(() => chrome.storage.local.get("serverUrl"))).serverUrl === undefined,
+    await popupB.getAttribute("#server-input", "placeholder"),
+  );
   await popupB.fill("#server-input", "not a url");
   await popupB.click("#settings-form button[type=submit]");
   await until(async () => (await text(popupB, "#server-error")).length > 0);

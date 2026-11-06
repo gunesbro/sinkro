@@ -19,7 +19,7 @@ import type {
   TabSession,
 } from "../messages";
 import { openRoomVideo, sealRoomVideo } from "../room-video";
-import { getServerUrl, roomSocketUrl, setServerUrl } from "../settings";
+import { getCustomServerUrl, roomSocketUrl, setServerUrl } from "../settings";
 import {
   isVideoChangeAction,
   noticeFor,
@@ -389,7 +389,8 @@ async function copyWithFeedback(button: HTMLElement, text: string): Promise<void
 }
 
 async function openSettings(): Promise<void> {
-  element<HTMLInputElement>("server-input").value = await getServerUrl();
+  // Sinkro's own server isn't spelled out: the field stays empty, and its placeholder says so.
+  element<HTMLInputElement>("server-input").value = (await getCustomServerUrl()) ?? "";
   element("server-error").textContent = "";
   // People compare this when something only happens for one of them.
   element("version").textContent = `Sinkro ${chrome.runtime.getManifest().version}`;

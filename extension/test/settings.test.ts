@@ -1,5 +1,61 @@
-import { describe, expect, it } from "vitest";
-import { normalizeServerUrl, roomSocketUrl } from "../src/settings";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  DEFAULT_SERVER_URL,
+  getCustomServerUrl,
+  getServerUrl,
+  normalizeServerUrl,
+  roomSocketUrl,
+  setServerUrl,
+} from "../src/settings";
+
+const stored = new Map<string, unknown>();
+beforeEach(() => {
+  stored.clear();
+  vi.stubGlobal("chrome", {
+    storage: {
+      local: {
+        get: async (key: string) => (stored.has(key) ? { [key]: stored.get(key) } : {}),
+        set: async (items: Record<string, unknown>) => {
+          for (const [key, value] of Object.entries(items)) stored.set(key, value);
+        },
+        remove: async (key: string) => {
+          stored.delete(key);
+        },
+      },
+    },
+  });
+});
+
+describe("the server address setting", () => {
+  it("uses Sinkro's server, without calling it custom, until one is chosen", async () => {
+    expect(await getServerUrl()).toBe(DEFAULT_SERVER_URL);
+    expect(await getCustomServerUrl()).toBeNull();
+  });
+
+  it("keeps the viewer's own server", async () => {
+    expect(await setServerUrl("https://sinkro.example.com/")).toBe(true);
+    expect(await getCustomServerUrl()).toBe("https://sinkro.example.com");
+    expect(await getServerUrl()).toBe("https://sinkro.example.com");
+  });
+
+  it("goes back to Sinkro's server when the field is emptied", async () => {
+    await setServerUrl("https://sinkro.example.com");
+    expect(await setServerUrl("   ")).toBe(true);
+    expect(await getCustomServerUrl()).toBeNull();
+    expect(await getServerUrl()).toBe(DEFAULT_SERVER_URL);
+  });
+
+  it("doesn't count Sinkro's own address as a custom one", async () => {
+    expect(await setServerUrl(`${DEFAULT_SERVER_URL}/`)).toBe(true);
+    expect(await getCustomServerUrl()).toBeNull();
+  });
+
+  it("refuses a bad address and keeps what was there", async () => {
+    await setServerUrl("https://sinkro.example.com");
+    expect(await setServerUrl("not a url")).toBe(false);
+    expect(await getCustomServerUrl()).toBe("https://sinkro.example.com");
+  });
+});
 
 describe("normalizeServerUrl", () => {
   it.each([
