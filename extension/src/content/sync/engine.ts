@@ -47,6 +47,8 @@ const AFTER_ARRIVING_MS = 4000;
  * their own, and the word comes through the background a moment after the video has moved.
  */
 const INPUT_ELSEWHERE_WAIT_MS = 400;
+/** A seek of the viewer's own this soon before a play makes the play's place theirs too. */
+const OWN_SEEK_BEFORE_PLAY_MS = 1000;
 /** HTMLMediaElement.HAVE_METADATA: its length is known. */
 const HAVE_METADATA = 1;
 /** HTMLMediaElement.HAVE_FUTURE_DATA: enough is buffered to keep playing. */
@@ -165,6 +167,8 @@ export class SyncEngine {
   /** Non-zero while the browser is refusing to autoplay: the time of the next attempt. */
   private autoplayRetryAt = 0;
   private holdEndedAt = Number.NEGATIVE_INFINITY;
+  /** When the video last moved by a seek of the viewer's own, not one of ours. */
+  private viewerSeekAt = Number.NEGATIVE_INFINITY;
   /** When this viewer joined, or this video was bound, whichever was later. */
   private arrivedAt = Number.NEGATIVE_INFINITY;
   private pauseCheckTimer: ReturnType<typeof setTimeout> | null = null;
@@ -580,7 +584,7 @@ export class SyncEngine {
       this.apply(true);
       return;
     }
-    this.publishIfChanged();
+    this.publishIfChanged(true);
   }
 
   private onPause(): void {
@@ -622,6 +626,7 @@ export class SyncEngine {
       this.pendingSeek.seekingSeen += 1;
       return;
     }
+    this.viewerSeekAt = this.deps.now();
     this.publishIfChanged();
   }
 
@@ -666,7 +671,8 @@ export class SyncEngine {
   }
 
   /** Second line of defence after the flags: only real differences reach the room. */
-  private publishIfChanged(): void {
+  /** `isPlay` is for a play event, which says "play" and nothing about where. */
+  private publishIfChanged(isPlay = false): void {
     const { video, timeline } = this;
     if (!this.joined || !video) return;
     // Browsers pause a video when it's removed. Nobody chose that.
@@ -687,7 +693,7 @@ export class SyncEngine {
       this.inputCheckTimer = setTimeout(() => {
         this.inputCheckTimer = null;
         if (this.isViewerActing()) {
-          this.publishIfChanged();
+          this.publishIfChanged(isPlay);
           return;
         }
         // The seek that brought this viewer to the room is recent, and mustn't hold this one up.
@@ -695,6 +701,24 @@ export class SyncEngine {
         this.tick();
       }, INPUT_ELSEWHERE_WAIT_MS);
       return;
+    }
+    // A player that just turned up starts at its own beginning. Pressing play on it means "play",
+    // not "everyone back to the start", so it plays from where the room is.
+    // A seek bar's click pauses, moves and plays at once: that place is the viewer's own.
+    const hasJustSeeked = this.deps.now() - this.viewerSeekAt < OWN_SEEK_BEFORE_PLAY_MS;
+    if (isPlay && isNewHere && timeline && !this.isAlone && !hasJustSeeked) {
+      const target = targetPosition(timeline, this.deps.serverNow(), Number.POSITIVE_INFINITY);
+      if (Math.abs(video.currentTime - target) > SEEK_NOTICE_SECONDS) {
+        if (timeline.playing !== video.paused) {
+          // Playing already, as the room is: only the place is off, and the room's is right.
+          this.lastSeekAt = Number.NEGATIVE_INFINITY;
+          this.apply(true);
+          return;
+        }
+        this.publish(target, true);
+        this.apply(true);
+        return;
+      }
     }
 
     // Players swap a source and call play straight away, so events arrive with the position
