@@ -3,6 +3,7 @@ import {
   PROTOCOL_VERSION,
   parseServerMessage,
   type ClientMessage,
+  type OutgoingState,
   type PlaybackState,
   type RoomState,
 } from "../../../../server/src/protocol";
@@ -129,7 +130,7 @@ export class RoomConnection {
     this.open();
   }
 
-  sendState(state: PlaybackState): boolean {
+  sendState(state: OutgoingState): boolean {
     return this.joined && this.send({ type: "state", ...state });
   }
 

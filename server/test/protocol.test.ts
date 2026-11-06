@@ -68,6 +68,22 @@ describe("a state's film details", () => {
     expect(parseClientMessage(JSON.stringify({ ...base, ...extra }))).toEqual(base);
   });
 
+  it("carries what the viewer changed, and the state they knew", () => {
+    const parsed = parseClientMessage(
+      JSON.stringify({ ...base, changed: ["position", "playing"], basis: 7 }),
+    );
+    expect(parsed).toEqual({ ...base, changed: ["playing", "position"], basis: 7 });
+  });
+
+  it.each([
+    ["nothing it knows changed", { changed: ["volume"], basis: 7 }],
+    ["no list of changes", { changed: "playing", basis: 7 }],
+    ["no state known", { changed: ["playing"] }],
+    ["a negative state", { changed: ["playing"], basis: -1 }],
+  ])("replaces the room's whole state when %s", (_, extra) => {
+    expect(parseClientMessage(JSON.stringify({ ...base, ...extra }))).toEqual(base);
+  });
+
   it("reads them back from the server", () => {
     const state = { ...base, seq: 1, from: "a", duration: 60, source: "s" };
     expect(parseServerMessage(JSON.stringify(state))).toEqual(state);

@@ -621,6 +621,57 @@ describe("saving states", () => {
   });
 });
 
+describe("actions that cross", () => {
+  it("keeps both a pause and a seek sent at once", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "state", playing: true, position: 10, rate: 1, sentAt: Date.now() });
+    const started = await a.next();
+    await b.next();
+    expect(started).toMatchObject({ type: "state", seq: 1 });
+
+    // Neither has heard the other's.
+    b.send({
+      type: "state",
+      playing: true,
+      position: 600,
+      rate: 1,
+      sentAt: Date.now(),
+      changed: ["position"],
+      basis: 1,
+    });
+    a.send({
+      type: "state",
+      playing: false,
+      position: 12,
+      rate: 1,
+      sentAt: Date.now(),
+      changed: ["playing"],
+      basis: 1,
+    });
+    await a.next();
+    await b.next();
+    const last = await a.next();
+    expect(await b.next()).toEqual(last);
+    expect(last).toMatchObject({ type: "state", playing: false, seq: 3 });
+    expect((last as { position: number }).position).toBeGreaterThan(599);
+  });
+
+  it("lets an old client's state replace the room's, as before", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.send({ type: "state", playing: true, position: 10, rate: 1, sentAt: Date.now() });
+    await a.next();
+    await b.next();
+    b.send({ type: "state", playing: false, position: 3, rate: 2, sentAt: Date.now() });
+    expect(await a.next()).toMatchObject({ playing: false, position: 3, rate: 2 });
+  });
+});
+
 describe("the room's spread", () => {
   it("is how far apart the furthest two say they are", async () => {
     const code = await createRoom();

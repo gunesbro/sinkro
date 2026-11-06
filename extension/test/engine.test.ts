@@ -702,6 +702,70 @@ describe("drift", () => {
   });
 });
 
+describe("actions that cross", () => {
+  it("says what the viewer changed, and which state they knew", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    context.engine.handleState(context.peerState({ position: 100 }));
+    await settle();
+
+    context.video.pause();
+    await settle();
+    context.video.userSeek(300);
+    await vi.advanceTimersByTimeAsync(300);
+    context.video.userSetRate(1.5);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(context.sent).toMatchObject([
+      { playing: false, changed: ["playing"], basis: 2 },
+      { position: 300, changed: ["position"], basis: 2 },
+      { rate: 1.5, changed: ["rate"], basis: 2 },
+    ]);
+  });
+
+  it("sends a state of its own making whole, for the room to take as it is", async () => {
+    const { engine, video, sent } = setup();
+    engine.bind(video.asVideo());
+    video.position = 42;
+    engine.handleJoined({ clientId: ME, state: null, peers: 1 });
+    await settle();
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).not.toHaveProperty("changed");
+  });
+
+  it("follows its own state when the room combined it with someone else's", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, video, sent, peerState, changes } = context;
+    video.pause();
+    await settle();
+
+    // Someone's seek crossed the pause: the room is paused, at the seek.
+    engine.handleState(peerState({ ...sent[0], from: ME, position: 600 }));
+    await settle();
+
+    expect(video.position).toBe(600);
+    expect(video.paused).toBe(true);
+    expect(changes).toEqual(["seeked"]);
+  });
+
+  it("leaves the video alone when its own state comes back as sent", async () => {
+    const context = setup();
+    await joinPlaying(context);
+    const { engine, video, sent, peerState, changes } = context;
+    video.pause();
+    await settle();
+    const seeks = video.seekCalls;
+
+    engine.handleState(peerState({ ...sent[0], from: ME }));
+    await settle();
+
+    expect(video.seekCalls).toBe(seeks);
+    expect(changes).toEqual([]);
+  });
+});
+
 describe("message order", () => {
   it("ignores its own echo", async () => {
     const context = setup();

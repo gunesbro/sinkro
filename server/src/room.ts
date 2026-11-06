@@ -1,3 +1,4 @@
+import { mergeState, type FieldVersions } from "./merge";
 import { DurableObject } from "cloudflare:workers";
 import {
   CloseCode,
@@ -29,6 +30,8 @@ const KEEPALIVE = "keepalive";
 type RoomRecord = {
   state: RoomState | null;
   seq: number;
+  /** When each part of `state` last changed, to combine actions that cross. */
+  versions?: FieldVersions;
   video?: string;
   /** When someone last joined, or played, paused, seeked or moved the room to another video. */
   activeAt?: number;
@@ -158,6 +161,7 @@ export class Room extends DurableObject {
           activeAt: Date.now(),
           // Someone joining the new film mustn't be sent to where the old one had got to.
           state: message.fresh ? null : record.state,
+          versions: message.fresh ? undefined : record.versions,
         });
         const video: ServerMessage = { type: "video", sealed: message.sealed };
         this.send(ws, video);
@@ -172,18 +176,23 @@ export class Room extends DurableObject {
         // Unreachable while connected unless the room expired underneath the socket.
         if (!record) return ws.close(CloseCode.RoomNotFound);
 
-        const { type: _, ...playback } = message;
+        const { type: _, ...incoming } = message;
         const now = Date.now();
-        const state: RoomState = {
-          ...playback,
-          // A badly wrong clock mustn't move everyone else's target position.
-          sentAt: Math.abs(playback.sentAt - now) > MAX_CLOCK_ERROR_MS ? now : playback.sentAt,
+        const { state, versions } = mergeState({
+          current: record.state,
+          versions: record.versions,
+          incoming: {
+            ...incoming,
+            // A badly wrong clock mustn't move everyone else's target position.
+            sentAt: Math.abs(incoming.sentAt - now) > MAX_CLOCK_ERROR_MS ? now : incoming.sentAt,
+          },
           seq: record.seq + 1,
           from: clientId,
-        };
+          now,
+        });
         // Everyone hears it even if saving fails, say on a used-up daily quota: the room keeps
         // going, and only someone joining later misses the latest state.
-        await this.saveSoon({ ...record, state, seq: state.seq, activeAt: now }).catch(
+        await this.saveSoon({ ...record, state, versions, seq: state.seq, activeAt: now }).catch(
           () => undefined,
         );
         this.broadcast({ type: "state", ...state });
