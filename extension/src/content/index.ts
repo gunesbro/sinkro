@@ -36,6 +36,7 @@ import {
 } from "./detection/floating";
 import { VideoTracker } from "./detection/tracker";
 import { VideoLengths } from "./detection/length";
+import { isMarkedLive } from "../adapters/live";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
 import { filmOf, isSameFilm, type Film } from "./sync/same-film";
@@ -331,7 +332,11 @@ class FrameSession {
   private ownSource: { host: string; sealed: string } | null = null;
   private isSealingSource = false;
   private dismissedMismatch: string | null = null;
-  private readonly lengths = new VideoLengths();
+  private readonly lengths = new VideoLengths(
+    Date.now,
+    () => location.pathname + location.search,
+    (video) => video instanceof Element && isMarkedLive(video),
+  );
   private lastRoomPageCheck = Number.NEGATIVE_INFINITY;
   private videoChange: VideoChange | null = null;
   /** What was playing while this tab was last on the room's video. */

@@ -21,12 +21,17 @@ export class VideoLengths {
 
   constructor(
     private readonly now: () => number = Date.now,
-    private readonly page: () => string = () => location.pathname,
+    /** With the query, since some sites show every video at one path, told apart by `?v=`. */
+    private readonly page: () => string = () => location.pathname + location.search,
+    /** What the player itself says, for players whose video length doesn't show it. */
+    private readonly isMarkedLive: (video: MeasuredVideo) => boolean = () => false,
   ) {}
 
-  /** A live stream, by an endless length or by one that keeps growing. */
+  /** A live stream, by an endless length, by one that keeps growing, or by its player's say. */
   isLive(video: MeasuredVideo): boolean {
-    const isLive = this.look(video)?.isLive ?? video.duration === Number.POSITIVE_INFINITY;
+    const isLive =
+      this.isMarkedLive(video) ||
+      (this.look(video)?.isLive ?? video.duration === Number.POSITIVE_INFINITY);
     if (isLive) {
       this.liveOn.set(video, this.page());
       return true;
