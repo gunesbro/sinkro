@@ -30,6 +30,7 @@ import {
 } from "./detection/remembered";
 import { isFloatingPlayer, isHoverPreview, isPreviewSized } from "./detection/floating";
 import { VideoTracker } from "./detection/tracker";
+import { VideoLengths } from "./detection/length";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
 import { filmOf, isSameFilm, type Film } from "./sync/same-film";
@@ -313,6 +314,7 @@ class FrameSession {
   private ownSource: { host: string; sealed: string } | null = null;
   private isSealingSource = false;
   private dismissedMismatch: string | null = null;
+  private readonly lengths = new VideoLengths();
   private lastRoomPageCheck = Number.NEGATIVE_INFINITY;
   private videoChange: VideoChange | null = null;
   /** What was playing while this tab was last on the room's video. */
@@ -500,7 +502,9 @@ class FrameSession {
         if (sealed) this.ownSource = { host, sealed };
       });
     }
-    const duration = this.tracker.video()?.duration;
+    const video = this.tracker.video();
+    // A live stream's length says nothing about which film this is.
+    const duration = video && !this.lengths.isLive(video) ? video.duration : undefined;
     return {
       ...(duration !== undefined && Number.isFinite(duration) && duration > 0 ? { duration } : {}),
       ...(this.ownSource?.host === host ? { source: this.ownSource.sealed } : {}),
@@ -514,9 +518,11 @@ class FrameSession {
 
   /** Same length means the same moments line up, whichever source it is, so that's fine. */
   private sourceMismatch(): SourceMismatch | null {
-    const mine = this.tracker.video()?.duration;
+    const video = this.tracker.video();
+    // A live stream's length is how far back it goes, which differs by when each person came.
+    const mine = video ? this.lengths.settledLength(video) : null;
     const room = this.othersFilm.duration;
-    if (mine === undefined || !Number.isFinite(mine) || mine <= 0 || room === null) return null;
+    if (mine === null || room === null) return null;
     if (this.isHoverPreview() || this.videoChange) return null;
     if (Math.abs(mine - room) <= SAME_LENGTH_SECONDS) return null;
     if (this.mismatchKey() === this.dismissedMismatch) return null;
