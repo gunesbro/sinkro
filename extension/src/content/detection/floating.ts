@@ -19,6 +19,19 @@ export function isPreviewSized(video: Box, window: Box): boolean {
   return area > 0 && (video.width * video.height) / area < MAX_PREVIEW_SHARE_OF_WINDOW;
 }
 
+/**
+ * Not a film anyone would bring a room to: muted and preview-sized, the way a page's previews
+ * play, or not on the page at all, like a player a site keeps after leaving its page.
+ */
+export function isPreviewLike(
+  video: { muted: boolean; volume: number; getBoundingClientRect(): Box },
+  window: Box,
+): boolean {
+  const box = video.getBoundingClientRect();
+  if (box.width * box.height === 0) return true;
+  return (video.muted || video.volume === 0) && isPreviewSized(box, window);
+}
+
 export type PreviewSignals = {
   muted: boolean;
   isSmall: boolean;

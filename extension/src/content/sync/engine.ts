@@ -37,6 +37,11 @@ const RECENT_INPUT_MS = 1500;
 const UNPROMPTED_PAUSE_WAIT_MS = 500;
 /** After a hold, a player puts things back by itself, which isn't anyone's choice. */
 const AFTER_HOLD_MS = 4000;
+/**
+ * Just after joining, or a new video turning up, a page often starts its video by itself, from
+ * its own start. That's the player, not the viewer, and it mustn't take the room back with it.
+ */
+const AFTER_ARRIVING_MS = 4000;
 /** HTMLMediaElement.HAVE_METADATA: its length is known. */
 const HAVE_METADATA = 1;
 /** HTMLMediaElement.HAVE_FUTURE_DATA: enough is buffered to keep playing. */
@@ -148,6 +153,8 @@ export class SyncEngine {
   /** Non-zero while the browser is refusing to autoplay: the time of the next attempt. */
   private autoplayRetryAt = 0;
   private holdEndedAt = Number.NEGATIVE_INFINITY;
+  /** When this viewer joined, or this video was bound, whichever was later. */
+  private arrivedAt = Number.NEGATIVE_INFINITY;
   private pauseCheckTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly deps: EngineDeps) {
@@ -167,6 +174,7 @@ export class SyncEngine {
     this.unreportedChangeSince = null;
     if (!this.timeline) this.baseRate = video.playbackRate;
 
+    this.arrivedAt = this.deps.now();
     this.listeners = new AbortController();
     const options = { signal: this.listeners.signal };
     video.addEventListener("play", () => this.onPlay(), options);
@@ -183,6 +191,7 @@ export class SyncEngine {
 
   handleJoined(message: { clientId: string; state: RoomState | null; peers: number }): void {
     this.joined = true;
+    this.arrivedAt = this.deps.now();
     this.clientId = message.clientId;
     this.unacked = 0;
     this.isAlone = message.peers <= 1;
@@ -625,6 +634,15 @@ export class SyncEngine {
     // the room by the ad's length. That's the player, not the viewer, so the room wins.
     if (this.deps.now() - this.holdEndedAt < AFTER_HOLD_MS && !this.isViewerActing()) {
       this.apply(true);
+      return;
+    }
+    // Not passed on, and not forced back either: the usual correction brings the video to the
+    // room, and waits out an ad or a hold, which a forced one wouldn't. Alone, this video is the
+    // room's timeline, so whatever it does is the room's.
+    const isNewHere = this.deps.now() - this.arrivedAt < AFTER_ARRIVING_MS;
+    if (isNewHere && timeline && !this.isAlone && !this.isViewerActing()) {
+      // The seek that brought this viewer to the room is recent, and mustn't hold this one up.
+      this.lastSeekAt = Number.NEGATIVE_INFINITY;
       return;
     }
 

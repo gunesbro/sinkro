@@ -19,6 +19,7 @@ const connected: SessionStatus = {
   spread: null,
   isFilmStillPlaying: false,
   isFloatingPlayer: false,
+  isPreviewLike: false,
   isOnRoomPage: false,
   position: 100,
   drift: 0,
@@ -333,6 +334,11 @@ describe("noticeFor", () => {
         bodyKey: "youMovedFloatingHelp",
         action: "return",
       });
+    });
+
+    it("only offers going back from a page whose video is a muted preview, or out of sight", () => {
+      const notice = noticeFor({ ...connected, videoChange: moved, isPreviewLike: true });
+      expect(notice).toMatchObject({ titleKey: "youLeftPage", action: "return" });
     });
 
     it("only offers going back from a page with no video to bring anyone to", () => {

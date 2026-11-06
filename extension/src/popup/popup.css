@@ -313,7 +313,8 @@ input::placeholder {
 
 .readout {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  gap: 16px;
   justify-content: space-between;
   margin: 0 24px;
   padding: 16px 0;
@@ -323,7 +324,25 @@ input::placeholder {
   font-size: 14px;
 }
 
+/* Who's here on one line, how closely they're together under it, the time on its own. */
+.readout-people {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.readout-detail {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.readout-detail:empty {
+  display: none;
+}
+
 .timecode {
+  flex: none;
   color: var(--text);
   font-family: var(--font-display);
   font-size: 24px;

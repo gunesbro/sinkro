@@ -399,7 +399,7 @@
     "message": "Got it"
   },
   "spreadWithin": {
-    "message": "everyone within $SECONDS$ s",
+    "message": "Everyone within $SECONDS$ s",
     "placeholders": {
       "seconds": {
         "content": "$1",

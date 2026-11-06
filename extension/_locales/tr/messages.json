@@ -399,7 +399,7 @@
     "message": "Tamam"
   },
   "spreadWithin": {
-    "message": "herkes $SECONDS$ sn içinde",
+    "message": "Herkes $SECONDS$ sn içinde",
     "placeholders": {
       "seconds": {
         "content": "$1",
