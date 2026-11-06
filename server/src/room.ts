@@ -73,7 +73,16 @@ export class Room extends DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  /** Every message gets an answer, even when something fails, so no client waits for good. */
   override async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
+    try {
+      await this.handleMessage(ws, raw);
+    } catch {
+      this.sendError(ws, "server_error");
+    }
+  }
+
+  private async handleMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
     if (!this.withinRateLimit(ws)) return this.sendError(ws, "rate_limited");
 
     const message = parseClientMessage(raw);
@@ -142,12 +151,11 @@ export class Room extends DurableObject {
           seq: record.seq + 1,
           from: clientId,
         };
-        await this.ctx.storage.put<RoomRecord>("room", {
-          ...record,
-          state,
-          seq: state.seq,
-          activeAt: now,
-        });
+        // Everyone hears it even if saving fails, say on a used-up daily quota: the room keeps
+        // going, and only someone joining later misses the latest state.
+        await this.ctx.storage
+          .put<RoomRecord>("room", { ...record, state, seq: state.seq, activeAt: now })
+          .catch(() => undefined);
         this.broadcast({ type: "state", ...state });
         return;
       }

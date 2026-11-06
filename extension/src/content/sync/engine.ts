@@ -27,6 +27,8 @@ const ENDED_TOLERANCE_SECONDS = 0.5;
 const RATE_EPSILON = 0.001;
 /** How long to wait for an element change's event. Some, like a reload's pause, never fire. */
 const UNREPORTED_CHANGE_GRACE_MS = 1000;
+/** An echo takes a round trip. One this late isn't coming, and waiting for it would deafen. */
+const ECHO_TIMEOUT_MS = 3000;
 /** HTMLMediaElement.HAVE_METADATA: its length is known. */
 const HAVE_METADATA = 1;
 /** HTMLMediaElement.HAVE_FUTURE_DATA: enough is buffered to keep playing. */
@@ -195,6 +197,11 @@ export class SyncEngine {
       // The room may have replaced sentAt if this clock is badly wrong, so its copy wins.
       if (this.unacked === 0 && this.publishTimer === null) this.setTimeline(state);
       return;
+    }
+    // A state of ours that was lost has no echo coming, and waiting on it for good would
+    // ignore the room until a reconnect, while everything here still looked in sync.
+    if (this.unacked > 0 && this.deps.now() - this.lastPublishAt > ECHO_TIMEOUT_MS) {
+      this.unacked = 0;
     }
     // Messages arrive in room order, so a state that overtakes our own echo is older
     // than what we sent, and everyone is about to receive ours after it.
