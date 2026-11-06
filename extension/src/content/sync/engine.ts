@@ -29,6 +29,12 @@ const RATE_EPSILON = 0.001;
 const UNREPORTED_CHANGE_GRACE_MS = 1000;
 /** An echo takes a round trip. One this late isn't coming, and waiting for it would deafen. */
 const ECHO_TIMEOUT_MS = 3000;
+/** A click or key this recent makes the next change the viewer's own. */
+const RECENT_INPUT_MS = 1500;
+/** Long enough for a player's ad to start over a film it paused itself. */
+const UNPROMPTED_PAUSE_WAIT_MS = 500;
+/** After a hold, a player puts things back by itself, which isn't anyone's choice. */
+const AFTER_HOLD_MS = 4000;
 /** HTMLMediaElement.HAVE_METADATA: its length is known. */
 const HAVE_METADATA = 1;
 /** HTMLMediaElement.HAVE_FUTURE_DATA: enough is buffered to keep playing. */
@@ -66,6 +72,11 @@ export type EngineDeps = {
   /** Says why the video can't follow the room right now, such as an ad playing. */
   holdFor?: (roomPosition: number | null) => Hold | null;
   onHoldChange?: (hold: Hold | null) => void;
+  /**
+   * When the viewer last clicked or pressed a key on the page. Without it, every change counts
+   * as the viewer's, which is how it was before.
+   */
+  lastInputAt?: () => number;
   /** What goes with each state about the film itself, for spotting a different source. */
   filmDetails?: () => Pick<PlaybackState, "duration" | "source">;
   /** `rate` is the speed the room is at now, and `jumped` is whether its position moved too. */
@@ -134,6 +145,8 @@ export class SyncEngine {
   private publishTimer: ReturnType<typeof setTimeout> | null = null;
   /** Non-zero while the browser is refusing to autoplay: the time of the next attempt. */
   private autoplayRetryAt = 0;
+  private holdEndedAt = Number.NEGATIVE_INFINITY;
+  private pauseCheckTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly deps: EngineDeps) {
     this.timer = setInterval(() => this.tick(), TICK_INTERVAL_MS);
@@ -205,7 +218,7 @@ export class SyncEngine {
     }
     // Messages arrive in room order, so a state that overtakes our own echo is older
     // than what we sent, and everyone is about to receive ours after it.
-    if (this.unacked > 0 || this.publishTimer !== null) return;
+    if (this.unacked > 0 || this.publishTimer !== null || this.pauseCheckTimer !== null) return;
 
     const change = this.describeChange(state);
     const jumped = this.hasJumped(state);
@@ -332,6 +345,7 @@ export class SyncEngine {
       : null;
     const hold = this.deps.holdFor?.(roomPosition) ?? null;
     if (hold !== this.hold) {
+      if (this.hold && !hold) this.holdEndedAt = this.deps.now();
       this.hold = hold;
       this.deps.onHoldChange?.(hold);
     }
@@ -370,7 +384,7 @@ export class SyncEngine {
     const force = newState || wasOnHold;
     // What the viewer just did is on its way, so the timeline here is already out of date.
     // A seek bar's pause goes out first, and following it would undo the seek behind it.
-    if (!force && this.publishTimer !== null) return;
+    if (!force && (this.publishTimer !== null || this.pauseCheckTimer !== null)) return;
     if (!force && this.hasUnreportedChange(video)) return;
 
     const target = targetPosition(timeline, this.deps.serverNow(), video.duration);
@@ -502,7 +516,22 @@ export class SyncEngine {
       this.pauseFlagUntil = 0;
       return;
     }
+    // Nobody pressed anything: a player pausing for its ad looks like this, and the ad starts
+    // a moment later. Waiting that moment lets the ad show, so the room isn't paused for it.
+    if (!this.isViewerActing()) {
+      if (this.pauseCheckTimer !== null) clearTimeout(this.pauseCheckTimer);
+      this.pauseCheckTimer = setTimeout(() => {
+        this.pauseCheckTimer = null;
+        this.publishIfChanged();
+      }, UNPROMPTED_PAUSE_WAIT_MS);
+      return;
+    }
     this.publishIfChanged();
+  }
+
+  private isViewerActing(): boolean {
+    const at = this.deps.lastInputAt?.();
+    return at === undefined || this.deps.now() - at < RECENT_INPUT_MS;
   }
 
   private onSeeking(): void {
@@ -570,6 +599,12 @@ export class SyncEngine {
     // Browsers pause a video when it's removed. Nobody chose that.
     if (!video.isConnected) return;
     if (this.refreshHold()) return;
+    // A player putting the film back after an ad seeks to where it left off, which is behind
+    // the room by the ad's length. That's the player, not the viewer, so the room wins.
+    if (this.deps.now() - this.holdEndedAt < AFTER_HOLD_MS && !this.isViewerActing()) {
+      this.apply(true);
+      return;
+    }
 
     // Players swap a source and call play straight away, so events arrive with the position
     // at zero and no length to judge by. Nothing here says where the viewer wants to be.
@@ -642,6 +677,8 @@ export class SyncEngine {
   }
 
   private releaseVideo(): void {
+    if (this.pauseCheckTimer !== null) clearTimeout(this.pauseCheckTimer);
+    this.pauseCheckTimer = null;
     this.finishCorrection();
     this.clearFlags();
     this.listeners?.abort();

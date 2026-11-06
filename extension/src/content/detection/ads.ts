@@ -1,5 +1,6 @@
 /**
- * Why this viewer's video isn't following the room right now. "ad" takes real evidence.
+ * Why this viewer's video isn't following the room right now. "ad" takes real evidence: a
+ * marker, a skip button, an ad host, or another video playing with sound over a paused one.
  * "cant_follow" means it can't be the room's video, and says nothing about why: it could
  * be an ad, another video or another source.
  */
@@ -46,6 +47,8 @@ export type HoldSignals = {
   roomPosition: number | null;
   /** A marker, a skip button or an ad host: this is an ad whatever else is true. */
   hasAdEvidence: boolean;
+  /** The film is paused while another sizeable video plays with sound: a player's own ad. */
+  hasCompetingPlayback?: boolean;
   /** Somebody else is in the room. Alone, there's nothing to follow. */
   hasOthers: boolean;
   /** The viewer chose this video, so its length says nothing about it. */
@@ -53,7 +56,7 @@ export type HoldSignals = {
 };
 
 export function holdReason(signals: HoldSignals): HoldReason | null {
-  if (signals.hasAdEvidence) return "ad";
+  if (signals.hasAdEvidence || signals.hasCompetingPlayback) return "ad";
   if (!signals.hasOthers || signals.picked || !Number.isFinite(signals.duration)) return null;
 
   // Length alone never proves an ad: a feed has short videos after long ones all day.
