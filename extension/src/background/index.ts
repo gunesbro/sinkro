@@ -238,12 +238,7 @@ async function joinFromInvite(
 async function restoreScripts(tabId: number): Promise<void> {
   const target = { tabId, allFrames: true };
   try {
-    await chrome.scripting.executeScript({
-      target,
-      files: ["page-hook.js"],
-      world: "MAIN",
-      injectImmediately: true,
-    });
+    // The page hook isn't added here: a script in a room asks for it for its own frame.
     await chrome.scripting.executeScript({ target, files: ["content.js"] });
   } catch {
     // A page extensions can't run on, like the browser's own.
@@ -329,6 +324,18 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
         const session = await getSession(tabId);
         return session ? openPlayerHost(session.code, request.sealed) : null;
       }
+      case "hook/install":
+        if (await getSession(tabId)) {
+          await chrome.scripting
+            .executeScript({
+              target: { tabId, frameIds: [frameId] },
+              files: ["page-hook.js"],
+              world: "MAIN",
+              injectImmediately: true,
+            })
+            .catch(() => undefined);
+        }
+        return null;
       case "video/on-room-page":
         return isOnRoomPage(await getTabVideo(tabId));
       case "room/people":

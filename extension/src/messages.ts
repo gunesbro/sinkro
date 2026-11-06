@@ -61,6 +61,8 @@ export type BackgroundRequest =
   /** From the frame running the room, for the number on the toolbar icon. 0 means not connected. */
   | { type: "room/people"; count: number }
   | { type: "video/on-room-page" }
+  /** Adds the page-world hook to this frame. Only for tabs in a room, so other sites can't tell. */
+  | { type: "hook/install" }
   /** Sealing needs the room code and a secure context, which a content script may not have. */
   | { type: "source/seal"; host: string }
   | { type: "source/open"; sealed: string }
