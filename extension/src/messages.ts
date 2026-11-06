@@ -69,6 +69,8 @@ export type BackgroundRequest =
   /** From the frame running the room, for the number on the toolbar icon. 0 means not connected. */
   | { type: "room/people"; count: number }
   | { type: "video/on-room-page" }
+  /** A click or key in this frame, for the frames whose video it may have been meant for. */
+  | { type: "input/note" }
   /** Adds the page-world hook to this frame. Only for tabs in a room, so other sites can't tell. */
   | { type: "hook/install" }
   /** Sealing needs the room code and a secure context, which a content script may not have. */
@@ -94,6 +96,8 @@ export type JoinResponse = { code: string } | { error: "invalid_code" };
 
 export type TabRequest =
   | { type: "session/changed"; session: TabSession | null }
+  /** Someone clicked or pressed a key in a frame of this tab, at this time. */
+  | { type: "input/seen"; at: number }
   /** Whether this frame should run the connection and sync engine. Sent to one frame. */
   | { type: "session/role"; active: boolean }
   | { type: "session/status" }

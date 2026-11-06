@@ -47,6 +47,8 @@ import { Arrivals } from "./sync/arrivals";
 
 const isTopFrame = window === window.top;
 const BADGE_UPDATE_MS = 250;
+/** Input is passed to the tab's other frames at most this often. */
+const INPUT_SHARE_MS = 250;
 /** How soon to try again when the badge couldn't get its words from the background. */
 const BADGE_RETRY_MS = 1000;
 /** How often a viewer looks at their own drift. Looking is free; telling the room isn't. */
@@ -340,6 +342,9 @@ class FrameSession {
   private pointer: { x: number; y: number } | null = null;
   /** When the viewer last clicked or pressed a key here, to tell their changes from a player's. */
   private lastInputAt = Number.NEGATIVE_INFINITY;
+  /** The latest click or key in any frame of this tab, as the background passed it on. */
+  private tabInputAt = Number.NEGATIVE_INFINITY;
+  private lastInputShared = Number.NEGATIVE_INFINITY;
   private readonly clickedVideos = new WeakSet<HTMLVideoElement>();
   private readonly previews = new WeakSet<HTMLVideoElement>();
   private readonly pointerListeners = new AbortController();
@@ -412,6 +417,11 @@ class FrameSession {
     window.addEventListener("pointermove", notePointer, { capture: true, passive: true, signal });
     const noteInput = () => {
       this.lastInputAt = Date.now();
+      // Others in the tab may hold the video this was meant for. A burst of keys is one input.
+      if (this.lastInputAt - this.lastInputShared > INPUT_SHARE_MS) {
+        this.lastInputShared = this.lastInputAt;
+        void send({ type: "input/note" });
+      }
     };
     window.addEventListener("keydown", noteInput, { capture: true, passive: true, signal });
     window.addEventListener(
@@ -438,6 +448,10 @@ class FrameSession {
       });
   }
 
+  noteTabInput(at: number): void {
+    this.tabInputAt = Math.max(this.tabInputAt, at);
+  }
+
   setActive(active: boolean): void {
     if (active && !this.room) {
       this.room = startRoom(this.session, this.tracker, {
@@ -454,7 +468,7 @@ class FrameSession {
         isHoverPreview: () => this.isHoverPreview(),
         onOthersState: (state) => this.onOthersState(state),
         filmDetails: () => this.filmDetails(),
-        lastInputAt: () => this.lastInputAt,
+        lastInputAt: () => Math.max(this.lastInputAt, this.tabInputAt),
         sourceMismatch: () => this.sourceMismatch(),
         film: () => this.ownFilm(),
         onFilms: (films) => this.onFilms(films),
@@ -804,6 +818,9 @@ function start(): void {
         return;
       case "session/role":
         frameSession?.setActive(request.active);
+        return;
+      case "input/seen":
+        frameSession?.noteTabInput(request.at);
         return;
       case "session/status": {
         // Only one frame answers: the one running the room, or the top one if none is.

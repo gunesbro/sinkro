@@ -42,6 +42,11 @@ const AFTER_HOLD_MS = 4000;
  * its own start. That's the player, not the viewer, and it mustn't take the room back with it.
  */
 const AFTER_ARRIVING_MS = 4000;
+/**
+ * How long to wait for word of a click in another frame. Players often take clicks in a frame of
+ * their own, and the word comes through the background a moment after the video has moved.
+ */
+const INPUT_ELSEWHERE_WAIT_MS = 400;
 /** HTMLMediaElement.HAVE_METADATA: its length is known. */
 const HAVE_METADATA = 1;
 /** HTMLMediaElement.HAVE_FUTURE_DATA: enough is buffered to keep playing. */
@@ -163,6 +168,8 @@ export class SyncEngine {
   /** When this viewer joined, or this video was bound, whichever was later. */
   private arrivedAt = Number.NEGATIVE_INFINITY;
   private pauseCheckTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Waiting to hear whether the viewer clicked in another frame, before calling a change theirs. */
+  private inputCheckTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly deps: EngineDeps) {
     this.timer = setInterval(() => this.tick(), TICK_INTERVAL_MS);
@@ -225,7 +232,13 @@ export class SyncEngine {
 
     if (state.from === this.clientId) {
       this.unacked = Math.max(0, this.unacked - 1);
-      if (this.unacked > 0 || this.publishTimer !== null || this.pauseCheckTimer !== null) return;
+      if (
+        this.unacked > 0 ||
+        this.publishTimer !== null ||
+        this.pauseCheckTimer !== null ||
+        this.inputCheckTimer !== null
+      )
+        return;
       // The room combines what crossed: our pause with someone's seek comes back paused at
       // their seek. So our own state can come back different, and then it's followed too.
       // The room may also have replaced sentAt if this clock is badly wrong: its copy wins.
@@ -245,7 +258,13 @@ export class SyncEngine {
     }
     // Messages arrive in room order, so a state that overtakes our own echo is older
     // than what we sent, and everyone is about to receive ours after it.
-    if (this.unacked > 0 || this.publishTimer !== null || this.pauseCheckTimer !== null) return;
+    if (
+      this.unacked > 0 ||
+      this.publishTimer !== null ||
+      this.pauseCheckTimer !== null ||
+      this.inputCheckTimer !== null
+    )
+      return;
 
     const change = this.describeChange(state);
     const jumped = this.hasJumped(state);
@@ -437,6 +456,8 @@ export class SyncEngine {
     // What the viewer just did is on its way, so the timeline here is already out of date.
     // A seek bar's pause goes out first, and following it would undo the seek behind it.
     if (!force && (this.publishTimer !== null || this.pauseCheckTimer !== null)) return;
+    // Undoing it while finding out whether the viewer did it would leave nothing to pass on.
+    if (this.inputCheckTimer !== null) return;
     if (!force && this.hasUnreportedChange(video)) return;
 
     const target = targetPosition(timeline, this.deps.serverNow(), video.duration);
@@ -662,8 +683,17 @@ export class SyncEngine {
     // room's timeline, so whatever it does is the room's.
     const isNewHere = this.deps.now() - this.arrivedAt < AFTER_ARRIVING_MS;
     if (isNewHere && timeline && !this.isAlone && !this.isViewerActing()) {
-      // The seek that brought this viewer to the room is recent, and mustn't hold this one up.
-      this.lastSeekAt = Number.NEGATIVE_INFINITY;
+      if (this.inputCheckTimer !== null) return;
+      this.inputCheckTimer = setTimeout(() => {
+        this.inputCheckTimer = null;
+        if (this.isViewerActing()) {
+          this.publishIfChanged();
+          return;
+        }
+        // The seek that brought this viewer to the room is recent, and mustn't hold this one up.
+        this.lastSeekAt = Number.NEGATIVE_INFINITY;
+        this.tick();
+      }, INPUT_ELSEWHERE_WAIT_MS);
       return;
     }
 
@@ -745,6 +775,8 @@ export class SyncEngine {
   private releaseVideo(): void {
     if (this.pauseCheckTimer !== null) clearTimeout(this.pauseCheckTimer);
     this.pauseCheckTimer = null;
+    if (this.inputCheckTimer !== null) clearTimeout(this.inputCheckTimer);
+    this.inputCheckTimer = null;
     this.finishCorrection();
     this.clearFlags();
     this.listeners?.abort();

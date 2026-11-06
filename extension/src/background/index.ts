@@ -324,6 +324,13 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
         const session = await getSession(tabId);
         return session ? openPlayerHost(session.code, request.sealed) : null;
       }
+      case "input/note":
+        // To every frame of the tab: a player's buttons often sit in a frame of their own, or
+        // under an overlay from another, while the video plays somewhere else.
+        void chrome.tabs
+          .sendMessage(tabId, { type: "input/seen", at: Date.now() } satisfies TabRequest)
+          .catch(() => undefined);
+        return null;
       case "hook/install":
         if (await getSession(tabId)) {
           await chrome.scripting
