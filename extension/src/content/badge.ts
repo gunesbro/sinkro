@@ -364,7 +364,9 @@ export class VideoBadge {
     const isDragging = this.dragOffset !== null;
     const isOpen = this.isHovering || this.isMoving;
     // Hiding the words rather than dimming them keeps what's left readable on any picture.
-    const isCalm = !isOpen && line.tone === "ok" && Date.now() - this.lastChangeAt > QUIET_AFTER_MS;
+    // A live stream is amber for good, so it quiets down too, or its words would sit over it.
+    const isSettled = line.tone === "ok" || line.key === "liveStream";
+    const isCalm = !isOpen && isSettled && Date.now() - this.lastChangeAt > QUIET_AFTER_MS;
     this.pill.style.background = isCalm ? OVERLAY_BACKGROUND_QUIET : OVERLAY_BACKGROUND;
     // Dragging hides them too, or the chip would jump when it crosses the middle of the video.
     this.pillText.style.display = isCalm || isDragging ? "none" : "inline";
