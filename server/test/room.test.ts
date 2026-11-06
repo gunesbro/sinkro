@@ -128,9 +128,9 @@ describe("the room's video", () => {
     expect(await videoOf(code)).toEqual({ type: "video", sealed: "abc" });
   });
 
-  it("can be replaced", async () => {
+  it("can be replaced by someone in the room", async () => {
     const code = await createRoom();
-    const setter = await connect(code);
+    const { client: setter } = await join(code);
     setter.send({ type: "video/set", sealed: "one" });
     await setter.next();
     setter.send({ type: "video/set", sealed: "two" });
@@ -394,9 +394,9 @@ describe("joining", () => {
     expect((await client.next()).type).toBe("pong");
   });
 
-  it("refuses connection 51", async () => {
+  it("refuses person 51", async () => {
     const code = await createRoom();
-    for (let i = 0; i < 50; i += 1) await connect(code);
+    for (let i = 0; i < 50; i += 1) await join(code);
     const extra = await connect(code);
     expect(await extra.closed).toBe(CloseCode.RoomFull);
   });
@@ -535,6 +535,89 @@ describe("hibernation", () => {
     await evictDurableObject(env.ROOMS.getByName(code));
     client.send("keepalive");
     expect(await client.nextFrame()).toBe("keepalive");
+  });
+});
+
+describe("limits", () => {
+  const upgrade = (code: string, address: string) =>
+    request(`/rooms/${code}/ws`, {
+      headers: { Upgrade: "websocket", "CF-Connecting-IP": address },
+    });
+
+  it("refuses an address opening too many connections in a minute", async () => {
+    const code = await createRoom();
+    const address = newAddress();
+    for (let i = 0; i < 60; i += 1) {
+      const response = await upgrade(code, address);
+      expect(response.status).toBe(101);
+      new TestClient(response.webSocket as WebSocket).close();
+    }
+    expect((await upgrade(code, address)).status).toBe(429);
+    expect((await upgrade(code, newAddress())).status).toBe(101);
+  });
+
+  it("doesn't let sockets that never join crowd people out", async () => {
+    const code = await createRoom();
+    for (let i = 0; i < 60; i += 1) await connect(code);
+    const { client } = await join(code);
+    client.send({ type: "ping", clientTime: 1 });
+    expect((await client.next()).type).toBe("pong");
+  });
+
+  it("only lets someone in the room change its video once it has one", async () => {
+    const code = await createRoom();
+    const creator = await connect(code);
+    creator.send({ type: "video/set", sealed: "first" });
+    expect(await creator.next()).toEqual({ type: "video", sealed: "first" });
+
+    const outsider = await connect(code);
+    outsider.send({ type: "video/set", sealed: "elsewhere" });
+    expect(await outsider.next()).toEqual({ type: "error", code: "not_joined" });
+
+    const { client } = await join(code);
+    client.send({ type: "video/set", sealed: "second" });
+    expect(await client.next()).toEqual({ type: "video", sealed: "second" });
+  });
+});
+
+describe("saving states", () => {
+  it("keeps every state in order, however quickly they come", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    for (let i = 1; i <= 8; i += 1) a.sendState({ position: i });
+    const seqs: number[] = [];
+    for (let i = 1; i <= 8; i += 1) seqs.push(((await b.next()) as { seq: number }).seq);
+    expect(seqs).toEqual([...seqs].sort((x, y) => x - y));
+    expect(new Set(seqs).size).toBe(8);
+  });
+
+  it("gives someone joining the newest state even before it's saved", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    for (let i = 1; i <= 5; i += 1) client.sendState({ position: i * 10 });
+    for (let i = 1; i <= 5; i += 1) await client.next();
+    const late = await connect(code);
+    late.send({ type: "join", protocol: PROTOCOL_VERSION });
+    expect(await late.next()).toMatchObject({ state: { position: 50 } });
+  });
+
+  it("saves the newest within about a second", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    for (let i = 1; i <= 5; i += 1) client.sendState({ position: i * 10 });
+    for (let i = 1; i <= 5; i += 1) await client.next();
+    await expect
+      .poll(
+        () =>
+          runInDurableObject(env.ROOMS.getByName(code), async (_, state) => {
+            const record = await state.storage.get<{ state: { position: number } }>("room");
+            return record?.state.position;
+          }),
+        { timeout: 3000 },
+      )
+      .toBe(50);
   });
 });
 

@@ -1,6 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 
 const MAX_ROOMS = 10;
+/** Far more than reconnects and frames need, far fewer than guessing codes or burning quota. */
+const MAX_CONNECTIONS = 60;
 const WINDOW_MS = 60_000;
 
 type CreationWindow = { startedAt: number; count: number };
@@ -11,6 +13,22 @@ type CreationWindow = { startedAt: number; count: number };
  * The alarm deletes the record when the window ends, so nothing outlives a minute.
  */
 export class CreationLimiter extends DurableObject {
+  /**
+   * Connections are counted in memory, so counting costs no storage writes. A burst keeps the
+   * object awake, which is when counting matters, and a quiet address starts afresh.
+   */
+  private connections = { startedAt: 0, count: 0 };
+
+  allowConnection(): boolean {
+    const now = Date.now();
+    if (now - this.connections.startedAt >= WINDOW_MS) {
+      this.connections = { startedAt: now, count: 1 };
+      return true;
+    }
+    this.connections.count += 1;
+    return this.connections.count <= MAX_CONNECTIONS;
+  }
+
   async allow(): Promise<boolean> {
     const now = Date.now();
     const current = await this.ctx.storage.get<CreationWindow>("window");
