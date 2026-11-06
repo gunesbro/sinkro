@@ -358,5 +358,8 @@
   },
   "floatingPlayerHelp": {
     "message": "Sync carries on. To bring everyone here, open the video's own page first."
+  },
+  "youLeftPage": {
+    "message": "You're on another page"
   }
 }
