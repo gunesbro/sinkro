@@ -72,7 +72,9 @@ const web = createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "text/html" });
   if (url.pathname === "/browse")
     return res.end(`<!doctype html><meta charset=utf-8><title>Ana sayfa</title><h1>nothing</h1>`);
-  const id = url.searchParams.get("v") ?? "1";
+  // Only a film number goes into the page, never whatever the address says.
+  const asked = url.searchParams.get("v") ?? "1";
+  const id = /^\d$/.test(asked) && films[asked] ? asked : "1";
   res.end(`<!doctype html><meta charset=utf-8><title>Film ${id}</title><body style="margin:0"><video id=v src="/film${id}.wav" width=800 height=450 preload=auto></video><script>
     window.v = document.getElementById("v");
     // The way a video site changes film: same page, same element, new address and source.
