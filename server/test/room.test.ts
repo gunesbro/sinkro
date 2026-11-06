@@ -871,6 +871,53 @@ describe("a viewer reconnecting", () => {
   });
 });
 
+describe("someone who hasn't come to the room's video", () => {
+  it("is counted for the others, and not told about themselves", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    b.send({ type: "behind", behind: true });
+
+    expect(await a.next()).toEqual({ type: "left_behind", count: 1 });
+    expect(await b.next()).toEqual({ type: "left_behind", count: 0 });
+  });
+
+  it("stops being counted on arriving, or on leaving", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    const { client: c } = await join(code);
+    await a.next();
+    await a.next();
+    await b.next();
+    b.send({ type: "behind", behind: true });
+    c.send({ type: "behind", behind: true });
+    expect(await a.next()).toEqual({ type: "left_behind", count: 1 });
+    expect(await a.next()).toEqual({ type: "left_behind", count: 2 });
+    b.send({ type: "behind", behind: false });
+    expect(await a.next()).toEqual({ type: "left_behind", count: 1 });
+    c.close();
+    expect(await a.next()).toEqual({ type: "peers", count: 2 });
+    expect(await a.next()).toEqual({ type: "left_behind", count: 0 });
+  });
+
+  it("is told to someone joining", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    a.send({ type: "behind", behind: true });
+    await a.next();
+    const { client: b } = await join(code);
+    expect(await b.next()).toEqual({ type: "left_behind", count: 1 });
+  });
+
+  it("needs joining first", async () => {
+    const client = await connect(await createRoom());
+    client.send({ type: "behind", behind: true });
+    expect(await client.next()).toEqual({ type: "error", code: "not_joined" });
+  });
+});
+
 describe("someone on an ad", () => {
   it("tells the others, and not them", async () => {
     const code = await createRoom();

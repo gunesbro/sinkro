@@ -44,7 +44,12 @@ export type ClientMessage =
   /** How far this viewer is from the room's timeline, ahead positive, for the room's spread. */
   | { type: "drift"; seconds: number }
   /** Whether this viewer is sitting through an ad, so the others can choose to wait. */
-  | { type: "ad"; watching: boolean };
+  | { type: "ad"; watching: boolean }
+  /**
+   * Whether this viewer was asked to come to the room's new video and hasn't yet, so whoever
+   * brought everyone can tell who's arrived. Only sent after someone brings everyone.
+   */
+  | { type: "behind"; behind: boolean };
 
 /** A playback state as accepted by the room. `seq` orders states; higher wins. */
 export type RoomState = PlaybackState & { seq: number; from: string };
@@ -61,6 +66,8 @@ export type ServerMessage =
     }
   /** How many people other than the one receiving this are on an ad. */
   | { type: "ads"; count: number }
+  /** How many people other than the one receiving this haven't come to the room's video yet. */
+  | { type: "left_behind"; count: number }
   /** How far apart the furthest two people are, from what each says of themselves. */
   | { type: "spread"; seconds: number }
   | ({ type: "state" } & RoomState)
@@ -160,6 +167,10 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
       return isFiniteNumber(message.seconds) && Math.abs(message.seconds) <= MAX_DRIFT_SECONDS
         ? { type: "drift", seconds: message.seconds }
         : null;
+    case "behind":
+      return typeof message.behind === "boolean"
+        ? { type: "behind", behind: message.behind }
+        : null;
     case "ad":
       return typeof message.watching === "boolean"
         ? { type: "ad", watching: message.watching }
@@ -212,6 +223,8 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       return isFiniteNumber(message.count) ? { type: "peers", count: message.count } : null;
     case "ads":
       return isFiniteNumber(message.count) ? { type: "ads", count: message.count } : null;
+    case "left_behind":
+      return isFiniteNumber(message.count) ? { type: "left_behind", count: message.count } : null;
     case "spread":
       return isFiniteNumber(message.seconds) && message.seconds >= 0
         ? { type: "spread", seconds: message.seconds }

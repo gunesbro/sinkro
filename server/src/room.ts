@@ -34,7 +34,14 @@ type RoomRecord = {
   activeAt?: number;
 };
 /** Kept with the socket, so who's on an ad goes when they do and is never stored. */
-type Attachment = { clientId: string | null; onAd?: boolean; viewer?: string; drift?: number };
+type Attachment = {
+  clientId: string | null;
+  onAd?: boolean;
+  viewer?: string;
+  drift?: number;
+  /** Asked to come to the room's new video, and hasn't yet. */
+  behind?: boolean;
+};
 /** Smaller changes to the room's spread aren't worth waking everyone for. */
 const SPREAD_STEP_SECONDS = 0.05;
 type RateWindow = { startedAt: number; count: number };
@@ -119,6 +126,13 @@ export class Room extends DurableObject {
         if (this.isOnAd(ws) === message.watching) return;
         this.patchAttachment(ws, { onAd: message.watching });
         this.announceAds();
+        return;
+      }
+      case "behind": {
+        if (!this.clientIdOf(ws)) return this.sendError(ws, "not_joined");
+        if (this.isBehind(ws) === message.behind) return;
+        this.patchAttachment(ws, { behind: message.behind });
+        this.announceBehind();
         return;
       }
       case "drift": {
@@ -215,10 +229,12 @@ export class Room extends DurableObject {
 
     // After a network drop the old socket can look open for a long time, and it's this viewer.
     let replacedOneOnAd = false;
+    let replacedOneBehind = false;
     if (viewer) {
       for (const socket of this.joinedSockets()) {
         if (socket === ws || this.viewerOf(socket) !== viewer) continue;
         replacedOneOnAd ||= this.isOnAd(socket);
+        replacedOneBehind ||= this.isBehind(socket);
         socket.serializeAttachment({ clientId: null } satisfies Attachment);
         socket.close(1000);
       }
@@ -236,6 +252,9 @@ export class Room extends DurableObject {
     this.send(ws, { type: "joined", clientId, state: record.state, peers, ...video, ...ads });
     this.broadcast({ type: "peers", count: peers }, ws);
     if (replacedOneOnAd) this.announceAds();
+    if (replacedOneBehind) this.announceBehind();
+    const behind = this.joinedSockets().filter((socket) => this.isBehind(socket)).length;
+    if (behind > 0) this.send(ws, { type: "left_behind", count: behind });
     const spread = this.spread();
     if (spread !== null)
       this.send(ws, { type: "spread", seconds: Math.round(spread * 1000) / 1000 });
@@ -246,9 +265,11 @@ export class Room extends DurableObject {
     const remaining = this.joinedSockets().filter((socket) => socket !== ws);
     if (this.clientIdOf(ws)) {
       const wasOnAd = this.isOnAd(ws);
+      const wasBehind = this.isBehind(ws);
       ws.serializeAttachment({ clientId: null } satisfies Attachment);
       this.broadcast({ type: "peers", count: remaining.length }, ws);
       if (wasOnAd) this.announceAds();
+      if (wasBehind) this.announceBehind();
       this.lastSpread = null;
       this.announceSpread();
     }
@@ -334,6 +355,19 @@ export class Room extends DurableObject {
     const total = sockets.filter((socket) => this.isOnAd(socket)).length;
     for (const socket of sockets) {
       this.send(socket, { type: "ads", count: total - (this.isOnAd(socket) ? 1 : 0) });
+    }
+  }
+
+  private isBehind(ws: WebSocket): boolean {
+    return (ws.deserializeAttachment() as Attachment | null)?.behind === true;
+  }
+
+  /** Like ads: nobody is told about themselves, as they have their own button to follow. */
+  private announceBehind(): void {
+    const sockets = this.joinedSockets();
+    const total = sockets.filter((socket) => this.isBehind(socket)).length;
+    for (const socket of sockets) {
+      this.send(socket, { type: "left_behind", count: total - (this.isBehind(socket) ? 1 : 0) });
     }
   }
 

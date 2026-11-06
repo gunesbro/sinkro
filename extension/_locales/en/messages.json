@@ -406,5 +406,33 @@
         "example": "0.12"
       }
     }
+  },
+  "othersBehind": {
+    "message": "$HERE$ of $TOTAL$ people are on this video",
+    "placeholders": {
+      "here": {
+        "content": "$1",
+        "example": "2"
+      },
+      "total": {
+        "content": "$2",
+        "example": "3"
+      }
+    }
+  },
+  "oneBehindHelp": {
+    "message": "One person hasn't come yet. They've been offered a button to come here."
+  },
+  "othersBehindHelp": {
+    "message": "$COUNT$ people haven't come yet. They've been offered a button to come here.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "notifyEveryoneHere": {
+    "message": "Everyone's here"
   }
 }

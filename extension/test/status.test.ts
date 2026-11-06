@@ -13,6 +13,7 @@ const connected: SessionStatus = {
   hasVideo: true,
   paused: false,
   othersOnAd: 0,
+  othersBehind: 0,
   sourceMismatch: null,
   spread: null,
   isFilmStillPlaying: false,
@@ -221,6 +222,31 @@ describe("noticeFor", () => {
         hold: "ad",
         sourceMismatch: { mine: 30, room: 1438, host: null },
       } as const;
+      expect(noticeFor(status)?.titleKey).toBe("adPlaying");
+    });
+  });
+
+  describe("people who haven't come to the room's video yet", () => {
+    it("says how many are here out of everyone, and how many are still to come", () => {
+      expect(noticeFor({ ...connected, peers: 3, othersBehind: 1 })).toMatchObject({
+        titleKey: "othersBehind",
+        titleSubstitutions: ["2", "3"],
+        bodyKey: "oneBehindHelp",
+        action: "dismiss",
+      });
+      expect(noticeFor({ ...connected, peers: 5, othersBehind: 2 })).toMatchObject({
+        titleSubstitutions: ["3", "5"],
+        bodyKey: "othersBehindHelp",
+        bodySubstitutions: ["2"],
+      });
+    });
+
+    it("doesn't push itself in front of the video being off screen", () => {
+      expect(mustShowNotice(noticeFor({ ...connected, othersBehind: 1 }))).toBe(false);
+    });
+
+    it("gives way to the viewer's own ad", () => {
+      const status = { ...connected, othersBehind: 1, hold: "ad" } as const;
       expect(noticeFor(status)?.titleKey).toBe("adPlaying");
     });
   });

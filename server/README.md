@@ -46,6 +46,10 @@ A client that has joined may send `{"type":"drift","seconds":0.08}`, how far it 
 
 A client that has joined can send `{"type":"ad","watching":true}`. Everyone who has joined gets `{"type":"ads","count":n}`, counting the others on an ad, and someone joining gets it in `joined` as `ads`, when any are. It's kept with the connection, not in storage.
 
+## Someone who hasn't come yet
+
+After someone brings everyone to a video, a client that has joined and hasn't followed yet sends `{"type":"behind","behind":true}`, and `false` once it has. Everyone who has joined gets `{"type":"left_behind","count":n}`, counting the others still to come, and someone joining gets it too when any are. It's kept with the connection, not in storage.
+
 ## The room's video
 
 Without joining, a client can send `{"type":"video/get"}` or `{"type":"video/set","sealed":"..."}`, and the room answers `{"type":"video","sealed":...}`. With `"fresh":true` it's a different film, so the room forgets its playback state and tells the others with `fresh` too. Setting it also sends that answer to everyone who has joined, and whoever joins later gets it in `joined` as `video`. The value is opaque to the server and deleted with the room.

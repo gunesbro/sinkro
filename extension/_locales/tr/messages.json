@@ -406,5 +406,33 @@
         "example": "0,12"
       }
     }
+  },
+  "othersBehind": {
+    "message": "Bu videoda $TOTAL$ kişiden $HERE$ kişi var",
+    "placeholders": {
+      "here": {
+        "content": "$1",
+        "example": "2"
+      },
+      "total": {
+        "content": "$2",
+        "example": "3"
+      }
+    }
+  },
+  "oneBehindHelp": {
+    "message": "1 kişi henüz gelmedi. Ona buraya geçmesi için bir düğme gösterildi."
+  },
+  "othersBehindHelp": {
+    "message": "$COUNT$ kişi henüz gelmedi. Onlara buraya geçmeleri için bir düğme gösterildi.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "notifyEveryoneHere": {
+    "message": "Herkes geldi"
   }
 }

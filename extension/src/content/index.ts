@@ -16,6 +16,7 @@ import type {
 import { formatRate } from "../format";
 import { INVITE_ORIGIN, isSamePage } from "../invite";
 import { roomSocketUrl } from "../settings";
+import { noticeFor } from "../status";
 import type { VideoChange } from "../video-change";
 import { VideoBadge } from "./badge";
 import { loadBadgePosition, saveBadgePosition } from "./badge-position";
@@ -48,6 +49,10 @@ const DRIFT_STEP_SECONDS = 0.03;
 const DRIFT_SETTLE_MS = 2000;
 /** Past this the engine seeks, so the drift is about to vanish rather than worth telling. */
 const DRIFT_SEEKING_SECONDS = 2;
+/** How often a viewer looks at whether they've come to the room's video. Looking is free. */
+const BEHIND_CHECK_MS = 1000;
+/** Following goes through a new page, so the room hears the old one go before the new one come. */
+const ARRIVAL_WAIT_MS = 15_000;
 /** Two lengths further apart than this are two different cuts of the film. */
 const SAME_LENGTH_SECONDS = 2;
 /** Sites change address without loading a page, and not always through anything hookable. */
@@ -61,6 +66,8 @@ const LANGUAGE_KEY = "language";
 
 type Room = {
   engine: SyncEngine;
+  /** Puts away "not everyone's here" until the count changes. */
+  dismissBehind: () => void;
   sendVideo: (sealed: string, fresh: boolean) => void;
   status: () => SessionStatus;
   stop: () => void;
@@ -86,6 +93,7 @@ type RoomHooks = {
   onRoomVideo: (sealed: string, announced: boolean) => void;
   onPeopleChange: (count: number) => void;
   onOthersAdEnded: () => void;
+  onEveryoneArrived: () => void;
   isOnOtherVideo: () => boolean;
   videoChange: () => VideoChange | null;
   isFilmStillPlaying: () => boolean;
@@ -114,6 +122,20 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     lastStateAt = Date.now();
   };
   let isOnAd = false;
+  let othersBehind = 0;
+  let dismissedBehind: number | null = null;
+  let isBehind = false;
+  /** How many were in the room while someone was still to come, to tell arriving from leaving. */
+  let arrival: { peers: number; until: number } | null = null;
+  const checkArrival = () => {
+    if (!arrival) return;
+    if (Date.now() > arrival.until) {
+      arrival = null;
+    } else if (othersBehind === 0 && peers >= arrival.peers) {
+      arrival = null;
+      hooks.onEveryoneArrived();
+    }
+  };
 
   const engine = new SyncEngine({
     now: Date.now,
@@ -144,8 +166,10 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         if (message.video) hooks.onRoomVideo(message.video, false);
         engine.handleJoined(message);
         tellDriftAgain();
-        // The room forgot this along with the old connection.
+        // The room forgot these along with the old connection.
         if (isOnAd) connection.sendAdState(true);
+        if (isBehind) connection.sendBehind(true);
+        othersBehind = 0;
       },
       onState: (state) => {
         if (state.from !== ownId) hooks.onOthersState(state);
@@ -156,6 +180,20 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         peers = count;
         hooks.onPeopleChange(count);
         engine.handlePeers(count);
+        checkArrival();
+      },
+      onLeftBehind: (count) => {
+        if (count > 0) {
+          arrival = {
+            peers: Math.max(peers, arrival?.peers ?? 0),
+            until: Number.POSITIVE_INFINITY,
+          };
+        } else if (arrival) {
+          arrival.until = Date.now() + ARRIVAL_WAIT_MS;
+        }
+        if (count !== othersBehind) dismissedBehind = null;
+        othersBehind = count;
+        checkArrival();
       },
       onSpread: (seconds) => {
         spread = seconds;
@@ -193,6 +231,12 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     const rounded = Math.round(drift * 1000) / 1000;
     if (connection.sendDrift(rounded)) lastDriftSent = rounded;
   }, DRIFT_CHECK_MS);
+  // Only after someone brings everyone: wandering off to another page tells the room nothing.
+  const behindTimer = setInterval(() => {
+    const behind = hooks.videoChange()?.kind === "room_moved";
+    if (behind === isBehind || connectionStatus !== "connected") return;
+    if (connection.sendBehind(behind)) isBehind = behind;
+  }, BEHIND_CHECK_MS);
   const onOnline = () => connection.retryNow();
   window.addEventListener("online", onOnline);
   connection.start();
@@ -200,6 +244,9 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   return {
     engine,
     sendVideo: (sealed, fresh) => void connection.sendVideo(sealed, fresh),
+    dismissBehind: () => {
+      dismissedBehind = othersBehind;
+    },
     status: () => ({
       ...engine.snapshot(),
       // Nobody came to watch this, so as far as anyone's told there's no video here.
@@ -208,6 +255,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       closeReason,
       peers,
       othersOnAd,
+      othersBehind: othersBehind === dismissedBehind ? 0 : othersBehind,
       spread: peers > 1 ? spread : null,
       // An ad has a length of its own, which says nothing about the source.
       sourceMismatch: engine.snapshot().hold ? null : hooks.sourceMismatch(),
@@ -218,6 +266,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     }),
     stop: () => {
       clearInterval(driftTimer);
+      clearInterval(behindTimer);
       window.removeEventListener("online", onOnline);
       connection.stop();
       engine.stop();
@@ -356,6 +405,7 @@ class FrameSession {
         onRemoteChange: (change, details) => this.remoteNotices.add(change, details),
         onOwnChange: (change, details) => this.ownNotices.add(change, details),
         onOthersAdEnded: () => this.badge?.flash("notifyAdEnded"),
+        onEveryoneArrived: () => this.badge?.flash("notifyEveryoneHere"),
         onRoomVideo: (sealed, announced) => this.onRoomVideo(sealed, announced),
         onPeopleChange: (count) => void send({ type: "room/people", count }),
         isOnOtherVideo: () => this.isOnOtherVideo(),
@@ -390,6 +440,8 @@ class FrameSession {
   /** Lifts the hold first, because the engine won't speak for a video that's on hold. */
   bringEveryone(sealed: string | null, isNewFilm: boolean): void {
     this.videoChange = null;
+    // What the others last said was about the old film, so its length means nothing here.
+    if (isNewFilm) this.othersFilm = { duration: null, source: null };
     if (sealed) {
       this.lastSealedSent = sealed;
       this.room?.sendVideo(sealed, isNewFilm);
@@ -553,7 +605,9 @@ class FrameSession {
       onLeave: () => void send({ type: "session/leave" }),
       onPause: () => this.tracker.video()?.pause(),
       onDismiss: () => {
-        this.dismissedMismatch = this.mismatchKey();
+        const notice = noticeFor(this.room?.status() ?? null);
+        if (notice?.titleKey === "othersBehind") this.room?.dismissBehind();
+        else this.dismissedMismatch = this.mismatchKey();
       },
       onPositionChange: (moved) => void saveBadgePosition(location.hostname, moved),
     });

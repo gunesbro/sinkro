@@ -413,6 +413,12 @@ try {
     JSON.stringify((await b.status())?.videoChange),
   );
   check("with the new video's title", (await b.status())?.videoChange?.title === "Film 2");
+  await until(async () => (await a.status())?.othersBehind === 1);
+  check(
+    "A hears one person hasn't come yet",
+    (await a.status())?.othersBehind === 1,
+    JSON.stringify((await a.status())?.othersBehind),
+  );
   await wait(1500);
   const bHeld = await b.video();
   check(
@@ -431,6 +437,17 @@ try {
     Math.abs(aAfter.time - before.time) < 10,
     `${before.time} -> ${aAfter.time}`,
   );
+  const popupA4 = await a.openPopup();
+  await until(
+    async () => (await text(popupA4, "#alert-title")) === "1 of 2 people are on this video",
+  );
+  check(
+    "and A's popup says how many are here, with no warning about the old film's length",
+    (await text(popupA4, "#alert-title")) === "1 of 2 people are on this video",
+    await text(popupA4, "#alert-title"),
+  );
+  await shot(popupA4, "behind-popup");
+  await popupA4.close();
   await b.tab.bringToFront();
   await shot(b.tab, "room-moved-badge");
 
@@ -453,6 +470,12 @@ try {
     Math.abs((await b.video()).time - (await a.video()).time) < 1 &&
       (await b.video()).src.endsWith("film2.wav"),
     `${(await b.video()).time} / ${(await a.video()).time}`,
+  );
+  await until(async () => (await a.status())?.othersBehind === 0);
+  check(
+    "once B has come, A hears nobody is left behind",
+    (await a.status())?.othersBehind === 0,
+    JSON.stringify((await a.status())?.othersBehind),
   );
 
   // ---- sync still works in both directions afterwards

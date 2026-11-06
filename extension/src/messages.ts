@@ -17,6 +17,8 @@ export type SessionStatus = EngineSnapshot & {
   peers: number;
   /** How many others are on an ad. */
   othersOnAd: number;
+  /** How many others haven't come to the video someone brought everyone to. */
+  othersBehind: number;
   sourceMismatch: SourceMismatch | null;
   /** How far apart the furthest two people are, in seconds, once at least two have said. */
   spread: number | null;
