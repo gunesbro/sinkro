@@ -59,6 +59,7 @@ const INPUT_ELSEWHERE_WAIT_MS = 400;
 const OWN_SEEK_BEFORE_PLAY_MS = 1000;
 /** HTMLMediaElement.HAVE_METADATA: its length is known. */
 const HAVE_METADATA = 1;
+const HAVE_CURRENT_DATA = 2;
 /** HTMLMediaElement.HAVE_FUTURE_DATA: enough is buffered to keep playing. */
 const HAVE_FUTURE_DATA = 3;
 
@@ -499,6 +500,10 @@ export class SyncEngine {
       // A player that has just started its video keeps its own idea of it until that start has
       // settled, and a pause in between can leave its button saying it plays when it doesn't.
       if (this.deps.now() - this.pagePlayAt < PAGE_PLAY_SETTLE_MS) return;
+      // The same while it has nothing to show yet, after a new source or a seek: some players
+      // ignore a pause then, so their button stays on pause over a stopped video. Until the
+      // data arrives the video doesn't move anyway.
+      if (video.readyState < HAVE_CURRENT_DATA) return;
       this.pauseFlagUntil = this.deps.now() + PLAY_PAUSE_FLAG_MS;
       video.pause();
       this.knownPaused = true;
