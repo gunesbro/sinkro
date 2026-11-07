@@ -46,6 +46,8 @@ const AFTER_ARRIVING_MS = 4000;
 const AFTER_NEW_SOURCE_MS = 4000;
 /** Where a player puts a new source by itself: its very start. */
 const NEW_SOURCE_START_SECONDS = 5;
+/** How long a player's own start takes to settle before pausing it won't confuse its buttons. */
+const PAGE_PLAY_SETTLE_MS = 800;
 /** How long a move to the start waits, in case it's a player getting ready for a new source. */
 const NEW_SOURCE_WAIT_MS = 500;
 /**
@@ -97,6 +99,11 @@ export type EngineDeps = {
    * as the viewer's, which is how it was before.
    */
   lastInputAt?: () => number;
+  /**
+   * The same, but only in the video's own frame: a click on the player itself. A click elsewhere,
+   * like on a card choosing another player, says nothing about what that player does next.
+   */
+  lastInputHereAt?: () => number;
   /** What goes with each state about the film itself, for spotting a different source. */
   filmDetails?: () => Pick<PlaybackState, "duration" | "source">;
   /** `rate` is the speed the room is at now, and `jumped` is whether its position moved too. */
@@ -175,6 +182,8 @@ export class SyncEngine {
   private holdEndedAt = Number.NEGATIVE_INFINITY;
   /** When the video last moved by a seek of the viewer's own, not one of ours. */
   private viewerSeekAt = Number.NEGATIVE_INFINITY;
+  /** When the page, not the engine, last started the video. */
+  private pagePlayAt = Number.NEGATIVE_INFINITY;
   /** When the video got a new source, in its element or by another element taking its place. */
   private sourceChangedAt = Number.NEGATIVE_INFINITY;
   /** When this viewer joined, or this video was bound, whichever was later. */
@@ -487,6 +496,9 @@ export class SyncEngine {
       return;
     }
     if (!timeline.playing && !video.paused) {
+      // A player that has just started its video keeps its own idea of it until that start has
+      // settled, and a pause in between can leave its button saying it plays when it doesn't.
+      if (this.deps.now() - this.pagePlayAt < PAGE_PLAY_SETTLE_MS) return;
       this.pauseFlagUntil = this.deps.now() + PLAY_PAUSE_FLAG_MS;
       video.pause();
       this.knownPaused = true;
@@ -587,6 +599,7 @@ export class SyncEngine {
   private onPlay(): void {
     if (this.video) this.knownPaused = this.video.paused;
     if (this.consumePlayFlag()) return;
+    this.pagePlayAt = this.deps.now();
     // The viewer's click is what the browser was waiting for. It means "let me follow",
     // not "everyone go back to where I am".
     if (this.autoplayRetryAt !== 0) {
@@ -619,6 +632,11 @@ export class SyncEngine {
   private isViewerActing(): boolean {
     const at = this.deps.lastInputAt?.();
     return at === undefined || this.deps.now() - at < RECENT_INPUT_MS;
+  }
+
+  private isViewerActingOnPlayer(): boolean {
+    const at = this.deps.lastInputHereAt?.();
+    return at === undefined ? this.isViewerActing() : this.deps.now() - at < RECENT_INPUT_MS;
   }
 
   private onSeeking(): void {
@@ -738,6 +756,12 @@ export class SyncEngine {
         this.lastSeekAt = Number.NEGATIVE_INFINITY;
         this.tick();
       }, INPUT_ELSEWHERE_WAIT_MS);
+      return;
+    }
+    // A new source starts playing by itself, right after the click that chose it. Only a click
+    // on the player itself makes that play the viewer's; otherwise it follows the room.
+    if (isPlay && isNewSource && timeline && !this.isAlone && !this.isViewerActingOnPlayer()) {
+      this.tick();
       return;
     }
     // A player that just turned up starts at its own beginning. Pressing play on it means "play",
