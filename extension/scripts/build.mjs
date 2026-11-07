@@ -41,7 +41,10 @@ const targetManifest = {
       gecko: {
         id: "sinkro@sinkro.pages.dev",
         strict_min_version: "142.0",
-        data_collection_permissions: { required: ["none"] },
+        // Firefox asks for consent to what leaves the browser, encrypted or not. Creating a room or
+        // bringing everyone sends the room's video address (browsing activity) and its title
+        // (website content), sealed with the room code, to the server and the room's members.
+        data_collection_permissions: { required: ["browsingActivity", "websiteContent"] },
       },
     },
   },
