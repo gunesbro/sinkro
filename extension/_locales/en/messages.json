@@ -33,7 +33,7 @@
     "message": "Join"
   },
   "footer": {
-    "message": "No account. Only playback state and the video's address and title are shared."
+    "message": "No account. Only playback state, a random name, and the video's address and title are shared."
   },
   "live": {
     "message": "Room is live"
@@ -458,5 +458,72 @@
   },
   "liveNoticeHelp": {
     "message": "Everyone watches from their own live point, so Sinkro doesn't pause or move anyone here. It still shows who's on another page."
+  },
+  "nameAdjectives": {
+    "message": "Blue|Green|Red|Purple|Orange|Yellow|Pink|Silver|Golden|Swift|Calm|Cheerful|Brave|Sleepy|Curious|Tiny",
+    "description": "Sixteen adjectives for random names, separated by |. Same count and order in every language."
+  },
+  "nameAnimals": {
+    "message": "Fox|Owl|Panda|Hedgehog|Penguin|Squirrel|Dolphin|Turtle|Rabbit|Cat|Bear|Eagle|Octopus|Giraffe|Koala|Beaver",
+    "description": "Sixteen animals for random names, separated by |. Same count and order in every language."
+  },
+  "notifyByPlayed": {
+    "message": "$NAME$ started the video",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Calm Owl"
+      }
+    }
+  },
+  "notifyByPaused": {
+    "message": "$NAME$ paused the video",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Calm Owl"
+      }
+    }
+  },
+  "notifyBySeeked": {
+    "message": "$NAME$ moved the video",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Calm Owl"
+      }
+    }
+  },
+  "notifyByRate": {
+    "message": "$NAME$ set the speed to $RATE$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Calm Owl"
+      },
+      "rate": {
+        "content": "$2",
+        "example": "1.5x"
+      }
+    }
+  },
+  "peopleListLabel": {
+    "message": "People in this room"
+  },
+  "peopleYou": {
+    "message": "$NAME$ (you)",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Calm Owl"
+      }
+    }
+  },
+  "newName": {
+    "message": "Pick a new name"
+  },
+  "personUnnamed": {
+    "message": "Someone",
+    "description": "Someone in the room whose name isn't known, as with an older version."
   }
 }

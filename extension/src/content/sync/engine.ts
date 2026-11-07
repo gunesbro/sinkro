@@ -273,7 +273,8 @@ export class SyncEngine {
       this.setTimeline(state);
       if (change) {
         this.apply(true);
-        this.deps.onRemoteChange?.(change, { rate: state.rate, jumped });
+        // Ours, combined with someone else's: theirs is the part that's news, but whose isn't said.
+        this.deps.onRemoteChange?.(change, { rate: state.rate, jumped, by: null });
       }
       return;
     }
@@ -296,7 +297,7 @@ export class SyncEngine {
     const jumped = this.hasJumped(state);
     this.setTimeline(state);
     this.apply(true);
-    if (change) this.deps.onRemoteChange?.(change, { rate: state.rate, jumped });
+    if (change) this.deps.onRemoteChange?.(change, { rate: state.rate, jumped, by: state.from });
   }
 
   private describeChange(next: PlaybackState): PlaybackChange | null {

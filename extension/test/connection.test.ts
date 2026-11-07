@@ -67,6 +67,7 @@ function setup() {
     onSpread: vi.fn(),
     onLeftBehind: vi.fn(),
     onFilms: vi.fn(),
+    onPeople: vi.fn(),
     onDisconnected: vi.fn(),
     onStatus: vi.fn(),
   };
@@ -191,6 +192,19 @@ describe("messages", () => {
     latest().receive(message);
 
     expect(events.onState).not.toHaveBeenCalled();
+  });
+
+  it("passes on the room's people, and sends a name only once joined", () => {
+    const { connection, events, latest, handshake } = setup();
+    connection.start();
+    latest().open();
+    expect(connection.sendName("sealed")).toBe(false);
+    handshake();
+    latest().receive({ type: "people", people: [{ id: "me" }, { id: "b", name: "x" }] });
+
+    expect(events.onPeople).toHaveBeenCalledWith([{ id: "me" }, { id: "b", name: "x" }]);
+    expect(connection.sendName("sealed")).toBe(true);
+    expect(latest().ofType("name")).toEqual([{ type: "name", sealed: "sealed" }]);
   });
 
   it("reports a refused message", () => {

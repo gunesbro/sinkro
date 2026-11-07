@@ -157,3 +157,30 @@ describe("parseClientMessage", () => {
     expect(parseClientMessage(raw)).toBeNull();
   });
 });
+
+describe("names", () => {
+  it("takes a sealed name from a client", () => {
+    expect(parseClientMessage(JSON.stringify({ type: "name", sealed: "abc" }))).toEqual({
+      type: "name",
+      sealed: "abc",
+    });
+    expect(parseClientMessage(JSON.stringify({ type: "name", sealed: "" }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ type: "name", sealed: 5 }))).toBeNull();
+  });
+
+  it("reads the room's people, dropping a bad name or a bad person", () => {
+    const raw = JSON.stringify({
+      type: "people",
+      people: [{ id: "a", name: "sealed" }, { id: "b", name: 7 }, { name: "no id" }, "nonsense"],
+    });
+    expect(parseServerMessage(raw)).toEqual({
+      type: "people",
+      people: [{ id: "a", name: "sealed" }, { id: "b" }],
+    });
+  });
+
+  it("refuses a list longer than any room", () => {
+    const people = Array.from({ length: 101 }, (_, index) => ({ id: String(index) }));
+    expect(parseServerMessage(JSON.stringify({ type: "people", people }))).toBeNull();
+  });
+});

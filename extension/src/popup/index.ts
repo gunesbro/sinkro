@@ -18,6 +18,7 @@ import type {
   TabRequest,
   TabSession,
 } from "../messages";
+import { nameText, namesInRoom, pickAnotherName } from "../names";
 import { openRoomVideo, sealRoomVideo } from "../room-video";
 import { getCustomServerUrl, roomSocketUrl, setServerUrl } from "../settings";
 import {
@@ -113,6 +114,31 @@ function renderHome(): void {
   element<HTMLButtonElement>("join-form").querySelector("button")!.disabled = isBusy;
 }
 
+let shownPeople = "";
+
+/** Yours first, then the others in the order they came. Redrawn only when someone changes. */
+function renderPeople(): void {
+  const list = status?.connection === "connected" ? (status.people ?? []) : [];
+  const shown = namesInRoom(list.map(({ pick }) => (pick ? nameText(pick, messages) : null)));
+  const lines = list
+    .map(({ isYou }, index) => {
+      const name = shown[index] ?? t("personUnnamed");
+      return { isYou, text: isYou ? t("peopleYou", [name]) : name };
+    })
+    .sort((a, b) => Number(b.isYou) - Number(a.isYou));
+  const key = JSON.stringify(lines);
+  if (key === shownPeople) return;
+  shownPeople = key;
+  element("people-section").hidden = lines.length === 0;
+  element("people-list").replaceChildren(
+    ...lines.map(({ text }) => {
+      const item = document.createElement("li");
+      item.textContent = text;
+      return item;
+    }),
+  );
+}
+
 function renderRoom(): void {
   element("room-code").textContent = session?.code ?? "";
 
@@ -137,6 +163,7 @@ function renderRoom(): void {
       : "";
   element("people").textContent = people;
   element("spread").textContent = spread;
+  renderPeople();
   element("timecode").textContent = status?.isLive
     ? t("liveTime")
     : status?.position !== undefined && status.position !== null
@@ -462,6 +489,10 @@ function connectEvents(): void {
     setTimeout(() => {
       button.textContent = t("bring");
     }, COPIED_MS);
+  });
+  element("new-name").addEventListener("click", () => {
+    // The tab passes it to the room, and the next look at its status shows the new one.
+    void pickAnotherName();
   });
   element("move-badge").addEventListener("click", () => {
     if (tabId === undefined) return;

@@ -31,6 +31,7 @@ const connected: SessionStatus = {
   closeReason: null,
   peers: 2,
   videoChange: null,
+  people: [],
 };
 
 describe("statusLine", () => {

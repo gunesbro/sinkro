@@ -10,7 +10,7 @@ Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox
 - **No account.** Open a video, create a room, send the link. Whoever opens it lands on the same video, at the same second.
 - **Tight sync.** Everyone is measured against the room's shared timeline, with each computer's clock corrected. Small drift is evened out by playing a touch faster or slower, so nobody sees a jump; the popup shows how far apart the room is, usually a few hundredths of a second.
 - **Rooms for up to 50 people.**
-- **Says what's going on.** A small badge on the video shows whether you're in sync, who paused or skipped, and offers a one-click fix when something's off: someone on an ad, someone on a different video, a browser that wants a click first.
+- **Says what's going on.** A small badge on the video shows whether you're in sync and who paused or skipped, by a random name like "Calm Owl" that nobody has to type. It offers a one-click fix when something's off: someone on an ad, someone on a different video, a browser that wants a click first.
 - **English and Turkish.**
 
 ## Install

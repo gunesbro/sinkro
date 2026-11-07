@@ -2,6 +2,7 @@ import { mergeState, type FieldVersions } from "./merge";
 import { DurableObject } from "cloudflare:workers";
 import {
   type Film,
+  type Person,
   CloseCode,
   MIN_PROTOCOL_VERSION,
   PROTOCOL_VERSION,
@@ -47,6 +48,8 @@ type Attachment = {
   behind?: boolean;
   /** The film this viewer has, as they last said. */
   film?: Film;
+  /** The name they go by, sealed. It lives with the connection and is never stored. */
+  name?: string;
 };
 /** Smaller changes to the room's spread aren't worth waking everyone for. */
 const SPREAD_STEP_SECONDS = 0.05;
@@ -147,6 +150,13 @@ export class Room extends DurableObject {
         this.patchAttachment(ws, { behind: message.behind });
         this.announceBehind();
         if (this.filmOf(ws)) this.announceFilms();
+        return;
+      }
+      case "name": {
+        if (!this.clientIdOf(ws)) return this.sendError(ws, "not_joined");
+        if (this.nameOf(ws) === message.sealed) return;
+        this.patchAttachment(ws, { name: message.sealed });
+        this.announcePeople();
         return;
       }
       case "drift": {
@@ -273,6 +283,8 @@ export class Room extends DurableObject {
     const ads = othersOnAd > 0 ? { ads: othersOnAd } : {};
     this.send(ws, { type: "joined", clientId, state: record.state, peers, ...video, ...ads });
     this.broadcast({ type: "peers", count: peers }, ws);
+    // Everyone, the newcomer too: hearing it is also how a client learns the room keeps names.
+    this.announcePeople();
     if (replacedOneOnAd) this.announceAds();
     if (replacedOneBehind) this.announceBehind();
     if (replacedOneWithFilm) this.announceFilms();
@@ -295,6 +307,7 @@ export class Room extends DurableObject {
       const hadFilm = this.filmOf(ws) !== null;
       ws.serializeAttachment({ clientId: null } satisfies Attachment);
       this.broadcast({ type: "peers", count: remaining.length }, ws);
+      this.announcePeople();
       if (wasOnAd) this.announceAds();
       if (wasBehind) this.announceBehind();
       if (hadFilm) this.announceFilms();
@@ -367,6 +380,20 @@ export class Room extends DurableObject {
     }
     this.lastSpread = spread;
     this.broadcast({ type: "spread", seconds: Math.round(spread * 1000) / 1000 });
+  }
+
+  private nameOf(ws: WebSocket): string | null {
+    return (ws.deserializeAttachment() as Attachment | null)?.name ?? null;
+  }
+
+  private announcePeople(): void {
+    const people: Person[] = this.joinedSockets().flatMap((socket) => {
+      const id = this.clientIdOf(socket);
+      if (!id) return [];
+      const name = this.nameOf(socket);
+      return [name ? { id, name } : { id }];
+    });
+    this.broadcast({ type: "people", people });
   }
 
   private viewerOf(ws: WebSocket): string | null {

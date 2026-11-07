@@ -31,6 +31,16 @@ for (const [lang, messages] of Object.entries(locales)) {
   }
 }
 
+// Random names are kept as places in these lists, so every language needs the same number.
+const NAME_LISTS = { nameAdjectives: 16, nameAnimals: 16 };
+for (const [lang, messages] of Object.entries(locales)) {
+  for (const [key, count] of Object.entries(NAME_LISTS)) {
+    const words = (messages[key]?.message ?? "").split("|").filter((word) => word.trim() !== "");
+    if (words.length !== count)
+      errors.push(`${lang} "${key}" has ${words.length} words, needs ${count}`);
+  }
+}
+
 if (errors.length > 0) {
   console.error(errors.join("\n"));
   process.exit(1);

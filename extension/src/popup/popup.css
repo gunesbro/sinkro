@@ -332,6 +332,36 @@ input::placeholder {
   min-width: 0;
 }
 
+/* Everyone's name, one per line, with yours first and the way to change it beside the list. */
+.people {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.people-list li {
+  overflow-wrap: anywhere;
+}
+
+.people .text-button {
+  flex: none;
+}
+
 .readout-detail {
   color: var(--muted);
   font-size: 12px;
