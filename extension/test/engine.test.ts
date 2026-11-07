@@ -1606,6 +1606,59 @@ describe("a page's video starting by itself just after joining", () => {
     expect(next.paused).toBe(true);
   });
 
+  it("lets the player hear of a pause before moving the video", async () => {
+    const context = untouched();
+    const { engine, video, peerState } = context;
+    engine.bind(video.asVideo());
+    engine.handleJoined({
+      clientId: ME,
+      state: peerState({ playing: false, position: 348 }),
+      peers: 2,
+    });
+    await settle();
+    // The page starts the video from its beginning; the room is paused far in.
+    video.position = 0;
+    let positionAtPause: number | null = null;
+    video.addEventListener("pause", () => {
+      positionAtPause ??= video.position;
+    });
+    video.userPlay();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    // A seek straight after pause() empties the video, and some players then ignore the pause.
+    expect(positionAtPause).toBe(0);
+    expect(video.paused).toBe(true);
+    expect(video.position).toBe(348);
+  });
+
+  it("doesn't send a new player's own move to its start, after a click elsewhere", async () => {
+    const clickedAt = Date.now();
+    const context = setup({
+      lastInputAt: () => clickedAt,
+      lastInputHereAt: () => Number.NEGATIVE_INFINITY,
+    });
+    const { engine, sent, peerState } = context;
+    await joinPlaying(context, 300);
+    engine.handleState(peerState({ playing: false, position: 300 }));
+    await settle();
+    sent.length = 0;
+
+    // The new player plays, then puts itself back to its start more than once.
+    const next = new FakeVideo();
+    next.position = 0.7;
+    engine.bind(next.asVideo());
+    next.userPlay();
+    await vi.advanceTimersByTimeAsync(100);
+    next.userSeek(0);
+    await vi.advanceTimersByTimeAsync(100);
+    next.userSeek(0);
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(sent).toEqual([]);
+    expect(next.paused).toBe(true);
+    expect(next.position).toBe(300);
+  });
+
   it("sends a play whose click was in another frame, once word of it arrives", async () => {
     let inputAt = Number.NEGATIVE_INFINITY;
     const context = setup({ lastInputAt: () => inputAt });

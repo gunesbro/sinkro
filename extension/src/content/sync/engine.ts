@@ -183,6 +183,8 @@ export class SyncEngine {
   private holdEndedAt = Number.NEGATIVE_INFINITY;
   /** When the video last moved by a seek of the viewer's own, not one of ours. */
   private viewerSeekAt = Number.NEGATIVE_INFINITY;
+  /** Set when the engine paused the video and the rest of applying waits for that pause. */
+  private applyAfterPause: boolean | null = null;
   /** When the page, not the engine, last started the video. */
   private pagePlayAt = Number.NEGATIVE_INFINITY;
   /** When the video got a new source, in its element or by another element taking its place. */
@@ -507,6 +509,10 @@ export class SyncEngine {
       this.pauseFlagUntil = this.deps.now() + PLAY_PAUSE_FLAG_MS;
       video.pause();
       this.knownPaused = true;
+      // Seeking now would empty the video before the player hears of the pause, and some
+      // players ignore a pause then. The rest waits until the pause has gone round.
+      this.applyAfterPause = force;
+      return;
     }
 
     if (!force && (video.seeking || (timeline.playing && video.readyState < HAVE_FUTURE_DATA))) {
@@ -619,6 +625,10 @@ export class SyncEngine {
     if (this.video) this.knownPaused = this.video.paused;
     if (this.deps.now() < this.pauseFlagUntil) {
       this.pauseFlagUntil = 0;
+      const force = this.applyAfterPause;
+      this.applyAfterPause = null;
+      // After every listener has had this pause, the player's own included.
+      if (force !== null) setTimeout(() => this.apply(force), 0);
       return;
     }
     // Nobody pressed anything: a player pausing for its ad looks like this, and the ad starts
@@ -763,9 +773,12 @@ export class SyncEngine {
       }, INPUT_ELSEWHERE_WAIT_MS);
       return;
     }
-    // A new source starts playing by itself, right after the click that chose it. Only a click
-    // on the player itself makes that play the viewer's; otherwise it follows the room.
-    if (isPlay && isNewSource && timeline && !this.isAlone && !this.isViewerActingOnPlayer()) {
+    // A new source starts playing by itself, and moves itself about, right after the click that
+    // chose it. Only a click on the player itself makes that the viewer's; otherwise it follows
+    // the room.
+    if (isNewSource && timeline && !this.isAlone && !this.isViewerActingOnPlayer()) {
+      // Its move undid the one that brought it to the room, which needn't wait to be redone.
+      this.lastSeekAt = Number.NEGATIVE_INFINITY;
       this.tick();
       return;
     }
