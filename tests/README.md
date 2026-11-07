@@ -27,6 +27,7 @@ Each scenario prints a line per check, `ok` or `FAIL`, and the run ends with the
 | `extension-update` | An open tab keeps its video after the extension updates                       |
 | `page-hook`        | The page hook goes only into tabs in a room                                   |
 | `toolbar-icon`     | The toolbar icon and its people count                                         |
+| `names`            | Random names: the popup's list, who did what on the badge, drawing a new name |
 
 ## Settings
 
