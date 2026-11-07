@@ -116,6 +116,7 @@ type RoomHooks = {
   onOthersState: (state: RoomState) => void;
   filmDetails: () => Pick<RoomState, "duration" | "source">;
   lastInputAt: () => number;
+  lastInputHereAt: () => number;
   sourceMismatch: () => SourceMismatch | null;
   isLive: () => boolean;
   /** What film this viewer has, to tell the room. */
@@ -159,6 +160,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     onOwnChange: hooks.onOwnChange,
     filmDetails: hooks.filmDetails,
     lastInputAt: hooks.lastInputAt,
+    lastInputHereAt: hooks.lastInputHereAt,
     isLive: hooks.isLive,
     onHoldChange: (hold) => {
       // A film that can't follow is usually a player's ad without markers, as far as others care.
@@ -469,6 +471,7 @@ class FrameSession {
         onOthersState: (state) => this.onOthersState(state),
         filmDetails: () => this.filmDetails(),
         lastInputAt: () => Math.max(this.lastInputAt, this.tabInputAt),
+        lastInputHereAt: () => this.lastInputAt,
         sourceMismatch: () => this.sourceMismatch(),
         film: () => this.ownFilm(),
         onFilms: (films) => this.onFilms(films),

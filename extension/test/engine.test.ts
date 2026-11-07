@@ -1509,6 +1509,73 @@ describe("a page's video starting by itself just after joining", () => {
     expect(next.position).toBeGreaterThan(299);
   });
 
+  it("doesn't start a paused room when a player chosen elsewhere starts by itself", async () => {
+    // The click was on the page's card choosing the player, not on the player.
+    const clickedAt = Date.now();
+    const context = setup({
+      lastInputAt: () => clickedAt,
+      lastInputHereAt: () => Number.NEGATIVE_INFINITY,
+    });
+    const { engine, sent, peerState } = context;
+    await joinPlaying(context, 300);
+    engine.handleState(peerState({ playing: false, position: 300 }));
+    await settle();
+    sent.length = 0;
+
+    const next = new FakeVideo();
+    next.position = 0;
+    engine.bind(next.asVideo());
+    await vi.advanceTimersByTimeAsync(100);
+    next.userPlay();
+    // The player's own start is left to settle, so its buttons follow the pause after it.
+    await vi.advanceTimersByTimeAsync(300);
+    expect(next.paused).toBe(false);
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(sent).toEqual([]);
+    expect(next.paused).toBe(true);
+  });
+
+  it("still sends a play on a new player when the click was on that player", async () => {
+    let inputAt = Number.NEGATIVE_INFINITY;
+    const context = setup({ lastInputAt: () => inputAt, lastInputHereAt: () => inputAt });
+    const { engine, sent, peerState } = context;
+    await joinPlaying(context, 300);
+    engine.handleState(peerState({ playing: false, position: 300 }));
+    await settle();
+    sent.length = 0;
+
+    const next = new FakeVideo();
+    next.position = 0;
+    engine.bind(next.asVideo());
+    await vi.advanceTimersByTimeAsync(100);
+    inputAt = Date.now();
+    next.userPlay();
+    await settle();
+
+    expect(sent).toMatchObject([{ playing: true }]);
+    expect(next.paused).toBe(false);
+  });
+
+  it("pauses a video the page started, once that start has settled", async () => {
+    const context = untouched();
+    const { engine, video, sent, peerState } = context;
+    engine.bind(video.asVideo());
+    engine.handleJoined({
+      clientId: ME,
+      state: peerState({ playing: false, position: 9 }),
+      peers: 2,
+    });
+    await settle();
+    sent.length = 0;
+
+    video.userPlay();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(sent).toEqual([]);
+    expect(video.paused).toBe(true);
+  });
+
   it("sends a play whose click was in another frame, once word of it arrives", async () => {
     let inputAt = Number.NEGATIVE_INFINITY;
     const context = setup({ lastInputAt: () => inputAt });
