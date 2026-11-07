@@ -42,6 +42,12 @@ const AFTER_HOLD_MS = 4000;
  * its own start. That's the player, not the viewer, and it mustn't take the room back with it.
  */
 const AFTER_ARRIVING_MS = 4000;
+/** How long a player takes to settle a new source's position by itself. */
+const AFTER_NEW_SOURCE_MS = 4000;
+/** Where a player puts a new source by itself: its very start. */
+const NEW_SOURCE_START_SECONDS = 5;
+/** How long a move to the start waits, in case it's a player getting ready for a new source. */
+const NEW_SOURCE_WAIT_MS = 500;
 /**
  * How long to wait for word of a click in another frame. Players often take clicks in a frame of
  * their own, and the word comes through the background a moment after the video has moved.
@@ -169,6 +175,8 @@ export class SyncEngine {
   private holdEndedAt = Number.NEGATIVE_INFINITY;
   /** When the video last moved by a seek of the viewer's own, not one of ours. */
   private viewerSeekAt = Number.NEGATIVE_INFINITY;
+  /** When the video got a new source, in its element or by another element taking its place. */
+  private sourceChangedAt = Number.NEGATIVE_INFINITY;
   /** When this viewer joined, or this video was bound, whichever was later. */
   private arrivedAt = Number.NEGATIVE_INFINITY;
   private pauseCheckTimer: ReturnType<typeof setTimeout> | null = null;
@@ -183,6 +191,8 @@ export class SyncEngine {
   bind(video: SyncedVideo | null): void {
     if (video === this.video) return;
 
+    // Another element in place of one, as a site switching players does: a new source.
+    if (this.video && video) this.sourceChangedAt = this.deps.now();
     this.releaseVideo();
     this.video = video;
     if (!video) return;
@@ -649,6 +659,13 @@ export class SyncEngine {
   private onRateChange(): void {
     const { video } = this;
     if (!video || Math.abs(video.playbackRate - this.expectedRate) < RATE_EPSILON) return;
+    // Loading a new source resets the speed, and players then put back the one they remember,
+    // which can be a correction of ours. Neither is the viewer's, so the room's speed comes back.
+    if (this.deps.now() - this.sourceChangedAt < AFTER_NEW_SOURCE_MS) {
+      this.expectedRate = video.playbackRate;
+      this.finishCorrection();
+      return;
+    }
     this.expectedRate = video.playbackRate;
     this.baseRate = video.playbackRate;
     this.correcting = false;
@@ -658,6 +675,11 @@ export class SyncEngine {
   /** The player reloaded the element, so no events will come for what was in flight. */
   private onEmptied(): void {
     if (!this.video) return;
+    // A new source in the same element, as players load another one: a video that just turned up.
+    this.sourceChangedAt = this.deps.now();
+    this.arrivedAt = this.deps.now();
+    // Whatever was about to go out was about the old source.
+    this.cancelPublish();
     this.clearFlags();
     this.knownPaused = this.video.paused;
     this.unreportedChangeSince = null;
@@ -682,6 +704,22 @@ export class SyncEngine {
     // the room by the ad's length. That's the player, not the viewer, so the room wins.
     if (this.deps.now() - this.holdEndedAt < AFTER_HOLD_MS && !this.isViewerActing()) {
       this.apply(true);
+      return;
+    }
+    // A player puts a new source at its start, often more than once, straight after the click
+    // that chose it. That isn't the viewer asking for the start, so it follows the room instead.
+    // Playing or pausing is the viewer's, and goes on below, as does a seek anywhere else.
+    const isNewSource = this.deps.now() - this.sourceChangedAt < AFTER_NEW_SOURCE_MS;
+    const isAtStart = video.currentTime < NEW_SOURCE_START_SECONDS;
+    if (
+      isNewSource &&
+      isAtStart &&
+      timeline &&
+      !this.isAlone &&
+      timeline.playing !== video.paused
+    ) {
+      this.lastSeekAt = Number.NEGATIVE_INFINITY;
+      this.tick();
       return;
     }
     // Not passed on, and not forced back either: the usual correction brings the video to the
@@ -741,7 +779,16 @@ export class SyncEngine {
       if (isSame) return;
     }
 
-    const wait = this.lastPublishAt + PUBLISH_INTERVAL_MS - this.deps.now();
+    // A player switching source puts the old one at its start first, and empties it a moment
+    // later. A move to the start waits that moment, and the new source calls it off.
+    const isToStart =
+      timeline !== null &&
+      timeline.playing !== video.paused &&
+      video.currentTime < NEW_SOURCE_START_SECONDS;
+    const wait = Math.max(
+      this.lastPublishAt + PUBLISH_INTERVAL_MS - this.deps.now(),
+      isToStart ? NEW_SOURCE_WAIT_MS : 0,
+    );
     if (wait <= 0) {
       this.publish(undefined, true);
     } else if (this.publishTimer === null) {
