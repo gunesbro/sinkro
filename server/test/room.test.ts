@@ -13,18 +13,25 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const open: TestClient[] = [];
 
-/** A WebSocket with its incoming frames queued, so tests can read them in order. */
+/**
+ * A WebSocket with its incoming frames queued, so tests can read them in order. Lists of the
+ * room's people come with most changes, so they have a queue of their own: tests about
+ * something else read on as if they weren't there.
+ */
 class TestClient {
   private readonly frames: string[] = [];
   private frameWaiters: ((frame: string) => void)[] = [];
+  private readonly peopleFrames: string[] = [];
+  private peopleWaiters: ((frame: string) => void)[] = [];
   readonly closed: Promise<number>;
 
   constructor(private readonly socket: WebSocket) {
     socket.addEventListener("message", (event) => {
       const frame = event.data as string;
-      const waiter = this.frameWaiters.shift();
+      const isPeople = frame.startsWith('{"type":"people"');
+      const waiter = (isPeople ? this.peopleWaiters : this.frameWaiters).shift();
       if (waiter) waiter(frame);
-      else this.frames.push(frame);
+      else (isPeople ? this.peopleFrames : this.frames).push(frame);
     });
     this.closed = new Promise((resolve) => {
       socket.addEventListener("close", (event) => resolve(event.code));
@@ -41,6 +48,22 @@ class TestClient {
 
   async next(): Promise<ServerMessage> {
     return JSON.parse(await this.nextFrame()) as ServerMessage;
+  }
+
+  /** The next list of the room's people. */
+  async nextPeople(): Promise<{ id: string; name?: string }[]> {
+    const queued = this.peopleFrames.shift();
+    const frame =
+      queued ?? (await new Promise<string>((resolve) => this.peopleWaiters.push(resolve)));
+    return (JSON.parse(frame) as { people: { id: string; name?: string }[] }).people;
+  }
+
+  /** Skips to the newest list of people that has arrived, after giving the room a moment. */
+  async latestPeople(): Promise<{ id: string; name?: string }[]> {
+    let latest = await this.nextPeople();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    while (this.peopleFrames.length > 0) latest = await this.nextPeople();
+    return latest;
   }
 
   send(message: unknown): void {
@@ -618,6 +641,79 @@ describe("saving states", () => {
         { timeout: 3000 },
       )
       .toBe(50);
+  });
+});
+
+describe("everyone's names", () => {
+  it("lists everyone, the newcomer included, as soon as they join", async () => {
+    const code = await createRoom();
+    const { client: a, clientId: aId } = await join(code);
+    expect(await a.nextPeople()).toEqual([{ id: aId }]);
+    const { client: b, clientId: bId } = await join(code);
+
+    const ids = (people: { id: string }[]) => people.map((person) => person.id).sort();
+    expect(ids(await b.nextPeople())).toEqual([aId, bId].sort());
+    expect(ids(await a.latestPeople())).toEqual([aId, bId].sort());
+  });
+
+  it("passes a name on as it was sealed, to everyone", async () => {
+    const code = await createRoom();
+    const { client: a, clientId: aId } = await join(code);
+    const { client: b } = await join(code);
+    await a.latestPeople();
+    await b.latestPeople();
+    a.send({ type: "name", sealed: "sealed-name" });
+
+    expect(await b.nextPeople()).toContainEqual({ id: aId, name: "sealed-name" });
+    expect(await a.nextPeople()).toContainEqual({ id: aId, name: "sealed-name" });
+  });
+
+  it("goes with the id each state carries", async () => {
+    const code = await createRoom();
+    const { client: a, clientId: aId } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    a.sendState();
+    expect(await b.next()).toMatchObject({ type: "state", from: aId });
+  });
+
+  it("forgets someone who leaves", async () => {
+    const code = await createRoom();
+    const { client: a, clientId: aId } = await join(code);
+    const { client: b } = await join(code);
+    await a.latestPeople();
+    b.send({ type: "name", sealed: "b" });
+    await a.nextPeople();
+    b.close();
+
+    expect(await a.nextPeople()).toEqual([{ id: aId }]);
+  });
+
+  it("isn't kept in the room's storage", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    await a.nextPeople();
+    a.send({ type: "name", sealed: "sealed-name" });
+    await a.nextPeople();
+
+    const stored = await runInDurableObject(env.ROOMS.getByName(code), (_, state) =>
+      state.storage.list(),
+    );
+    expect(JSON.stringify([...stored.values()])).not.toContain("sealed-name");
+  });
+
+  it("isn't taken from someone who hasn't joined", async () => {
+    const code = await createRoom();
+    const client = await connect(code);
+    client.send({ type: "name", sealed: "x" });
+    expect(await client.next()).toEqual({ type: "error", code: "not_joined" });
+  });
+
+  it("refuses one too long to be a name", async () => {
+    const code = await createRoom();
+    const { client } = await join(code);
+    client.send({ type: "name", sealed: "x".repeat(301) });
+    expect(await client.next()).toEqual({ type: "error", code: "invalid_message" });
   });
 });
 

@@ -60,7 +60,15 @@ export type ClientMessage =
    */
   | { type: "behind"; behind: boolean }
   /** This viewer's film, sent when it changes and on joining, so lengths can be compared. */
-  | ({ type: "film" } & Film);
+  | ({ type: "film" } & Film)
+  /**
+   * The name this viewer goes by in the room, sealed with a key from the room code: the server
+   * can't read it. Sent once the room has said it keeps names, with `people`.
+   */
+  | { type: "name"; sealed: string };
+
+/** Someone in the room: the id their states carry as `from`, and their name, sealed. */
+export type Person = { id: string; name?: string };
 
 /** What film a viewer has: its length, when known and not live, and its player's site, sealed. */
 export type Film = { duration?: number; source?: string };
@@ -91,6 +99,8 @@ export type ServerMessage =
   | { type: "spread"; seconds: number }
   | ({ type: "state" } & RoomState)
   | { type: "peers"; count: number }
+  /** Everyone in the room, the one receiving this included, so names can go with actions. */
+  | { type: "people"; people: Person[] }
   | { type: "pong"; clientTime: number; serverTime: number }
   | { type: "video"; sealed: string | null; fresh?: boolean }
   | { type: "error"; code: ErrorCode };
@@ -102,6 +112,11 @@ const MAX_SEALED_VIDEO_LENGTH = 3900;
 const MAX_POSITION_SECONDS = 7 * 24 * 60 * 60;
 /** Room for a sealed host name of up to 253 characters. */
 const MAX_SOURCE_LENGTH = 400;
+/** Room for a short name sealed with its nonce and tag, and well clear of what one needs. */
+const MAX_SEALED_NAME_LENGTH = 300;
+const MAX_ID_LENGTH = 64;
+/** More than a room can hold, so a list never has to be cut short. */
+const MAX_PEOPLE = 100;
 /** One for each kind of film in a room, which can't be more than its people. */
 const MAX_FILMS = 100;
 /** Past this, a viewer is seeking, not drifting. */
@@ -168,6 +183,18 @@ function parseFilm(value: Record<string, unknown>): Film {
   };
 }
 
+/** A bad name is dropped rather than costing the person. */
+function parsePerson(value: unknown): Person[] {
+  if (!isRecord(value)) return [];
+  const { id, name } = value;
+  if (typeof id !== "string" || id.length === 0 || id.length > MAX_ID_LENGTH) return [];
+  return [
+    typeof name === "string" && name.length > 0 && name.length <= MAX_SEALED_NAME_LENGTH
+      ? { id, name }
+      : { id },
+  ];
+}
+
 function parseRoomState(value: Record<string, unknown>): RoomState | null {
   const playback = parsePlayback(value);
   if (!playback || !isFiniteNumber(value.seq) || typeof value.from !== "string") return null;
@@ -219,6 +246,12 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
       return typeof message.watching === "boolean"
         ? { type: "ad", watching: message.watching }
         : null;
+    case "name":
+      return typeof message.sealed === "string" &&
+        message.sealed.length > 0 &&
+        message.sealed.length <= MAX_SEALED_NAME_LENGTH
+        ? { type: "name", sealed: message.sealed }
+        : null;
     case "video/get":
       return { type: "video/get" };
     case "video/set":
@@ -265,6 +298,10 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
     }
     case "peers":
       return isFiniteNumber(message.count) ? { type: "peers", count: message.count } : null;
+    case "people":
+      return Array.isArray(message.people) && message.people.length <= MAX_PEOPLE
+        ? { type: "people", people: message.people.flatMap(parsePerson) }
+        : null;
     case "ads":
       return isFiniteNumber(message.count) ? { type: "ads", count: message.count } : null;
     case "left_behind":
