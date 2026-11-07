@@ -52,6 +52,9 @@ jobs:
             --api-key "$AMO_JWT_ISSUER" \
             --api-secret "$AMO_JWT_SECRET" \
             --upload-source-code "$RUNNER_TEMP/sinkro-source.zip"
+          # Mozilla names the file after the add-on's id; people should see what it is.
+          version=$(node -p "require('./extension/package.json').version")
+          for xpi in extension/release/*.xpi; do mv "$xpi" "extension/release/sinkro-firefox-$version.xpi"; done
 
       - name: Publish the release
         if: github.ref_type == 'tag'
@@ -67,10 +70,15 @@ jobs:
 
           **Firefox:** if there's an `.xpi` below, open it in Firefox to install. Otherwise download `sinkro-firefox-*.zip`, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on** and pick the zip. A temporary add-on goes away when Firefox closes.
           NOTES
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" \
-            --title "Sinkro $GITHUB_REF_NAME" \
-            --notes-file "$RUNNER_TEMP/notes.md" \
-            --prerelease
+          # A rerun, say after adding the signing keys, adds to the release it made before.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+              --title "Sinkro $GITHUB_REF_NAME" \
+              --notes-file "$RUNNER_TEMP/notes.md" \
+              --prerelease
+          fi
 
       - name: Keep the packages from a run by hand
         if: github.ref_type != 'tag'
