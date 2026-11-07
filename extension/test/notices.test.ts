@@ -92,3 +92,49 @@ describe("ChangeNotices", () => {
     expect(announced).toEqual([]);
   });
 });
+
+describe("who made a change", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const setup = () => {
+    const announced: [PlaybackChange, string | null][] = [];
+    const notices = new ChangeNotices((change, _, by) => announced.push([change, by]));
+    return { announced, notices };
+  };
+
+  it("is said when one person made it", () => {
+    const { announced, notices } = setup();
+    notices.add("paused", { rate: 1, jumped: false, by: "a" });
+    vi.advanceTimersByTime(1000);
+    expect(announced).toEqual([["paused", "a"]]);
+  });
+
+  it("is said for a seek that came as several changes from one person", () => {
+    const { announced, notices } = setup();
+    notices.add("paused", { rate: 1, jumped: false, by: "a" });
+    notices.add("played", { rate: 1, jumped: true, by: "a" });
+    vi.advanceTimersByTime(1000);
+    expect(announced).toEqual([["seeked", "a"]]);
+  });
+
+  it("isn't said when two people's changes came together", () => {
+    const { announced, notices } = setup();
+    notices.add("paused", { rate: 1, jumped: false, by: "a" });
+    notices.add("seeked", { rate: 1, jumped: true, by: "b" });
+    vi.advanceTimersByTime(1000);
+    expect(announced).toEqual([["paused", null]]);
+  });
+
+  it("starts over for the next change", () => {
+    const { announced, notices } = setup();
+    notices.add("paused", { rate: 1, jumped: false, by: "a" });
+    vi.advanceTimersByTime(1000);
+    notices.add("played", { rate: 1, jumped: false, by: "b" });
+    vi.advanceTimersByTime(1000);
+    expect(announced).toEqual([
+      ["paused", "a"],
+      ["played", "b"],
+    ]);
+  });
+});

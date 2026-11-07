@@ -12,6 +12,7 @@ import type {
   TabSession,
 } from "../messages";
 import { openPlayerHost, openRoomVideo, sealPlayerHost, sealRoomVideo } from "../room-video";
+import { getOwnName, openName, sealName } from "../names";
 import { getServerUrl } from "../settings";
 import {
   broughtHere,
@@ -323,6 +324,15 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
       case "source/open": {
         const session = await getSession(tabId);
         return session ? openPlayerHost(session.code, request.sealed) : null;
+      }
+      case "name/seal": {
+        const session = await getSession(tabId);
+        return session ? sealName(session.code, await getOwnName()) : null;
+      }
+      case "name/open": {
+        const session = await getSession(tabId);
+        if (!session) return request.sealed.map(() => null);
+        return Promise.all(request.sealed.map((sealed) => openName(session.code, sealed)));
       }
       case "input/note":
         // To every frame of the tab: a player's buttons often sit in a frame of their own, or

@@ -33,7 +33,7 @@
     "message": "Katıl"
   },
   "footer": {
-    "message": "Hesap yok. Yalnızca oynatma durumu, video adresi ve başlığı paylaşılır."
+    "message": "Hesap yok. Yalnızca oynatma durumu, rastgele bir ad, video adresi ve başlığı paylaşılır."
   },
   "live": {
     "message": "Oda açık"
@@ -458,5 +458,72 @@
   },
   "liveNoticeHelp": {
     "message": "Herkes kendi canlı noktasından izler, bu yüzden Sinkro burada kimseyi durdurmaz ya da sarmaz. Başka sayfaya geçenleri yine gösterir."
+  },
+  "nameAdjectives": {
+    "message": "Mavi|Yeşil|Kırmızı|Mor|Turuncu|Sarı|Pembe|Gümüş|Altın|Hızlı|Sakin|Neşeli|Cesur|Uykulu|Meraklı|Minik",
+    "description": "Sixteen adjectives for random names, separated by |. Same count and order in every language."
+  },
+  "nameAnimals": {
+    "message": "Tilki|Baykuş|Panda|Kirpi|Penguen|Sincap|Yunus|Kaplumbağa|Tavşan|Kedi|Ayı|Kartal|Ahtapot|Zürafa|Koala|Kunduz",
+    "description": "Sixteen animals for random names, separated by |. Same count and order in every language."
+  },
+  "notifyByPlayed": {
+    "message": "$NAME$ videoyu başlattı",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Calm Owl"
+      }
+    }
+  },
+  "notifyByPaused": {
+    "message": "$NAME$ videoyu durdurdu",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Calm Owl"
+      }
+    }
+  },
+  "notifyBySeeked": {
+    "message": "$NAME$ videoyu sardı",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Calm Owl"
+      }
+    }
+  },
+  "notifyByRate": {
+    "message": "$NAME$ video hızını $RATE$ yaptı",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Calm Owl"
+      },
+      "rate": {
+        "content": "$2",
+        "example": "1.5x"
+      }
+    }
+  },
+  "peopleListLabel": {
+    "message": "Odadakiler"
+  },
+  "peopleYou": {
+    "message": "$NAME$ (sen)",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "Calm Owl"
+      }
+    }
+  },
+  "newName": {
+    "message": "Başka ad seç"
+  },
+  "personUnnamed": {
+    "message": "Biri",
+    "description": "Someone in the room whose name isn't known, as with an older version."
   }
 }

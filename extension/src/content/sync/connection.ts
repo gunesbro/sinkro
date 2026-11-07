@@ -5,6 +5,7 @@ import {
   type ClientMessage,
   type Film,
   type OutgoingState,
+  type Person,
   type PlaybackState,
   type RoomState,
 } from "../../../../server/src/protocol";
@@ -46,6 +47,8 @@ export type ConnectionEvents = {
   onLeftBehind: (count: number) => void;
   /** The films the others on the room's video have. */
   onFilms: (films: OthersFilm[]) => void;
+  /** Everyone in the room, this viewer too. Only from a server that keeps names. */
+  onPeople: (people: Person[]) => void;
   /** Someone moved the room to another video. `fresh` means it's a different film. */
   onVideo: (sealed: string, fresh: boolean) => void;
   onRejected: () => void;
@@ -154,6 +157,10 @@ export class RoomConnection {
     return this.joined && this.send({ type: "ad", watching });
   }
 
+  sendName(sealed: string): boolean {
+    return this.joined && this.send({ type: "name", sealed });
+  }
+
   sendVideo(sealed: string, fresh: boolean): boolean {
     return this.send({ type: "video/set", sealed, ...(fresh ? { fresh: true } : {}) });
   }
@@ -228,6 +235,9 @@ export class RoomConnection {
         return;
       case "films":
         events.onFilms(message.films);
+        return;
+      case "people":
+        events.onPeople(message.people);
         return;
       case "video":
         if (message.sealed !== null) events.onVideo(message.sealed, message.fresh === true);

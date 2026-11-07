@@ -3,6 +3,7 @@
 import type { CloseReason, ConnectionStatus } from "./content/sync/connection";
 import type { EngineSnapshot } from "./content/sync/engine";
 import type { Messages } from "./i18n";
+import type { NamePick } from "./names";
 import type { VideoChange } from "./video-change";
 
 /** The room a tab is in. Kept by the background so it survives page loads in that tab. */
@@ -33,6 +34,8 @@ export type SessionStatus = EngineSnapshot & {
   /** The address moved on but the room's film is still playing, as in a miniplayer. */
   isFilmStillPlaying: boolean;
   videoChange: VideoChange | null;
+  /** Everyone in the room, in the room's order, by their name's picks; null if it didn't open. */
+  people: { pick: NamePick | null; isYou: boolean }[];
 };
 
 /** One frame's answer to "is there a video here?". Stays inside the extension. */
@@ -76,6 +79,9 @@ export type BackgroundRequest =
   /** Sealing needs the room code and a secure context, which a content script may not have. */
   | { type: "source/seal"; host: string }
   | { type: "source/open"; sealed: string }
+  /** This browser's name, sealed for the tab's room. */
+  | { type: "name/seal" }
+  | { type: "name/open"; sealed: string[] }
   /** From the top frame, which is the only one that knows the page's address. */
   | { type: "page/report"; url: string; title: string }
   /** The room's video as this frame's connection heard it. Only extension pages can open it. */

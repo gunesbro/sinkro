@@ -2,7 +2,8 @@
 // videos and reports its best one, and the background picks one frame to run the room
 // connection and sync engine. Pages that aren't in a room get no socket and no timers.
 import type { Messages } from "../i18n";
-import type { Film as FilmDetails, RoomState } from "../../../server/src/protocol";
+import type { Film as FilmDetails, Person, RoomState } from "../../../server/src/protocol";
+import { isOwnNameChange, nameText, namesInRoom, type NamePick } from "../names";
 import type {
   BackgroundRequest,
   SourceMismatch,
@@ -79,6 +80,10 @@ const LANGUAGE_KEY = "language";
 
 type Room = {
   engine: SyncEngine;
+  /** Everyone in the room by id, with their name's picks once opened. */
+  people: () => { id: string; pick: NamePick | null; isYou: boolean }[];
+  /** Tells the room this browser's name again, after it changed. */
+  resendName: () => void;
   /** Puts away "not everyone's here" until the count changes. */
   dismissBehind: () => void;
   sendVideo: (sealed: string, fresh: boolean) => void;
@@ -91,6 +96,13 @@ const REMOTE_CHANGE_MESSAGES: Record<PlaybackChange, string> = {
   paused: "notifyPaused",
   seeked: "notifySeeked",
   rate: "notifyRate",
+};
+
+const NAMED_CHANGE_MESSAGES: Record<PlaybackChange, string> = {
+  played: "notifyByPlayed",
+  paused: "notifyByPaused",
+  seeked: "notifyBySeeked",
+  rate: "notifyByRate",
 };
 
 const OWN_CHANGE_MESSAGES: Record<PlaybackChange, string> = {
@@ -122,7 +134,13 @@ type RoomHooks = {
   /** What film this viewer has, to tell the room. */
   film: () => FilmDetails;
   onFilms: (films: OthersFilm[]) => void;
+  /** This browser's name sealed for the room, through the background, which has the code. */
+  sealName: () => Promise<string | null | undefined>;
+  openNames: (sealed: string[]) => Promise<(NamePick | null)[] | undefined>;
 };
+
+/** Names seen in one room are few, but a room can run for hours of people coming and going. */
+const MAX_OPENED_NAMES = 200;
 
 function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks: RoomHooks): Room {
   const clock = new ServerClock();
@@ -145,6 +163,27 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   let isBehind = false;
   /** What this viewer last told the room about their film, or null to tell it again. */
   let lastFilmSent: string | null = null;
+  let people: Person[] = [];
+  /** What each sealed name opened to, so the list that follows every change isn't opened again. */
+  const openedNames = new Map<string, NamePick | null>();
+  /** Whether this connection has told the room this viewer's name. */
+  let isNameSent = false;
+  const sendName = () => {
+    isNameSent = true;
+    void hooks.sealName().then((sealed) => {
+      if (!sealed || !connection.sendName(sealed)) isNameSent = false;
+    });
+  };
+  const openNames = (list: Person[]) => {
+    const unopened = list.flatMap((person) =>
+      person.name && !openedNames.has(person.name) ? [person.name] : [],
+    );
+    if (unopened.length === 0) return;
+    if (openedNames.size > MAX_OPENED_NAMES) openedNames.clear();
+    void hooks.openNames(unopened).then((picks) => {
+      unopened.forEach((sealed, index) => openedNames.set(sealed, picks?.[index] ?? null));
+    });
+  };
   const arrivals = new Arrivals({
     onEveryoneHere: hooks.onEveryoneArrived,
     isHere: () => hooks.videoChange() === null,
@@ -187,6 +226,9 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         if (isBehind) connection.sendBehind(true);
         lastFilmSent = null;
         othersBehind = 0;
+        // A new connection: the room knows nothing of this one's name yet.
+        isNameSent = false;
+        people = [];
       },
       onState: (state) => {
         if (state.from !== ownId) hooks.onOthersState(state);
@@ -200,6 +242,12 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         arrivals.setPeers(count);
       },
       onFilms: (films) => hooks.onFilms(films),
+      // Only a room that keeps names sends this, so a name is never sent to one that doesn't.
+      onPeople: (list) => {
+        people = list;
+        if (!isNameSent) sendName();
+        openNames(list);
+      },
       onLeftBehind: (count) => {
         if (count !== othersBehind) dismissedBehind = null;
         othersBehind = count;
@@ -264,8 +312,19 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   window.addEventListener("online", onOnline);
   connection.start();
 
+  const namedPeople = () =>
+    people.map(({ id, name }) => ({
+      id,
+      pick: (name && openedNames.get(name)) || null,
+      isYou: id === ownId,
+    }));
+
   return {
     engine,
+    people: namedPeople,
+    resendName: () => {
+      if (connectionStatus === "connected" && people.length > 0) sendName();
+    },
     sendVideo: (sealed, fresh) => void connection.sendVideo(sealed, fresh),
     dismissBehind: () => {
       dismissedBehind = othersBehind;
@@ -288,6 +347,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       isOnRoomPage: hooks.isOnRoomPage(),
       isFloatingPlayer: isFloatingPlayer(tracker.video()),
       isPreviewLike: previewLike(tracker.video()),
+      people: namedPeople().map(({ pick, isYou }) => ({ pick, isYou })),
     }),
     stop: () => {
       clearInterval(driftTimer);
@@ -330,12 +390,15 @@ class FrameSession {
   private badgeRetry: ReturnType<typeof setTimeout> | null = null;
   private pageTimer: ReturnType<typeof setInterval> | null = null;
   private readonly installedTimer: ReturnType<typeof setInterval>;
-  private readonly remoteNotices = new ChangeNotices((change, rate) => {
+  private readonly remoteNotices = new ChangeNotices((change, rate, by) => {
     // It's about a video this viewer isn't on.
-    if (!this.isOnOtherVideo()) {
-      this.badge?.flash(REMOTE_CHANGE_MESSAGES[change], [formatRate(rate)]);
-    }
+    if (this.isOnOtherVideo()) return;
+    const name = by === null ? null : this.nameOf(by);
+    if (name) this.badge?.flash(NAMED_CHANGE_MESSAGES[change], [name, formatRate(rate)]);
+    else this.badge?.flash(REMOTE_CHANGE_MESSAGES[change], [formatRate(rate)]);
   });
+  /** The language's messages, once the badge has loaded them. */
+  private messages: Messages | null = null;
   private readonly ownNotices = new ChangeNotices((change, rate) => {
     this.badge?.flash(OWN_CHANGE_MESSAGES[change], [formatRate(rate)]);
   });
@@ -394,7 +457,19 @@ class FrameSession {
       this.stopBadge();
       void this.startBadge();
     }
+    if (isOwnNameChange(changes)) this.room?.resendName();
   };
+
+  /** Someone's name as everyone in the room sees it, with a number if two drew the same. */
+  private nameOf(id: string): string | null {
+    const { messages, room } = this;
+    if (!messages || !room) return null;
+    const people = room.people();
+    const shown = namesInRoom(
+      people.map(({ pick }) => (pick === null ? null : nameText(pick, messages))),
+    );
+    return shown[people.findIndex((person) => person.id === id)] ?? null;
+  }
 
   constructor(readonly session: TabSession) {
     this.tracker = new VideoTracker({
@@ -475,6 +550,8 @@ class FrameSession {
         sourceMismatch: () => this.sourceMismatch(),
         film: () => this.ownFilm(),
         onFilms: (films) => this.onFilms(films),
+        sealName: () => send<string | null>({ type: "name/seal" }),
+        openNames: (sealed) => send<(NamePick | null)[]>({ type: "name/open", sealed }),
         isLive: () => {
           const video = this.tracker.video();
           return video !== null && this.lengths.isLive(video);
@@ -687,6 +764,7 @@ class FrameSession {
       loadBadgePosition(location.hostname).catch(() => null),
     ]);
     if (!this.room || this.badge) return;
+    if (messages) this.messages = messages;
     // The background can be slow to wake, and giving up would leave this page without a badge,
     // or a card the viewer has to act on, for as long as it's open.
     if (!messages) {

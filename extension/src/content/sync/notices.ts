@@ -3,7 +3,8 @@ import type { PlaybackChange } from "./engine";
 /** Long enough for a player to finish what looks like several things but is one. */
 const SETTLE_MS = 700;
 
-export type ChangeDetails = { rate: number; jumped: boolean };
+/** `by` is the id of whoever made a change in the room, when it's known to be one person. */
+export type ChangeDetails = { rate: number; jumped: boolean; by?: string | null };
 
 /**
  * What several changes in a row come to. Players pause and restart around a seek, so a click
@@ -28,14 +29,19 @@ export class ChangeNotices {
   private changes: PlaybackChange[] = [];
   private jumped = false;
   private rate = 1;
+  /** Undefined until a change arrives; null once two people's changes are in the same batch. */
+  private by: string | null | undefined = undefined;
   private timer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private readonly announce: (change: PlaybackChange, rate: number) => void) {}
+  constructor(
+    private readonly announce: (change: PlaybackChange, rate: number, by: string | null) => void,
+  ) {}
 
-  add(change: PlaybackChange, { rate, jumped }: ChangeDetails): void {
+  add(change: PlaybackChange, { rate, jumped, by = null }: ChangeDetails): void {
     this.changes.push(change);
     this.jumped ||= jumped;
     this.rate = rate;
+    this.by = this.by === undefined || this.by === by ? by : null;
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = setTimeout(() => this.flush(), SETTLE_MS);
   }
@@ -45,12 +51,14 @@ export class ChangeNotices {
     this.timer = null;
     this.changes = [];
     this.jumped = false;
+    this.by = undefined;
   }
 
   private flush(): void {
     const summary = summarize(this.changes, this.jumped);
     const { rate } = this;
+    const by = this.by ?? null;
     this.stop();
-    if (summary) this.announce(summary, rate);
+    if (summary) this.announce(summary, rate, by);
   }
 }
