@@ -1576,6 +1576,36 @@ describe("a page's video starting by itself just after joining", () => {
     expect(video.paused).toBe(true);
   });
 
+  it("waits for a video to have something to show before pausing it", async () => {
+    // A player resuming where the viewer left off: moved there, and still loading.
+    const clickedAt = Date.now();
+    const context = setup({
+      lastInputAt: () => clickedAt,
+      lastInputHereAt: () => Number.NEGATIVE_INFINITY,
+    });
+    const { engine, sent, peerState } = context;
+    await joinPlaying(context, 344);
+    engine.handleState(peerState({ playing: false, position: 344 }));
+    await settle();
+    sent.length = 0;
+
+    const next = new FakeVideo();
+    next.position = 344;
+    next.readyState = 1;
+    engine.bind(next.asVideo());
+    await vi.advanceTimersByTimeAsync(100);
+    next.userPlay();
+    await vi.advanceTimersByTimeAsync(3000);
+    // Some players ignore a pause until there's data, and keep showing their pause button.
+    expect(next.paused).toBe(false);
+
+    next.readyState = 4;
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(sent).toEqual([]);
+    expect(next.paused).toBe(true);
+  });
+
   it("sends a play whose click was in another frame, once word of it arrives", async () => {
     let inputAt = Number.NEGATIVE_INFINITY;
     const context = setup({ lastInputAt: () => inputAt });
