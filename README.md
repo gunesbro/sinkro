@@ -4,7 +4,7 @@
 
 Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox that keeps any video on any website in sync with your friends.
 
-**Status:** early development. Nothing is in the extension stores yet; see [Install](#install).
+**Status:** early development. Sinkro is in the [Chrome Web Store](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc), which also installs it in Edge; Firefox comes from [Releases](https://github.com/gunesbro/sinkro/releases). See [Install](#install).
 
 - **Any video, any site.** No list of supported sites: Sinkro finds the video on the page, inside frames and players that hide it, and tells it apart from previews and ads.
 - **No account.** Open a video, create a room, send the link. Whoever opens it lands on the same video, at the same second.
@@ -15,12 +15,16 @@ Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox
 
 ## Install
 
-Sinkro isn't in the extension stores yet. To try it now, take the latest package from [Releases](https://github.com/gunesbro/sinkro/releases):
+Sinkro is published in the [Chrome Web Store](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc), and both Chrome and Edge install it from there:
 
-- **Chrome or Edge:** download `sinkro-chrome-….zip` and unzip it. Open `chrome://extensions` or `edge://extensions`, turn on developer mode, choose **Load unpacked** and select the unzipped folder.
+- **Chrome:** open the link and choose **Add to Chrome**.
+- **Edge:** open the same link and choose **Get**. Edge installs extensions from the Chrome Web Store, so nothing else is needed. If Edge asks, allow extensions from other stores first.
+
+Firefox isn't in a store yet. To try it now, take the latest Firefox package from [Releases](https://github.com/gunesbro/sinkro/releases):
+
 - **Firefox:** if the release has an `.xpi` file, open it in Firefox to install. Otherwise download `sinkro-firefox-….zip`, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on** and pick the zip; it goes away when Firefox closes.
 
-Everyone in a room installs it the same way. To build it yourself instead, see [Development](#development).
+To build it yourself instead, see [Development](#development).
 
 ## How to use it
 

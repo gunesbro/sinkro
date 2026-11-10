@@ -64,9 +64,9 @@ jobs:
           shopt -s nullglob
           files=(extension/release/*.zip extension/release/*.xpi)
           cat > "$RUNNER_TEMP/notes.md" <<'NOTES'
-          Sinkro isn't in the extension stores yet. To install this version:
+          Sinkro is in the Chrome Web Store, which also installs it in Edge: https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc
 
-          **Chrome or Edge:** download `sinkro-chrome-*.zip` and unzip it. Open `chrome://extensions` or `edge://extensions`, turn on developer mode, choose **Load unpacked** and select the unzipped folder.
+          **Chrome or Edge:** install it from the store link above. The `sinkro-chrome-*.zip` below is the same build, to load by hand: unzip it, open `chrome://extensions` or `edge://extensions`, turn on developer mode, choose **Load unpacked** and select the unzipped folder.
 
           **Firefox:** if there's an `.xpi` below, open it in Firefox to install. Otherwise download `sinkro-firefox-*.zip`, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on** and pick the zip. A temporary add-on goes away when Firefox closes.
           NOTES
