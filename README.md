@@ -2,9 +2,12 @@
 
 # Sinkro
 
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Add_to_Chrome-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc)
+[![Firefox Add-ons](https://img.shields.io/amo/v/sinkro?label=Firefox%20Add-ons&logo=firefoxbrowser&logoColor=white&color=FF7139)](https://addons.mozilla.org/en-GB/firefox/addon/sinkro/)
+
 Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox that keeps any video on any website in sync with your friends.
 
-**Status:** early development. Sinkro is in the [Chrome Web Store](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc), which also installs it in Edge; Firefox comes from [Releases](https://github.com/gunesbro/sinkro/releases). See [Install](#install).
+**Status:** early development. Sinkro is in the [Chrome Web Store](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc), which also installs it in Edge, and in [Firefox Add-ons](https://addons.mozilla.org/en-GB/firefox/addon/sinkro/). See [Install](#install).
 
 - **Any video, any site.** No list of supported sites: Sinkro finds the video on the page, inside frames and players that hide it, and tells it apart from previews and ads.
 - **No account.** Open a video, create a room, send the link. Whoever opens it lands on the same video, at the same second.
@@ -15,14 +18,11 @@ Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox
 
 ## Install
 
-Sinkro is published in the [Chrome Web Store](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc), and both Chrome and Edge install it from there:
+Sinkro is published in the [Chrome Web Store](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc) and [Firefox Add-ons](https://addons.mozilla.org/en-GB/firefox/addon/sinkro/):
 
-- **Chrome:** open the link and choose **Add to Chrome**.
+- **Chrome:** open the Chrome Web Store link and choose **Add to Chrome**.
 - **Edge:** open the same link and choose **Get**. Edge installs extensions from the Chrome Web Store, so nothing else is needed. If Edge asks, allow extensions from other stores first.
-
-Firefox isn't in a store yet. To try it now, take the latest Firefox package from [Releases](https://github.com/gunesbro/sinkro/releases):
-
-- **Firefox:** if the release has an `.xpi` file, open it in Firefox to install. Otherwise download `sinkro-firefox-….zip`, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on** and pick the zip; it goes away when Firefox closes.
+- **Firefox:** open the Firefox Add-ons link and choose **Add to Firefox**.
 
 To build it yourself instead, see [Development](#development).
 
