@@ -525,5 +525,11 @@
   "personUnnamed": {
     "message": "Biri",
     "description": "Someone in the room whose name isn't known, as with an older version."
+  },
+  "roomPageEmpty": {
+    "message": "Bu video odanın videosu olsun mu?"
+  },
+  "roomPageEmptyHelp": {
+    "message": "Oda videosu olmayan bir sayfada kuruldu. Herkesi buraya getirirsen davet linki de bu videoya açılır."
   }
 }

@@ -525,5 +525,11 @@
   "personUnnamed": {
     "message": "Someone",
     "description": "Someone in the room whose name isn't known, as with an older version."
+  },
+  "roomPageEmpty": {
+    "message": "Make this the room's video?"
+  },
+  "roomPageEmptyHelp": {
+    "message": "The room was started on a page with no video. Bring everyone here, and the invite link will lead to this video too."
   }
 }

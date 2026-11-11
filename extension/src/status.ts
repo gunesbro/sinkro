@@ -67,6 +67,8 @@ export type Notice = {
   host?: string;
   /** Shows even with no video to sit on, because the viewer has to act and won't otherwise know. */
   mustShow?: boolean;
+  /** "bring" without the way back, when there's no video to go back to. */
+  noWayBack?: boolean;
 };
 
 /** The viewer has to do something, so these show wherever the video is, or without one. */
@@ -117,6 +119,11 @@ export function noticeFor(status: SessionStatus | null): Notice | null {
     // preview, or a player the site left behind out of sight, is no film to bring anyone to.
     if (!status.hasVideo || status.isPreviewLike)
       return { ...notice("warn", "youMoved", "return"), titleKey: "youLeftPage" };
+    // The room was started on a page without a video, and this is the first one: its address
+    // is what the room and its invite link should have.
+    if (status.videoChange.roomPageEmpty) {
+      return { ...notice("warn", "roomPageEmpty", "bring"), noWayBack: true };
+    }
     // Nobody's left on the room's video, so there's no going back to anyone: it's moving it here
     // that helps, and whoever is already on this page joins by themselves.
     if (status.peers > 1 && status.othersBehind >= status.peers - 1) {

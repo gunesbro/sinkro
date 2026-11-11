@@ -219,3 +219,44 @@ describe("videoPageKey", () => {
     expect(videoPageKey("not a url")).toBeNull();
   });
 });
+
+describe("a room started on a page without a video", () => {
+  const LISTING = "https://videos.example/series/1";
+  /** The room's page is a listing: the tab is there, and no video ever turns up. */
+  const onListing = () => room(visit(NEW_TAB_VIDEO, LISTING), LISTING, false);
+
+  it("asks to make the first video found elsewhere the room's", () => {
+    const found = videoFound(visit(onListing(), FILM));
+    expect(found.change).toBe("you_moved");
+    expect(describeChange(found)).toMatchObject({ kind: "you_moved", roomPageEmpty: true });
+  });
+
+  it("says nothing while browsing on without a video", () => {
+    expect(visit(visit(onListing(), HOME), OTHER).change).toBeNull();
+  });
+
+  it("is done once this viewer brings everyone here", () => {
+    const brought = broughtHere(videoFound(visit(onListing(), FILM)));
+    expect(brought.change).toBeNull();
+    expect(brought.roomUrl).toBe(FILM);
+    expect(describeChange(visit(brought, OTHER))?.roomPageEmpty).toBeUndefined();
+  });
+
+  it("is done once someone else moves the room", () => {
+    const moved = room(videoFound(visit(onListing(), FILM)), FILM, true);
+    expect(moved.change).toBeNull();
+    expect(moved.leftEmptyRoomPage).toBe(false);
+  });
+
+  it("isn't asked when the room's page turns out to have a video", () => {
+    // A player that only makes its video once pressed, on the room's own page.
+    const late = videoFound(onListing());
+    expect(visit(late, OTHER).change).toBe("you_moved");
+    expect(describeChange(visit(late, OTHER))?.roomPageEmpty).toBeUndefined();
+  });
+
+  it("leaves a mirror alone: a viewer who never was on the room's page", () => {
+    const onMirror = videoFound(room(visit(NEW_TAB_VIDEO, MIRROR), LISTING, false));
+    expect(onMirror.change).toBeNull();
+  });
+});

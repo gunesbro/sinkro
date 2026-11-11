@@ -418,7 +418,7 @@ export class VideoBadge {
       button.style.display = isShown ? "block" : "none";
     };
     show(this.action, hasMainButton(notice));
-    show(this.returnAction, notice.action === "bring");
+    show(this.returnAction, notice.action === "bring" && notice.noWayBack !== true);
     show(this.bringAction, notice.action === "go" && status.hasVideo);
     show(this.leaveAction, isVideoChangeAction(notice) || notice.action === "leave");
     const hasSecondary = isVideoChangeAction(notice) || notice.action === "leave";
