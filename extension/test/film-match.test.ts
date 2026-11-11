@@ -6,6 +6,15 @@ describe("a different cut of the film", () => {
     expect(differentFilm(1420, [{ duration: 1421, source: "a", count: 3 }])).toBeNull();
   });
 
+  it("is, for lengths a little over a second apart, which read as different times", () => {
+    // 24:30 and 24:32 on the players, as two uploads of one episode can be.
+    expect(differentFilm(1470.9, [{ duration: 1472.1, count: 1 }])?.duration).toBe(1472.1);
+  });
+
+  it("isn't, for lengths within a second, as the same film can be reported", () => {
+    expect(differentFilm(1470.2, [{ duration: 1471.1, count: 1 }])).toBeNull();
+  });
+
   it("is, for both of two people on two lengths", () => {
     expect(differentFilm(1420, [{ duration: 1427, source: "b", count: 1 }])).toEqual({
       duration: 1427,

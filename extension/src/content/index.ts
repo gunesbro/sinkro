@@ -43,7 +43,7 @@ import {
 } from "./detection/floating";
 import { VideoTracker } from "./detection/tracker";
 import { VideoLengths } from "./detection/length";
-import { differentFilm, type OthersFilm } from "./sync/film-match";
+import { differentFilm, SAME_LENGTH_SECONDS, type OthersFilm } from "./sync/film-match";
 import { isMarkedLive } from "../adapters/live";
 import { ServerClock } from "./sync/clock";
 import { RoomConnection, type CloseReason, type ConnectionStatus } from "./sync/connection";
@@ -73,8 +73,6 @@ const DRIFT_SEEKING_SECONDS = 2;
 const FILM_CHECK_MS = 1000;
 /** How often a viewer looks at whether they've come to the room's video. Looking is free. */
 const BEHIND_CHECK_MS = 1000;
-/** Two lengths further apart than this are two different cuts of the film. */
-const SAME_LENGTH_SECONDS = 2;
 /** Sites change address without loading a page, and not always through anything hookable. */
 const PAGE_CHECK_MS = 1000;
 /** How often a tab with no video asks whether this is where the room's video should be. */

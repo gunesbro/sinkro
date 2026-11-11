@@ -1,8 +1,13 @@
 // Whether this viewer's film is a different cut from the room's. Everyone says what film they
 // have, so it's decided by what most people have, not by who last pressed play.
 
-/** Two lengths further apart than this are two different cuts of the film. */
-export const SAME_LENGTH_SECONDS = 2;
+/**
+ * Two lengths further apart than this are two different cuts of the film. One file has one
+ * length, and its qualities and browsers differ by a fraction of a second at most, while two
+ * uploads of an episode are often only a second or two apart. Past a second, the two lengths
+ * also read as different times in the warning.
+ */
+export const SAME_LENGTH_SECONDS = 1;
 
 /** What some of the others have: a length, the player's site sealed, and how many have it. */
 export type OthersFilm = { duration?: number; source?: string; count: number };
