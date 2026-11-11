@@ -166,7 +166,16 @@ export class RoomConnection {
   }
 
   private open(): void {
-    const socket = this.createSocket(this.options.url);
+    let socket: SocketLike;
+    try {
+      socket = this.createSocket(this.options.url);
+    } catch {
+      // The browser wouldn't even try, as with ws:// from an https page. Thrown from here it
+      // would leave whoever started this half set up, and end the reconnecting without a word.
+      this.options.events.onStatus("reconnecting", null);
+      this.scheduleReconnect();
+      return;
+    }
     this.socket = socket;
     this.initialPongs = 0;
 
