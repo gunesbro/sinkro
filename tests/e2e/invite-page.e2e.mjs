@@ -217,6 +217,13 @@ try {
     (await visible(bare.page, "#install")) && !(await visible(bare.page, "#join-room")),
   );
   check(
+    "the install button goes to this browser's store, in a new tab",
+    (await bare.page.getAttribute("#install", "href")).startsWith(
+      "https://chromewebstore.google.com/detail/",
+    ) && (await bare.page.getAttribute("#install", "target")) === "_blank",
+    await bare.page.getAttribute("#install", "href"),
+  );
+  check(
     "invite: shows the room and where it leads",
     (await text(bare.page, "#room-code")) === code &&
       (await text(bare.page, "#destination")) === "localhost",

@@ -112,6 +112,14 @@ function saveLanguage(language) {
 }
 
 const element = (id) => document.getElementById(id);
+
+// Each browser's own store. Edge installs from the Chrome Web Store, so it shares that link.
+const STORES = {
+  chrome:
+    "https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc",
+  firefox: "https://addons.mozilla.org/firefox/addon/sinkro/",
+};
+const storeLink = () => (/\bFirefox\//.test(navigator.userAgent) ? STORES.firefox : STORES.chrome);
 /** The extension's content script sets this, and handles the click on the join button. */
 const isInstalled = () => document.documentElement.dataset.sinkro !== undefined;
 const hasJoined = () => document.documentElement.dataset.sinkro === "joined";
@@ -134,6 +142,8 @@ function render() {
     button.setAttribute("aria-pressed", String(button.dataset.lang === language));
   }
 
+  // In a new tab, so this page is still here to join from once it's installed.
+  element("install").href = storeLink();
   element("room-card").hidden = !invite;
   element("join-room").hidden = !invite || !isInstalled();
   element("install").hidden = Boolean(invite) && isInstalled();
