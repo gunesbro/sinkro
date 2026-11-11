@@ -5,6 +5,7 @@ import type { Messages } from "../src/i18n";
 import {
   ADJECTIVES,
   ANIMALS,
+  forgetNamesOfThoseGone,
   nameText,
   namesInRoom,
   openName,
@@ -68,5 +69,19 @@ describe("sealed names", () => {
 
   it("are refused when they aren't a name", async () => {
     expect(await openName("K7M-2QX", "not sealed")).toBeNull();
+  });
+});
+
+describe("names opened for a room", () => {
+  it("are kept for those still there when the ones who left are forgotten", () => {
+    const opened = new Map<string, NamePick | null>([
+      ["here", [1, 2]],
+      ["also-here", null],
+      ["gone", [3, 4]],
+    ]);
+    forgetNamesOfThoseGone(opened, ["here", "also-here", "new"]);
+
+    expect([...opened.keys()]).toEqual(["here", "also-here"]);
+    expect(opened.get("here")).toEqual([1, 2]);
   });
 });
