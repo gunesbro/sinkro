@@ -139,6 +139,9 @@ type RoomHooks = {
   openNames: (sealed: string[]) => Promise<(NamePick | null)[] | undefined>;
 };
 
+/** Long enough for someone back from an ad to have told the room their film again. */
+const AFTER_OTHERS_AD_MS = 15_000;
+
 /** Names seen in one room are few, but a room can run for hours of people coming and going. */
 const MAX_OPENED_NAMES = 200;
 
@@ -148,6 +151,8 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   let closeReason: CloseReason | null = null;
   let peers = 0;
   let othersOnAd = 0;
+  /** When someone else was last seen on an ad, or just came off one. */
+  let othersAdSeenAt = Number.NEGATIVE_INFINITY;
   let ownId: string | null = null;
   let spread: number | null = null;
   let lastDriftSent: number | null = null;
@@ -203,8 +208,11 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
     isLive: hooks.isLive,
     onHoldChange: (hold) => {
       // A film that can't follow is usually a player's ad without markers, as far as others care.
+      const wasOnAd = isOnAd;
       isOnAd = hold === "ad" || hold === "cant_follow";
       connection.sendAdState(isOnAd);
+      // What the player has during an ad is the ad. Once it's over, the film is told again.
+      if (wasOnAd && !isOnAd) lastFilmSent = null;
     },
   });
   const connection = new RoomConnection({
@@ -259,6 +267,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       onAds: (count) => {
         const hadAny = othersOnAd > 0;
         othersOnAd = count;
+        if (hadAny || count > 0) othersAdSeenAt = Date.now();
         if (hadAny && count === 0) hooks.onOthersAdEnded();
       },
       onVideo: (sealed, fresh) => {
@@ -295,7 +304,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
   // film has no video change, so it counts as here.
   // Told when it changes, so a switch to another player is known without anyone pressing play.
   const filmTimer = setInterval(() => {
-    if (connectionStatus !== "connected") return;
+    if (connectionStatus !== "connected" || isOnAd) return;
     const film = hooks.film();
     const key = JSON.stringify([
       film.duration === undefined ? null : Math.round(film.duration),
@@ -340,8 +349,12 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       othersBehind,
       isBehindDismissed: othersBehind === dismissedBehind,
       spread: peers > 1 ? spread : null,
-      // An ad has a length of its own, which says nothing about the source.
-      sourceMismatch: engine.snapshot().hold ? null : hooks.sourceMismatch(),
+      // An ad has a length of its own, and an older version tells the room about it: while
+      // anyone's on one, and for a moment after, while they say their film again, lengths wait.
+      sourceMismatch:
+        engine.snapshot().hold || othersOnAd > 0 || Date.now() - othersAdSeenAt < AFTER_OTHERS_AD_MS
+          ? null
+          : hooks.sourceMismatch(),
       videoChange: hooks.videoChange(),
       isFilmStillPlaying: hooks.isFilmStillPlaying(),
       isOnRoomPage: hooks.isOnRoomPage(),

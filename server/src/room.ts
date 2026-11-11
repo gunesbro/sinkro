@@ -135,6 +135,7 @@ export class Room extends DurableObject {
         if (this.isOnAd(ws) === message.watching) return;
         this.patchAttachment(ws, { onAd: message.watching });
         this.announceAds();
+        if (this.filmOf(ws)) this.announceFilms();
         return;
       }
       case "film": {
@@ -419,12 +420,14 @@ export class Room extends DurableObject {
 
   /**
    * The others' films, alike ones counted together. Each is told only about the rest, and not
-   * about anyone on another page: they aren't on the room's video, so their film says nothing.
+   * about anyone on another page or on an ad: what they have then isn't the room's film. An ad
+   * plays in the film's own player on many sites, and its length would look like another cut.
    */
   private filmsFor(ws: WebSocket): (Film & { count: number })[] {
     const films = new Map<string, Film & { count: number }>();
     for (const socket of this.joinedSockets()) {
-      const film = socket === ws || this.isBehind(socket) ? null : this.filmOf(socket);
+      const film =
+        socket === ws || this.isBehind(socket) || this.isOnAd(socket) ? null : this.filmOf(socket);
       if (!film) continue;
       const key = `${film.duration === undefined ? "" : Math.round(film.duration)}|${film.source ?? ""}`;
       const known = films.get(key);
