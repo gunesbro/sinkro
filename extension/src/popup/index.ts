@@ -172,7 +172,8 @@ function renderRoom(): void {
 
   const change = status?.videoChange ?? null;
   const changeNotice = change ? noticeFor(status) : null;
-  const canFollowChange = isVideoChangeAction(changeNotice);
+  // With no video on the room's page there's nothing to go back to: bringing everyone is it.
+  const canFollowChange = isVideoChangeAction(changeNotice) && changeNotice?.noWayBack !== true;
   const isFilmStillPlaying = status?.isFilmStillPlaying === true;
   const canGoToVideo =
     !change && !isFilmStillPlaying && roomVideoUrl !== null && !isSamePage(pageUrl, roomVideoUrl);
@@ -186,8 +187,10 @@ function renderRoom(): void {
       change?.kind === "you_moved" ? t("backToRoom") : t("goToVideo", [host]);
   }
   // One main action per view: here it's getting to the video, not sharing the room.
-  element("copy-link").classList.toggle("primary", !showGoButton);
-  element("copy-link").classList.toggle("secondary", showGoButton);
+  // Or bringing everyone, when that's what's asked: then sharing waits until it's done.
+  const isSharingMain = !showGoButton && changeNotice?.action !== "bring";
+  element("copy-link").classList.toggle("primary", isSharingMain);
+  element("copy-link").classList.toggle("secondary", !isSharingMain);
   // Unless they've wandered off with a video to bring everyone to.
   const isBringMain = changeNotice?.action === "bring";
   element("go-video").classList.toggle("primary", !isBringMain);

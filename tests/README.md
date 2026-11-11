@@ -29,6 +29,7 @@ Each scenario prints a line per check, `ok` or `FAIL`, and the run ends with the
 | `toolbar-icon`     | The toolbar icon and its people count                                         |
 | `names`            | Random names: the popup's list, who did what on the badge, drawing a new name |
 | `buffering`        | A slow connection whose player pauses itself to buffer never pauses the room  |
+| `empty-room-page`  | A room started on a page with no video asks to make the first video its own   |
 
 ## Settings
 

@@ -411,3 +411,13 @@ describe("noticeFor", () => {
     expect(noticeFor({ ...connected, connection: "connecting", hasVideo: false })).toBeNull();
   });
 });
+
+describe("a room started on a page without a video", () => {
+  it("offers to bring everyone to this one, with no way back", () => {
+    const notice = noticeFor({
+      ...connected,
+      videoChange: { kind: "you_moved", title: "", host: "videos.example", roomPageEmpty: true },
+    });
+    expect(notice).toMatchObject({ titleKey: "roomPageEmpty", action: "bring", noWayBack: true });
+  });
+});

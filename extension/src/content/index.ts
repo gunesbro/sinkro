@@ -732,6 +732,9 @@ class FrameSession {
   private isFilmStillPlaying(): boolean {
     return (
       this.videoChange?.kind === "you_moved" &&
+      // With no video on the room's page there's no room film to still be playing: the one here
+      // is just the one this tab has been on since it got here.
+      this.videoChange.roomPageEmpty !== true &&
       isSameFilm(this.followedFilm, filmOf(this.tracker.video()))
     );
   }

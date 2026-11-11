@@ -7,8 +7,16 @@ import type { RoomVideo } from "./room-video";
 
 export type VideoChangeKind = "you_moved" | "room_moved";
 
-/** What the viewer needs to hear about it. */
-export type VideoChange = { kind: VideoChangeKind; title: string; host: string };
+/**
+ * What the viewer needs to hear about it. `roomPageEmpty` means the room's page had no video
+ * when this tab was there, so this one is the first: there's nothing to go back to.
+ */
+export type VideoChange = {
+  kind: VideoChangeKind;
+  title: string;
+  host: string;
+  roomPageEmpty?: boolean;
+};
 
 export type TabVideo = {
   pageUrl: string | null;
@@ -20,6 +28,12 @@ export type TabVideo = {
   roomUrl: string | null;
   roomTitle: string;
   change: VideoChangeKind | null;
+  /**
+   * This tab was on the room's page and left it without a video turning up there, as when a
+   * room is started on a listing and someone then opens the video. A video found after that
+   * isn't a mirror: the room's address is wrong, and the viewer is asked to make this the room's.
+   */
+  leftEmptyRoomPage: boolean;
 };
 
 export const NEW_TAB_VIDEO: TabVideo = {
@@ -30,10 +44,20 @@ export const NEW_TAB_VIDEO: TabVideo = {
   roomUrl: null,
   roomTitle: "",
   change: null,
+  leftEmptyRoomPage: false,
 };
 
 export function pageVisited(state: TabVideo, page: { url: string; title: string }): TabVideo {
-  const next = { ...state, pageUrl: page.url, pageTitle: page.title };
+  const isLeavingEmptyRoomPage =
+    !isSamePage(state.pageUrl, page.url) &&
+    isSamePage(state.pageUrl, state.roomUrl) &&
+    !state.sawVideo;
+  const next = {
+    ...state,
+    pageUrl: page.url,
+    pageTitle: page.title,
+    leftEmptyRoomPage: state.leftEmptyRoomPage || isLeavingEmptyRoomPage,
+  };
   if (isSamePage(state.pageUrl, page.url)) return next;
 
   if (state.roomUrl && isSamePage(page.url, state.roomUrl)) {
@@ -55,7 +79,17 @@ export function pageVisited(state: TabVideo, page: { url: string; title: string 
 }
 
 export function videoFound(state: TabVideo): TabVideo {
-  return state.change === null && !state.sawVideo ? { ...state, sawVideo: true } : state;
+  if (state.change !== null) return state;
+  // The room's page has a video after all, as when a player only makes one once pressed.
+  if (isSamePage(state.pageUrl, state.roomUrl)) {
+    return state.sawVideo && !state.leftEmptyRoomPage
+      ? state
+      : { ...state, sawVideo: true, leftEmptyRoomPage: false };
+  }
+  if (state.leftEmptyRoomPage && state.roomUrl) {
+    return { ...state, sawVideo: true, followingUrl: state.roomUrl, change: "you_moved" };
+  }
+  return state.sawVideo ? state : { ...state, sawVideo: true };
 }
 
 /**
@@ -66,7 +100,7 @@ export function roomVideoLearned(state: TabVideo, video: RoomVideo, announced: b
   if (state.roomUrl && isSamePage(state.roomUrl, video.url)) {
     return { ...state, roomUrl: video.url, roomTitle: video.title };
   }
-  const next = { ...state, roomUrl: video.url, roomTitle: video.title };
+  const next = { ...state, roomUrl: video.url, roomTitle: video.title, leftEmptyRoomPage: false };
   if (isSamePage(state.pageUrl, video.url)) {
     return { ...next, followingUrl: state.pageUrl, change: null };
   }
@@ -84,6 +118,7 @@ export function broughtHere(state: TabVideo): TabVideo {
     roomUrl: state.pageUrl,
     roomTitle: state.pageTitle,
     change: null,
+    leftEmptyRoomPage: false,
   };
 }
 
@@ -112,5 +147,6 @@ export function describeChange(state: TabVideo): VideoChange | null {
     kind: state.change,
     title: state.change === "room_moved" ? state.roomTitle : "",
     host: hostOf(destination(state)),
+    ...(state.change === "you_moved" && state.leftEmptyRoomPage ? { roomPageEmpty: true } : {}),
   };
 }
