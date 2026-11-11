@@ -161,6 +161,8 @@ export class SyncEngine {
   private lastSeq = 0;
   /** States we sent that the room hasn't echoed back yet. */
   private unacked = 0;
+  /** The room's latest state, set aside while something of the viewer's was pending. */
+  private missedState: RoomState | null = null;
 
   /** The speed people chose, as opposed to what a drift correction is playing at. */
   private baseRate = 1;
@@ -250,6 +252,7 @@ export class SyncEngine {
     this.arrivedAt = this.deps.now();
     this.clientId = message.clientId;
     this.unacked = 0;
+    this.missedState = null;
     this.isAlone = message.peers <= 1;
     this.lastSeq = message.state?.seq ?? 0;
     // A room that was left empty still remembers its last state, but nobody is on that
@@ -274,46 +277,63 @@ export class SyncEngine {
 
     if (state.from === this.clientId) {
       this.unacked = Math.max(0, this.unacked - 1);
-      if (
-        this.unacked > 0 ||
-        this.publishTimer !== null ||
-        this.pauseCheckTimer !== null ||
-        this.inputCheckTimer !== null
-      )
-        return;
-      // The room combines what crossed: our pause with someone's seek comes back paused at
-      // their seek. So our own state can come back different, and then it's followed too.
-      // The room may also have replaced sentAt if this clock is badly wrong: its copy wins.
-      const change = this.describeChange(state);
-      const jumped = this.hasJumped(state);
-      this.setTimeline(state);
-      if (change) {
-        this.apply(true);
-        // Ours, combined with someone else's: theirs is the part that's news, but whose isn't said.
-        this.deps.onRemoteChange?.(change, { rate: state.rate, jumped, by: null });
-      }
+    } else {
+      this.forgetLostEcho();
+    }
+    // Messages arrive in room order, so a state that overtakes our own echo is older than what
+    // we sent, and everyone is about to receive ours after it. But what we're about to send may
+    // never go, or never come back, so the state is kept until one of ours takes its place.
+    if (this.isBusyWithOwn()) {
+      this.missedState = state;
       return;
     }
-    // A state of ours that was lost has no echo coming, and waiting on it for good would
-    // ignore the room until a reconnect, while everything here still looked in sync.
-    if (this.unacked > 0 && this.deps.now() - this.lastPublishAt > ECHO_TIMEOUT_MS) {
-      this.unacked = 0;
-    }
-    // Messages arrive in room order, so a state that overtakes our own echo is older
-    // than what we sent, and everyone is about to receive ours after it.
-    if (
+    this.follow(state);
+  }
+
+  /** Something of the viewer's is on its way to the room, or may be about to go. */
+  private isBusyWithOwn(): boolean {
+    return (
       this.unacked > 0 ||
       this.publishTimer !== null ||
       this.pauseCheckTimer !== null ||
       this.inputCheckTimer !== null
-    )
-      return;
+    );
+  }
 
+  /**
+   * A state of ours that was lost has no echo coming, and waiting on it for good would
+   * ignore the room until a reconnect, while everything here still looked in sync.
+   */
+  private forgetLostEcho(): void {
+    if (this.unacked > 0 && this.deps.now() - this.lastPublishAt > ECHO_TIMEOUT_MS) {
+      this.unacked = 0;
+    }
+  }
+
+  private follow(state: RoomState): void {
+    this.missedState = null;
+    const isOwn = state.from === this.clientId;
     const change = this.describeChange(state);
     const jumped = this.hasJumped(state);
+    // The room may have replaced sentAt if this clock is badly wrong: its copy wins.
     this.setTimeline(state);
-    this.apply(true);
-    if (change) this.deps.onRemoteChange?.(change, { rate: state.rate, jumped, by: state.from });
+    // The room combines what crossed: our pause with someone's seek comes back paused at
+    // their seek. So our own state can come back different, and then it's followed too.
+    if (!isOwn || change) this.apply(true);
+    if (!change) return;
+    // Ours, combined with someone else's: theirs is the part that's news, but whose isn't said.
+    this.deps.onRemoteChange?.(change, { rate: state.rate, jumped, by: isOwn ? null : state.from });
+  }
+
+  /**
+   * Follows a state that arrived while something of the viewer's was pending, once it turns out
+   * nothing of theirs took its place: the wait ended with nothing to send, or the room refused it.
+   */
+  private followMissedState(): void {
+    if (!this.missedState) return;
+    this.forgetLostEcho();
+    if (this.isBusyWithOwn()) return;
+    this.follow(this.missedState);
   }
 
   private describeChange(next: PlaybackState): PlaybackChange | null {
@@ -346,12 +366,14 @@ export class SyncEngine {
   /** The room dropped a message of ours, so its echo will never come. */
   handleRejected(): void {
     this.unacked = 0;
+    this.followMissedState();
   }
 
   /** While offline the viewer is in charge: nothing is corrected, nothing is published. */
   handleDisconnected(): void {
     this.joined = false;
     this.unacked = 0;
+    this.missedState = null;
     this.cancelPublish();
     this.clearFlags();
     this.finishCorrection();
@@ -377,6 +399,7 @@ export class SyncEngine {
   forgetTimeline(): void {
     this.cancelPublish();
     this.unacked = 0;
+    this.missedState = null;
     this.finishCorrection();
     this.timeline = null;
   }
@@ -459,6 +482,7 @@ export class SyncEngine {
   }
 
   private tick(): void {
+    this.followMissedState();
     const now = this.deps.now();
     if (now - this.lastTickAt < MIN_TICK_GAP_MS) return;
     this.lastTickAt = now;
@@ -664,6 +688,7 @@ export class SyncEngine {
       this.pauseCheckTimer = setTimeout(() => {
         this.pauseCheckTimer = null;
         this.publishIfChanged();
+        this.followMissedState();
       }, UNPROMPTED_PAUSE_WAIT_MS);
       return;
     }
@@ -823,8 +848,10 @@ export class SyncEngine {
         this.inputCheckTimer = null;
         if (this.isViewerActing()) {
           this.publishIfChanged(isPlay);
+          this.followMissedState();
           return;
         }
+        this.followMissedState();
         // The seek that brought this viewer to the room is recent, and mustn't hold this one up.
         this.lastSeekAt = Number.NEGATIVE_INFINITY;
         this.tick();

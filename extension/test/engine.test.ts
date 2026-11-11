@@ -2692,3 +2692,58 @@ describe("a viewer whose connection can't keep up", () => {
     expect(Math.abs(video.position - (305 + 7))).toBeLessThan(0.5);
   });
 });
+
+describe("a state from the room that arrives while the engine is waiting", () => {
+  const untouched = () => setup({ lastInputAt: () => Number.NEGATIVE_INFINITY });
+
+  it("is followed when the wait ends with nothing to send, as when an ad started", async () => {
+    const context = untouched();
+    await joinPlaying(context);
+    await play(context.video, 4500);
+    // The player pauses for its ad, and someone seeks before the ad is seen.
+    context.video.pause();
+    await settle();
+    context.engine.handleState(context.peerState({ position: 900 }));
+    context.hold.reason = "ad";
+    await vi.advanceTimersByTimeAsync(8000);
+    context.hold.reason = null;
+    await vi.advanceTimersByTimeAsync(1100);
+    await play(context.video, 2000);
+
+    expect(context.sent).toEqual([]);
+    expect(context.video.position).toBeGreaterThan(900);
+    expect(context.changes).toContain("seeked");
+  });
+
+  it("is followed when a player that moved by itself on arriving wasn't the viewer", async () => {
+    const context = untouched();
+    await joinPlaying(context);
+    // The player puts itself at its start, and the wait for a click elsewhere begins.
+    context.video.userSeek(0);
+    await settle();
+    context.engine.handleState(context.peerState({ position: 500 }));
+    await play(context.video, 3000);
+
+    expect(context.sent).toEqual([]);
+    expect(context.video.position).toBeGreaterThan(500);
+    expect(context.video.position).toBeLessThan(505);
+  });
+
+  it("is followed when the room refuses what was sent instead", async () => {
+    let inputAt = Number.NEGATIVE_INFINITY;
+    const context = setup({ lastInputAt: () => inputAt });
+    await joinPlaying(context);
+    await play(context.video, 4500);
+    inputAt = Date.now();
+    context.video.pause();
+    await settle();
+    expect(context.sent).toHaveLength(1);
+    // Someone's seek overtakes the echo, and then there's no echo: the room refused the pause.
+    context.engine.handleState(context.peerState({ position: 900 }));
+    context.engine.handleRejected();
+    await play(context.video, 2000);
+
+    expect(context.video.paused).toBe(false);
+    expect(context.video.position).toBeGreaterThan(900);
+  });
+});
