@@ -413,19 +413,28 @@ async function startPicker(): Promise<void> {
   window.close();
 }
 
+/** Buttons saying "Copied" for now, with the label each goes back to. */
+const copiedButtons = new Map<HTMLElement, { label: string | null; timer: number }>();
+
 /** Says "Copied" on the button itself, then puts its label back. */
 async function copyWithFeedback(button: HTMLElement, text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
   const isIconButton = button.classList.contains("icon-button");
-  const original = isIconButton ? button.getAttribute("aria-label") : button.textContent;
+  // Pressed again while it says "Copied": what's on it now isn't its label.
+  const showing = copiedButtons.get(button);
+  if (showing) clearTimeout(showing.timer);
+  const label =
+    showing?.label ?? (isIconButton ? button.getAttribute("aria-label") : button.textContent);
   if (isIconButton) button.setAttribute("aria-label", t("copied"));
   else button.textContent = t("copied");
   element("room-status").textContent = t("copied");
-  setTimeout(() => {
-    if (isIconButton) button.setAttribute("aria-label", original ?? "");
-    else button.textContent = original;
+  const timer = window.setTimeout(() => {
+    copiedButtons.delete(button);
+    if (isIconButton) button.setAttribute("aria-label", label ?? "");
+    else button.textContent = label;
     render();
   }, COPIED_MS);
+  copiedButtons.set(button, { label, timer });
 }
 
 async function openSettings(): Promise<void> {

@@ -248,6 +248,23 @@ try {
     (await text(popup, "#copy-link")) === "Copy invite link",
   );
 
+  // Pressed again while it still says "Copied": the label it goes back to is its own.
+  const codeLabel = await popup.locator("#copy-code").getAttribute("aria-label");
+  await popup.bringToFront();
+  for (const button of ["#copy-link", "#copy-code"]) {
+    await popup.click(button);
+    await wait(300);
+    await popup.click(button);
+  }
+  await a.page.bringToFront();
+  await wait(2500);
+  check(
+    "pressed twice in a row, the copy buttons still go back to their labels",
+    (await text(popup, "#copy-link")) === "Copy invite link" &&
+      (await popup.locator("#copy-code").getAttribute("aria-label")) === codeLabel,
+    `${await text(popup, "#copy-link")} / ${await popup.locator("#copy-code").getAttribute("aria-label")}`,
+  );
+
   // ---- a second person pastes the link
   const b = await viewer("b");
   const popupB = await b.openPopup();
