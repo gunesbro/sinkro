@@ -217,6 +217,11 @@ try {
   // ---- reopening finds the room
   await popup.close();
   popup = await a.openPopup();
+  // The popup shows its first view while it asks the tab about the room, so give it a moment.
+  await until(
+    async () =>
+      (await popup.locator("#room").isVisible()) && (await text(popup, "#room-code")) === code,
+  );
   check(
     "reopening the popup goes straight to the room",
     (await popup.locator("#room").isVisible()) && (await text(popup, "#room-code")) === code,
