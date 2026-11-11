@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseFrame } from "../src/background/arbiter";
+import { chooseFrame, liveReports } from "../src/background/arbiter";
 import { holdReason, isAdHost, type HoldSignals } from "../src/content/detection/ads";
 import { pickBest, scoreVideo, type VideoSignals } from "../src/content/detection/score";
 
@@ -251,6 +251,18 @@ describe("pickBest", () => {
   it("switches when the current one stops being a candidate", () => {
     expect(pickBest([{ item: "a", score: 0 }, b], "a")).toBe(b);
     expect(pickBest([b], "gone")).toBe(b);
+  });
+});
+
+describe("liveReports", () => {
+  it("drops the frames that have gone quiet and keeps the rest", () => {
+    const now = 1_000_000;
+    const reports = {
+      0: { score: 0, at: now - 1000 },
+      7: { score: 90, at: now - 13_000 },
+      9: { score: 40, at: now - 5000 },
+    };
+    expect(liveReports(reports, now)).toEqual({ 0: reports[0], 9: reports[9] });
   });
 });
 
