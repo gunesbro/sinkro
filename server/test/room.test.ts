@@ -428,6 +428,30 @@ describe("joining", () => {
     const extra = await connect(code);
     expect(await extra.closed).toBe(CloseCode.RoomFull);
   });
+
+  it("refuses person 51 when they all connected before any of them joined", async () => {
+    const code = await createRoom();
+    const clients = [];
+    for (let i = 0; i < 51; i += 1) clients.push(await connect(code));
+    for (const client of clients) client.send({ type: "join", protocol: 1 });
+
+    expect(await clients[50]!.closed).toBe(CloseCode.RoomFull);
+    expect((await clients[49]!.next()).type).toBe("joined");
+  });
+
+  it("lets the last place go to someone joining again on a new connection", async () => {
+    const code = await createRoom();
+    for (let i = 0; i < 49; i += 1) await join(code);
+    const viewer = "a".repeat(32);
+    // Both connected while there was room: the old one still looks open after a network drop.
+    const before = await connect(code);
+    const after = await connect(code);
+    before.send({ type: "join", protocol: 1, viewer });
+    expect((await before.next()).type).toBe("joined");
+
+    after.send({ type: "join", protocol: 1, viewer });
+    expect((await after.next()).type).toBe("joined");
+  });
 });
 
 describe("playback state", () => {

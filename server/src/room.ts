@@ -273,6 +273,11 @@ export class Room extends DurableObject {
       }
     }
 
+    // Checked again here: sockets are let in before they join, so many can arrive while
+    // there's still room and then all ask to join. After the above, so that someone coming
+    // back on a new connection takes their own place.
+    if (this.joinedSockets().length >= MAX_CONNECTIONS) return ws.close(CloseCode.RoomFull);
+
     const clientId = crypto.randomUUID();
     ws.serializeAttachment({ clientId, ...(viewer ? { viewer } : {}) } satisfies Attachment);
     await this.saveRecord({ ...record, activeAt: Date.now() });
