@@ -41,6 +41,21 @@ describe("a video's length", () => {
     expect(lengths.settledLength(video)).toBeNull();
   });
 
+  it("starts over, not live, when a film follows an ad in the same player", () => {
+    const { lengths, later } = setup();
+    // The ad and the film share the element and its address, as with a media source.
+    const video = { duration: 15, currentSrc: "blob:1" };
+    expect(lengths.settledLength(video)).toBeNull();
+    later(7000);
+    expect(lengths.settledLength(video)).toBe(15);
+    video.duration = 1440;
+    expect(lengths.isLive(video)).toBe(false);
+    expect(lengths.settledLength(video)).toBeNull();
+    later(7000);
+    expect(lengths.settledLength(video)).toBe(1440);
+    expect(lengths.isLive(video)).toBe(false);
+  });
+
   it("isn't, for a stream with no end", () => {
     const { lengths } = setup();
     const stream = { duration: Number.POSITIVE_INFINITY, currentSrc: "live" };

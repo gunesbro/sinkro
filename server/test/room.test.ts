@@ -764,6 +764,26 @@ describe("everyone's film", () => {
     expect(await a.next()).toEqual({ type: "films", films: [] });
   });
 
+  it("leaves out someone on an ad, whose player has the ad's length", async () => {
+    const code = await createRoom();
+    const { client: a } = await join(code);
+    const { client: b } = await join(code);
+    await a.next();
+    b.send({ type: "film", duration: 1440 });
+    expect(await a.next()).toEqual({ type: "films", films: [{ duration: 1440, count: 1 }] });
+    b.send({ type: "ad", watching: true });
+    expect(await a.next()).toEqual({ type: "ads", count: 1 });
+    expect(await a.next()).toEqual({ type: "films", films: [] });
+    // An older version tells the room the ad's length; nobody hears of it.
+    b.send({ type: "film", duration: 15 });
+    expect(await a.next()).toEqual({ type: "films", films: [] });
+    b.send({ type: "film", duration: 1440 });
+    await a.next();
+    b.send({ type: "ad", watching: false });
+    expect(await a.next()).toEqual({ type: "ads", count: 0 });
+    expect(await a.next()).toEqual({ type: "films", films: [{ duration: 1440, count: 1 }] });
+  });
+
   it("leaves out someone on another page", async () => {
     const code = await createRoom();
     const { client: a } = await join(code);

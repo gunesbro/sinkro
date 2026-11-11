@@ -3,6 +3,11 @@
 
 /** More growth than this, and it's a stream going on rather than a length being settled. */
 const GROWTH_SECONDS = 5;
+/**
+ * A stream grows a few seconds at a time. A jump past this at once is new content in the same
+ * player, like a film after the ad before it, not a stream going on.
+ */
+const NEW_CONTENT_JUMP_SECONDS = 60;
 /** Watched this long without growing, a length can be trusted. */
 const SETTLED_MS = 6000;
 
@@ -58,7 +63,12 @@ export class VideoLengths {
 
     const seen = this.seen.get(video);
     // A new film in the same element starts over.
-    if (!seen || seen.source !== source || duration < seen.duration) {
+    if (
+      !seen ||
+      seen.source !== source ||
+      duration < seen.duration ||
+      duration - seen.duration > NEW_CONTENT_JUMP_SECONDS
+    ) {
       const fresh = { source, duration, at: this.now(), isLive: false };
       this.seen.set(video, fresh);
       return fresh;
