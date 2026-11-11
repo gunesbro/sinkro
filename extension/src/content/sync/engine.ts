@@ -203,6 +203,9 @@ export class SyncEngine {
   private pagePlayAt = Number.NEGATIVE_INFINITY;
   /** When the video got a new source, in its element or by another element taking its place. */
   private sourceChangedAt = Number.NEGATIVE_INFINITY;
+  /** The video last let go of, and when, for telling another element taking its place. */
+  private releasedVideo: WeakRef<SyncedVideo> | null = null;
+  private releasedAt = Number.NEGATIVE_INFINITY;
   /** When this viewer joined, or this video was bound, whichever was later. */
   private arrivedAt = Number.NEGATIVE_INFINITY;
   private pauseCheckTimer: ReturnType<typeof setTimeout> | null = null;
@@ -217,8 +220,18 @@ export class SyncEngine {
   bind(video: SyncedVideo | null): void {
     if (video === this.video) return;
 
-    // Another element in place of one, as a site switching players does: a new source.
-    if (this.video && video) this.sourceChangedAt = this.deps.now();
+    const now = this.deps.now();
+    if (this.video) {
+      this.releasedVideo = new WeakRef(this.video);
+      this.releasedAt = now;
+    }
+    // Another element in place of one, as a site switching players does: a new source. The old
+    // one is let go first, and the new one can turn up a moment later. The same element bound
+    // again isn't one: if its source changed, it says so by emptying.
+    const released = this.releasedVideo?.deref();
+    if (video && released && released !== video && now - this.releasedAt < AFTER_NEW_SOURCE_MS) {
+      this.sourceChangedAt = now;
+    }
     this.releaseVideo();
     this.video = video;
     if (!video) return;
