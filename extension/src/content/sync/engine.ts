@@ -38,6 +38,11 @@ const UNPROMPTED_PAUSE_WAIT_MS = 500;
 /** After a hold, a player puts things back by itself, which isn't anyone's choice. */
 const AFTER_HOLD_MS = 4000;
 /**
+ * A click that ended an ad, like its skip button, comes just before the ad is seen to end, or
+ * just after when it was in another frame and word of it took a moment. It isn't a seek.
+ */
+const AD_END_CLICK_MS = 250;
+/**
  * Just after joining, or a new video turning up, a page often starts its video by itself, from
  * its own start. That's the player, not the viewer, and it mustn't take the room back with it.
  */
@@ -650,6 +655,12 @@ export class SyncEngine {
     return at === undefined || this.deps.now() - at < RECENT_INPUT_MS;
   }
 
+  /** A recent click or key that came after a moment. */
+  private hasInputSince(time: number): boolean {
+    const at = this.deps.lastInputAt?.();
+    return at === undefined || (at > time && this.deps.now() - at < RECENT_INPUT_MS);
+  }
+
   private isViewerActingOnPlayer(): boolean {
     const at = this.deps.lastInputHereAt?.();
     return at === undefined ? this.isViewerActing() : this.deps.now() - at < RECENT_INPUT_MS;
@@ -735,8 +746,13 @@ export class SyncEngine {
     if (!video.isConnected) return;
     if (this.refreshHold()) return;
     // A player putting the film back after an ad seeks to where it left off, which is behind
-    // the room by the ad's length. That's the player, not the viewer, so the room wins.
-    if (this.deps.now() - this.holdEndedAt < AFTER_HOLD_MS && !this.isViewerActing()) {
+    // the room by the ad's length. That's the player, not the viewer, so the room wins. Only a
+    // click after the ad is the viewer's: the one on "Skip" ended it, and taking the player's
+    // seek for theirs would send everyone back to where the ad began.
+    if (
+      this.deps.now() - this.holdEndedAt < AFTER_HOLD_MS &&
+      !this.hasInputSince(this.holdEndedAt + AD_END_CLICK_MS)
+    ) {
       this.apply(true);
       return;
     }
