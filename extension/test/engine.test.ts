@@ -1457,6 +1457,83 @@ describe("a page's video starting by itself just after joining", () => {
     expect(video.playbackRate).toBeLessThan(1.04);
   });
 
+  it("doesn't take the room to the start when a player puts another element in place of its video", async () => {
+    const context = setup();
+    const { engine, video, sent } = context;
+    await joinPlaying(context, 600);
+    await play(video, 5000);
+    sent.length = 0;
+
+    // As the tracker reports it: the old element lets go, then the new one is bound.
+    const next = new FakeVideo();
+    engine.bind(null);
+    engine.bind(next.asVideo());
+    await settle();
+    next.userSeek(0);
+    await settle();
+    next.userSeek(0.5);
+    await settle();
+    await play(next, 2000);
+
+    expect(sent).toEqual([]);
+    expect(next.position).toBeGreaterThan(600);
+  });
+
+  it("does the same when the new element turns up a moment after the old one went", async () => {
+    const context = setup();
+    const { engine, video, sent } = context;
+    await joinPlaying(context, 600);
+    await play(video, 5000);
+    sent.length = 0;
+
+    const next = new FakeVideo();
+    engine.bind(null);
+    await vi.advanceTimersByTimeAsync(700);
+    engine.bind(next.asVideo());
+    await settle();
+    next.userSeek(0);
+    await settle();
+    await play(next, 2000);
+
+    expect(sent).toEqual([]);
+    expect(next.position).toBeGreaterThan(600);
+  });
+
+  it("doesn't send the speed a player puts back on an element it swapped in", async () => {
+    const context = setup();
+    const { engine, video, sent } = context;
+    await joinPlaying(context, 600);
+    await play(video, 5000);
+    sent.length = 0;
+
+    const next = new FakeVideo();
+    engine.bind(null);
+    engine.bind(next.asVideo());
+    await settle();
+    next.userSetRate(1.04);
+    await play(next, 1000);
+
+    expect(sent).toEqual([]);
+    expect(next.playbackRate).toBeLessThan(1.04);
+  });
+
+  it("doesn't take the same element bound again for a new source", async () => {
+    const context = setup();
+    const { engine, video, sent } = context;
+    await joinPlaying(context, 600);
+    await play(video, 5000);
+    sent.length = 0;
+
+    // A new film in the same element is reported the same way, and its own events say the rest.
+    engine.bind(null);
+    engine.bind(video.asVideo());
+    await settle();
+    video.userSetRate(1.5);
+    await play(video, 1000);
+
+    expect(sent).toMatchObject([{ rate: 1.5 }]);
+  });
+
   it("still sends a seek of the viewer's own elsewhere, just after a new source", async () => {
     const context = setup();
     const { video, sent } = context;
