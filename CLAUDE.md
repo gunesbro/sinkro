@@ -57,16 +57,25 @@ Scoring picks one winner across all frames: + visible area, playing, unmuted, du
 ## MVP scope (phase 1)
 
 Create/join room by code or link · play/pause/seek/rate sync · drift correction · detection engine (layers 1–5, scoring, manual picker) · ad detection · on-video badge the viewer can drag anywhere on the video · configurable server URL · invite page · EN + TR.
-Later: big-screen mode that fills the window through temporary CSS, off by default and with no moving of the site's DOM (after real-site testing), same-source comparison for sites that serve one episode from several video hosts (to be evaluated), participants list with "who did what" (v1), chat + reactions (v1), host-only control (v1), site adapters (v1), "everyone ready" wait (v1), voice chat (v2), local-file mode (last).
+Later: big-screen mode that fills the window through temporary CSS, off by default and with no moving of the site's DOM (after real-site testing), participants list with "who did what" (v1; random names, the popup's list and named badge notices are done, per-person status needs a privacy decision first), chat + reactions (v1; typed chat counts as personal communications in both stores, fixed-list reactions don't), host-only control (v1), site adapters (v1), "everyone ready" wait (v1), voice chat (v2), local-file mode (last). Same-source comparison is done as length plus sealed player site (`film`/`films`).
 
-Phase gate for MVP: 3 people, a 1-hour video, drift stays under 0.5 s.
+Phase gate for MVP: 3 people, a 1-hour video, drift stays under 0.5 s. **Passed and released:** the MVP is in the Chrome Web Store and Firefox Add-ons (November 2026).
+
+## Releases and stores
+
+- Stores: [Chrome Web Store](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc), which Edge installs from too, and [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sinkro/), listed. There's no separate Edge store listing for now.
+- The version lives in `extension/package.json` (and the lockfile). Pushing a tag `vX.Y.Z` on `main` runs `.github/workflows/release.yml`: checks, the Chrome and Firefox zips, a GitHub pre-release, and the Firefox package sent to Firefox Add-ons as a listed version. Firefox Add-ons takes each version number once, listed or unlisted, so every release needs a new number; the workflow skips sending one AMO already has. The Chrome zip is uploaded by hand in the Chrome Web Store dashboard.
+- Store data declarations: Chrome declares web history and website content; Firefox declares `browsingActivity` and `websiteContent` in the manifest (`extension/scripts/build.mjs`). Anything new that leaves the browser means updating both, and anything a person types counts as personal data in both stores.
+- The hosted server and the site are deployed by the maintainer, from `main`: `npm run deploy -w server`, then `npx wrangler pages deploy site --project-name sinkro --branch main --commit-dirty=true --force`. After merging a change to `server/` or `site/`, say which of them needs deploying.
 
 ## Working conventions
 
 - Public repo. `main` is always releasable; never commit straight to it.
 - Only the maintainer (@gunesbro) merges pull requests. AI agents open PRs and stop there: never run `gh pr merge`, with or without `--admin`, unless the maintainer asks for that specific PR in the current conversation.
 - `docs/` is gitignored and exists only on the maintainer's machine for now; it gets edited and published near the end. Never commit it, and don't link to it from public files.
-- One branch + one pull request per piece of work, in this order: repo skeleton → server → sync core → detection → popup UI → invite page → test suite.
+- One branch + one pull request per piece of work. Agents don't push release tags, deploy, or submit to stores without the maintainer's go for that release.
 - Small, focused commits with clear messages. PR description says what changed, how it was tested, and what's left.
 - Accessibility is part of done: real `<button>`/`<label>`/`<input>`, 44 px touch targets, text contrast ≥ 4.5:1, `aria-label` on icon-only buttons.
+- Public text (README, store listings, site) makes no claims about other watch party projects, and names no real streaming sites; screenshots use a made-up demo site.
+- Bugs from real sites: reproduce them from the maintainer's steps with a real browser and the real extension, and add a browser scenario under `tests/e2e` for what was found. Respect sites' blocks; never get around them.
 - Privacy is a feature: never add telemetry, never send page titles or URLs to the server beyond the sealed address and title of the room's video. The room's socket opens from the page, so browsers send that site's `Origin` with it: never store or use it on the server, and keep the privacy page saying so.
