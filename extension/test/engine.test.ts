@@ -1803,6 +1803,25 @@ describe("telling the viewer's actions from the player's own", () => {
     expect(context.video.position).toBeGreaterThan(905);
   });
 
+  it("doesn't take the player's seek after a skipped ad for the viewer's", async () => {
+    let inputAt = Number.NEGATIVE_INFINITY;
+    const context = setup({ lastInputAt: () => inputAt });
+    await joinPlaying(context, 900);
+    context.hold.reason = "ad";
+    await vi.advanceTimersByTimeAsync(8000);
+    context.sent.length = 0;
+    // The click on "Skip" ends the ad, and the player goes back to where the ad began.
+    inputAt = Date.now();
+    await vi.advanceTimersByTimeAsync(100);
+    context.hold.reason = null;
+    await vi.advanceTimersByTimeAsync(300);
+    context.video.userSeek(900);
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(context.sent).toEqual([]);
+    expect(context.video.position).toBeGreaterThan(905);
+  });
+
   it("still passes on the viewer's own seek right after a hold", async () => {
     let inputAt = Number.NEGATIVE_INFINITY;
     const context = setup({ lastInputAt: () => inputAt });
@@ -1810,7 +1829,8 @@ describe("telling the viewer's actions from the player's own", () => {
     context.hold.reason = "ad";
     await vi.advanceTimersByTimeAsync(3000);
     context.hold.reason = null;
-    await vi.advanceTimersByTimeAsync(1100);
+    // The engine sees the ad has ended at its next look, within a second; the seek is after that.
+    await vi.advanceTimersByTimeAsync(1600);
     context.sent.length = 0;
     inputAt = Date.now();
     context.video.userSeek(2000);
