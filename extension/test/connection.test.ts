@@ -56,6 +56,7 @@ class FakeSocket implements SocketLike {
 
 function setup() {
   const sockets: FakeSocket[] = [];
+  const refusal = { on: false };
   const clock = new ServerClock();
   const events = {
     onJoined: vi.fn(),
@@ -76,6 +77,8 @@ function setup() {
     clock,
     events,
     createSocket: () => {
+      // As a browser does for an address it won't open, like ws:// from an https page.
+      if (refusal.on) throw new DOMException("Refused", "SecurityError");
       const socket = new FakeSocket();
       sockets.push(socket);
       return socket;
@@ -101,7 +104,7 @@ function setup() {
     }
     socket.receive({ type: "joined", clientId: "me", state: null, peers: 1 });
   };
-  return { connection, sockets, clock, events, latest, handshake };
+  return { connection, sockets, clock, events, latest, handshake, refusal };
 }
 
 const playback = { playing: true, position: 1, rate: 1, sentAt: 2 };
@@ -263,6 +266,22 @@ describe("closing", () => {
 });
 
 describe("reconnecting", () => {
+  it("keeps going when the browser refuses to open the socket at all", () => {
+    const { connection, handshake, sockets, events, refusal } = setup();
+    refusal.on = true;
+    expect(() => connection.start()).not.toThrow();
+    expect(events.onStatus).toHaveBeenLastCalledWith("reconnecting", null);
+
+    // Refused again on the next try, which mustn't end the trying.
+    vi.advanceTimersByTime(1000);
+    expect(sockets).toHaveLength(0);
+    refusal.on = false;
+    vi.advanceTimersByTime(2000);
+    expect(sockets).toHaveLength(1);
+    handshake();
+    expect(events.onStatus).toHaveBeenLastCalledWith("connected", null);
+  });
+
   it("tells the engine, then comes back and joins again", () => {
     const { connection, handshake, sockets, latest, events } = setup();
     connection.start();
