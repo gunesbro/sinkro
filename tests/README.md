@@ -30,6 +30,7 @@ Each scenario prints a line per check, `ok` or `FAIL`, and the run ends with the
 | `names`            | Random names: the popup's list, who did what on the badge, drawing a new name |
 | `buffering`        | A slow connection whose player pauses itself to buffer never pauses the room  |
 | `empty-room-page`  | A room started on a page with no video asks to make the first video its own   |
+| `frame-swap`       | A player's frame replaced, or the page left, hands the room over at once      |
 
 ## Settings
 

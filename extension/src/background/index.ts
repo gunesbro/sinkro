@@ -26,7 +26,7 @@ import {
   type TabVideo,
   type VideoChange,
 } from "../video-change";
-import { chooseFrame, TOP_FRAME_ID, type FrameReports } from "./arbiter";
+import { chooseFrame, liveReports, TOP_FRAME_ID, type FrameReports } from "./arbiter";
 
 type TabFrames = { winner: number; reports: FrameReports };
 
@@ -69,6 +69,7 @@ function inTabQueue<T>(tabId: number, task: () => Promise<T>): Promise<T> {
 async function recordReport(tabId: number, frameId: number, score: number): Promise<boolean> {
   const frames = await getFrames(tabId);
   const now = Date.now();
+  frames.reports = liveReports(frames.reports, now);
   frames.reports[frameId] = { score, at: now };
 
   const winner = chooseFrame(frames.winner, frames.reports, now);

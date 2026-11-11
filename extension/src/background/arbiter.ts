@@ -12,6 +12,13 @@ export type FrameReports = Record<number, FrameReport>;
  * holds the connection while no frame has a video, so the room still works and the
  * connection doesn't move until there's somewhere better for it.
  */
+/** Without the frames that have gone quiet, so a tab's record doesn't keep every frame it ever had. */
+export function liveReports(reports: FrameReports, now: number): FrameReports {
+  return Object.fromEntries(
+    Object.entries(reports).filter(([, report]) => now - report.at < REPORT_EXPIRES_MS),
+  );
+}
+
 export function chooseFrame(current: number, reports: FrameReports, now: number): number {
   const candidates = Object.entries(reports)
     .filter(([, report]) => now - report.at < REPORT_EXPIRES_MS)
