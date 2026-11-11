@@ -16,8 +16,7 @@ jobs:
     permissions:
       contents: write
     env:
-      # Optional. With them, the Firefox package is signed by Mozilla as an unlisted add-on, so
-      # it installs from a link. Without them, Firefox users load it as a temporary add-on.
+      # Optional. With them, a tag sends the Firefox package to Firefox Add-ons for review.
       AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
       AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
     steps:
@@ -40,21 +39,27 @@ jobs:
       - run: npm run check
       - run: npm run package -w extension
 
-      - name: Sign the Firefox package as unlisted
+      # Run by hand, this only says whether AMO already has this version, to check the keys work.
+      - name: Check what Firefox Add-ons has
+        if: github.ref_type != 'tag' && env.AMO_JWT_ISSUER != ''
+        run: |
+          version=$(node -p "require('./extension/package.json').version")
+          echo "AMO has $version: $(node extension/scripts/amo-has-version.mjs "$version")"
+
+      - name: Send the Firefox package to Firefox Add-ons
         if: github.ref_type == 'tag' && env.AMO_JWT_ISSUER != ''
         run: |
+          # AMO takes each version number once, and one may have gone up by hand already.
+          version=$(node -p "require('./extension/package.json').version")
+          if [ "$(node extension/scripts/amo-has-version.mjs "$version")" = "yes" ]; then
+            echo "Firefox Add-ons already has $version, so it isn't sent again."
+            exit 0
+          fi
           # The extension is bundled, so Mozilla's reviewers get the readable source with it.
           git archive --format=zip -o "$RUNNER_TEMP/sinkro-source.zip" HEAD
-          npx web-ext sign \
-            --source-dir extension/dist/firefox \
-            --artifacts-dir extension/release \
-            --channel unlisted \
-            --api-key "$AMO_JWT_ISSUER" \
-            --api-secret "$AMO_JWT_SECRET" \
-            --upload-source-code "$RUNNER_TEMP/sinkro-source.zip"
-          # Mozilla names the file after the add-on's id; people should see what it is.
-          version=$(node -p "require('./extension/package.json').version")
-          for xpi in extension/release/*.xpi; do mv "$xpi" "extension/release/sinkro-firefox-$version.xpi"; done
+          # Listed: it goes to review and then to everyone through Firefox's own updates. There's no
+          # signed file to wait for, so the release doesn't wait on the review.
+          npx web-ext sign             --source-dir extension/dist/firefox             --artifacts-dir extension/release             --channel listed             --approval-timeout 0             --api-key "$AMO_JWT_ISSUER"             --api-secret "$AMO_JWT_SECRET"             --upload-source-code "$RUNNER_TEMP/sinkro-source.zip"
 
       - name: Publish the release
         if: github.ref_type == 'tag'
@@ -70,7 +75,7 @@ jobs:
 
           **Chrome or Edge:** install it from the Chrome Web Store link above. The `sinkro-chrome-*.zip` below is the same build, to load by hand: unzip it, open `chrome://extensions` or `edge://extensions`, turn on developer mode, choose **Load unpacked** and select the unzipped folder.
 
-          **Firefox:** install it from Firefox Add-ons. The `sinkro-firefox-*.zip` below is the same build, to load by hand: open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on** and pick the zip; it goes away when Firefox closes. An `.xpi` below installs the same build for good.
+          **Firefox:** install it from Firefox Add-ons, which also brings updates. The `sinkro-firefox-*.zip` below is the same build, to load by hand: open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on** and pick the zip; it goes away when Firefox closes.
           NOTES
           # A rerun, say after adding the signing keys, adds to the release it made before.
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
