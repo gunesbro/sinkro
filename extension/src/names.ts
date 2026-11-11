@@ -96,6 +96,17 @@ async function keyFor(code: string): Promise<CryptoKey> {
 }
 
 /** Sealed with a key from the room code, so the server can't read it. */
+/**
+ * Forgets what was opened for people who are no longer in the room. The names of those still
+ * there stay, or they'd go unnamed until the room's next list.
+ */
+export function forgetNamesOfThoseGone<T>(opened: Map<string, T>, present: Iterable<string>): void {
+  const kept = new Set(present);
+  for (const sealed of opened.keys()) {
+    if (!kept.has(sealed)) opened.delete(sealed);
+  }
+}
+
 export async function sealName(code: string, pick: NamePick): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const sealed = await crypto.subtle.encrypt(

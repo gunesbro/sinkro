@@ -3,7 +3,13 @@
 // connection and sync engine. Pages that aren't in a room get no socket and no timers.
 import type { Messages } from "../i18n";
 import type { Film as FilmDetails, Person, RoomState } from "../../../server/src/protocol";
-import { isOwnNameChange, nameText, namesInRoom, type NamePick } from "../names";
+import {
+  forgetNamesOfThoseGone,
+  isOwnNameChange,
+  nameText,
+  namesInRoom,
+  type NamePick,
+} from "../names";
 import type {
   BackgroundRequest,
   SourceMismatch,
@@ -184,7 +190,12 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       person.name && !openedNames.has(person.name) ? [person.name] : [],
     );
     if (unopened.length === 0) return;
-    if (openedNames.size > MAX_OPENED_NAMES) openedNames.clear();
+    if (openedNames.size > MAX_OPENED_NAMES) {
+      forgetNamesOfThoseGone(
+        openedNames,
+        list.flatMap((person) => person.name ?? []),
+      );
+    }
     void hooks.openNames(unopened).then((picks) => {
       unopened.forEach((sealed, index) => openedNames.set(sealed, picks?.[index] ?? null));
     });
