@@ -7,6 +7,8 @@
 
 Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox that keeps any video on any website in sync with your friends.
 
+**For example:** you and a friend, on different computers, want to watch the same lecture on some site. You open it, click Sinkro and create a room, then send your friend the link. They open it, press **Join**, and land on the same video at the same second. From then on, when either of you plays, pauses, skips ahead or changes speed, the other's video does the same, within a fraction of a second. Everyone needs the extension; nobody needs an account.
+
 **Status:** early development. Sinkro is in the [Chrome Web Store](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc), which also installs it in Edge, and in [Firefox Add-ons](https://addons.mozilla.org/en-GB/firefox/addon/sinkro/). See [Install](#install).
 
 - **Any video, any site.** No list of supported sites: Sinkro finds the video on the page, inside frames and players that hide it, and tells it apart from previews and ads.
@@ -42,7 +44,7 @@ Some things Sinkro deliberately doesn't do:
 
 - **Live streams aren't synced.** On a live stream each viewer's position counts from when they opened it, so positions can't be compared, and everyone is watching live anyway. The badge says "Live stream".
 - **Some large streaming services don't let a page move their player.** Those need a small site-specific adapter, which is planned.
-- **Ads aren't skipped.** When someone is on an ad, Sinkro leaves their ad alone, tells the others, and brings them back to the room's spot when it ends.
+- **Ads don't come to everyone at once, and aren't skipped.** An ad isn't part of the video, so it can't be synced. While someone sits through one, the others keep watching and see a notice, and can pause if they'd rather wait. When the ad ends, Sinkro brings that person back to where the room is.
 
 ## Privacy
 
@@ -51,6 +53,7 @@ No accounts and no analytics. Only these reach the server:
 - the room code;
 - playback state: playing or paused, position, speed and a timestamp, with the video's length and player site encrypted;
 - whether someone is on an ad, how far their video is from the room's, and whether they're on the room's video at all, as a yes or no, never which page;
+- each person's name in the room, drawn at random like "Calm Owl" and never typed, encrypted with the room code;
 - the address and title of the room's video, encrypted with the room code, and only when someone creates a room or brings everyone to a video.
 
 The video itself never does. See the [privacy page](https://sinkro.pages.dev/privacy.html) for the details.
