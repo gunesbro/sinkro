@@ -53,7 +53,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx playwright-core install --with-deps chromium
+      # The runner image already has what Chromium needs, since it ships Chrome. The system
+      # packages are only a top-up, and Ubuntu's mirrors are sometimes out of reach from the
+      # runners, so they get three minutes and the run goes on without them.
+      - run: timeout 180 npx playwright-core install-deps chromium || echo "::warning::Skipped Chromium's system packages; Ubuntu's mirrors didn't answer."
+      - run: npx playwright-core install chromium
       - run: npm run build
       - run: xvfb-run -a node tests/e2e/run.mjs ${{ matrix.scenario }}
         env:
