@@ -2520,3 +2520,155 @@ describe("binding", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe("a viewer whose connection can't keep up", () => {
+  const untouched = () => setup({ lastInputAt: () => Number.NEGATIVE_INFINITY });
+
+  it("doesn't pause the room when their player pauses itself to buffer", async () => {
+    const context = untouched();
+    await joinPlaying(context, 300);
+    await play(context.video, 5000);
+    context.sent.length = 0;
+
+    context.video.stall();
+    await vi.advanceTimersByTimeAsync(200);
+    context.video.pause();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(context.sent).toEqual([]);
+    // It follows the room: playing, and catching up once the data comes.
+    expect(context.video.paused).toBe(false);
+    context.video.recover();
+    await play(context.video, 3000);
+    expect(context.sent).toEqual([]);
+    // About ten seconds in, as the room is, not where the buffering left it.
+    expect(context.video.position).toBeGreaterThan(309);
+  });
+
+  it("isn't fooled into a pause storm by a connection that keeps dropping", async () => {
+    const context = untouched();
+    await joinPlaying(context, 300);
+    await play(context.video, 5000);
+    context.sent.length = 0;
+
+    for (let drop = 0; drop < 5; drop += 1) {
+      context.video.stall();
+      await vi.advanceTimersByTimeAsync(100);
+      context.video.pause();
+      await vi.advanceTimersByTimeAsync(1500);
+      context.video.recover();
+      await vi.advanceTimersByTimeAsync(1500);
+    }
+
+    expect(context.sent).toEqual([]);
+  });
+
+  it("still pauses the room for a pause the player makes with data to spare", async () => {
+    const context = untouched();
+    await joinPlaying(context, 300);
+    await play(context.video, 5000);
+    context.sent.length = 0;
+
+    context.video.pause();
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(context.sent).toMatchObject([{ playing: false }]);
+  });
+
+  it("takes a pause long after the buffering ended as an ordinary one", async () => {
+    const context = untouched();
+    await joinPlaying(context, 300);
+    await play(context.video, 5000);
+    context.video.stall();
+    await vi.advanceTimersByTimeAsync(500);
+    context.video.recover();
+    await vi.advanceTimersByTimeAsync(5000);
+    context.sent.length = 0;
+
+    context.video.pause();
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(context.sent).toMatchObject([{ playing: false }]);
+  });
+
+  it("still passes on the viewer's own pause while buffering", async () => {
+    let inputAt = Number.NEGATIVE_INFINITY;
+    const context = setup({ lastInputAt: () => inputAt });
+    await joinPlaying(context, 300);
+    await play(context.video, 5000);
+    context.sent.length = 0;
+
+    context.video.stall();
+    await vi.advanceTimersByTimeAsync(200);
+    inputAt = Date.now();
+    context.video.pause();
+    await settle();
+
+    expect(context.sent).toMatchObject([{ playing: false }]);
+  });
+
+  it("sends a seek made while buffering as playing, not as a pause", async () => {
+    let inputAt = Number.NEGATIVE_INFINITY;
+    const context = setup({ lastInputAt: () => inputAt });
+    await joinPlaying(context, 300);
+    await play(context.video, 5000);
+    context.video.stall();
+    await vi.advanceTimersByTimeAsync(100);
+    context.video.pause();
+    await vi.advanceTimersByTimeAsync(2000);
+    context.video.stall();
+    context.video.pause();
+    await vi.advanceTimersByTimeAsync(100);
+    context.sent.length = 0;
+
+    inputAt = Date.now();
+    context.video.userSeek(900);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(context.sent).toMatchObject([{ position: 900, playing: true }]);
+  });
+
+  it("doesn't start the room again when someone pauses it during its buffering", async () => {
+    const context = untouched();
+    const { engine, video, sent, peerState } = context;
+    await joinPlaying(context, 300);
+    await play(video, 5000);
+    video.stall();
+    await vi.advanceTimersByTimeAsync(100);
+    video.pause();
+    await vi.advanceTimersByTimeAsync(300);
+    sent.length = 0;
+
+    engine.handleState(peerState({ playing: false, position: 305 }));
+    await vi.advanceTimersByTimeAsync(500);
+    video.recover();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(sent).toEqual([]);
+    expect(video.paused).toBe(true);
+  });
+
+  it("follows someone resuming the room while it's still buffering, then catches up", async () => {
+    const context = untouched();
+    const { engine, video, sent, peerState } = context;
+    await joinPlaying(context, 300);
+    await play(video, 5000);
+    engine.handleState(peerState({ playing: false, position: 305 }));
+    await settle();
+    expect(video.paused).toBe(true);
+    video.stall();
+    await vi.advanceTimersByTimeAsync(500);
+    sent.length = 0;
+
+    // Someone presses play while this viewer still has no data.
+    engine.handleState(peerState({ playing: true, position: 305 }));
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(sent).toEqual([]);
+    expect(video.paused).toBe(false);
+
+    video.recover();
+    await play(video, 3000);
+    expect(sent).toEqual([]);
+    expect(Math.abs(video.position - (305 + 7))).toBeLessThan(0.5);
+  });
+});

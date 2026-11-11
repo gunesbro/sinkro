@@ -86,6 +86,18 @@ export class FakeVideo extends EventTarget {
     this.emit("emptied");
   }
 
+  /** Runs out of data, as on a slow connection: the browser says it's waiting. */
+  stall(): void {
+    this.readyState = 1;
+    this.emit("waiting");
+  }
+
+  /** Data again, and it carries on if it was playing. */
+  recover(): void {
+    this.readyState = 4;
+    this.emit("canplay");
+  }
+
   /** Taken out of the page, which pauses it without anyone asking. */
   removeFromPage(): void {
     this.isConnected = false;

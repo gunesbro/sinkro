@@ -35,6 +35,11 @@ const ECHO_TIMEOUT_MS = 3000;
 const RECENT_INPUT_MS = 1500;
 /** Long enough for a player's ad to start over a film it paused itself. */
 const UNPROMPTED_PAUSE_WAIT_MS = 500;
+/**
+ * A pause nobody pressed this soon after the video ran out of data is the player stopping to
+ * buffer. That's this viewer's connection, not something to do to everyone.
+ */
+const BUFFERING_PAUSE_MS = 3000;
 /** After a hold, a player puts things back by itself, which isn't anyone's choice. */
 const AFTER_HOLD_MS = 4000;
 /**
@@ -183,6 +188,10 @@ export class SyncEngine {
   private holdEndedAt = Number.NEGATIVE_INFINITY;
   /** When the video last moved by a seek of the viewer's own, not one of ours. */
   private viewerSeekAt = Number.NEGATIVE_INFINITY;
+  /** When the video last ran out of data. */
+  private starvedAt = Number.NEGATIVE_INFINITY;
+  /** The player paused itself to buffer, which isn't this viewer pausing, until it plays again. */
+  private pausedToBuffer = false;
   /** Set when the engine paused the video and the rest of applying waits for that pause. */
   private applyAfterPause: boolean | null = null;
   /** When the page, not the engine, last started the video. */
@@ -225,6 +234,8 @@ export class SyncEngine {
     video.addEventListener("timeupdate", () => this.tick(), options);
     video.addEventListener("canplay", () => this.tick(), options);
     video.addEventListener("emptied", () => this.onEmptied(), options);
+    video.addEventListener("waiting", () => this.onStarved(), options);
+    video.addEventListener("stalled", () => this.onStarved(), options);
 
     this.syncWithRoom();
   }
@@ -609,6 +620,7 @@ export class SyncEngine {
   }
 
   private onPlay(): void {
+    this.pausedToBuffer = false;
     if (this.video) this.knownPaused = this.video.paused;
     if (this.consumePlayFlag()) return;
     this.pagePlayAt = this.deps.now();
@@ -623,6 +635,7 @@ export class SyncEngine {
   }
 
   private onPause(): void {
+    this.pausedToBuffer = false;
     if (this.video) this.knownPaused = this.video.paused;
     if (this.deps.now() < this.pauseFlagUntil) {
       this.pauseFlagUntil = 0;
@@ -635,6 +648,13 @@ export class SyncEngine {
     // Nobody pressed anything: a player pausing for its ad looks like this, and the ad starts
     // a moment later. Waiting that moment lets the ad show, so the room isn't paused for it.
     if (!this.isViewerActing()) {
+      // Some players pause to buffer. Pausing everyone for one slow connection would stop the
+      // room each time it drops; this viewer follows the room instead, and catches up.
+      if (this.isBuffering()) {
+        this.pausedToBuffer = true;
+        this.tick();
+        return;
+      }
       if (this.pauseCheckTimer !== null) clearTimeout(this.pauseCheckTimer);
       this.pauseCheckTimer = setTimeout(() => {
         this.pauseCheckTimer = null;
@@ -643,6 +663,27 @@ export class SyncEngine {
       return;
     }
     this.publishIfChanged();
+  }
+
+  /**
+   * Paused as far as the room goes. A pause to buffer, while the room plays, isn't one: whatever
+   * this viewer sends meanwhile, like a seek, says they're still playing.
+   */
+  private isPaused(video: SyncedVideo): boolean {
+    return video.paused && !(this.pausedToBuffer && this.timeline?.playing === true);
+  }
+
+  private onStarved(): void {
+    this.starvedAt = this.deps.now();
+  }
+
+  /** Out of data now, or was a moment ago. */
+  private isBuffering(): boolean {
+    const video = this.video;
+    if (!video || video.ended) return false;
+    return (
+      video.readyState < HAVE_FUTURE_DATA || this.deps.now() - this.starvedAt < BUFFERING_PAUSE_MS
+    );
   }
 
   private isViewerActing(): boolean {
@@ -816,7 +857,7 @@ export class SyncEngine {
     if (timeline) {
       const target = targetPosition(timeline, this.deps.serverNow(), video.duration);
       const isSame =
-        timeline.playing === !video.paused &&
+        timeline.playing === !this.isPaused(video) &&
         Math.abs(timeline.rate - this.baseRate) < RATE_EPSILON &&
         Math.abs(video.currentTime - target) < SAME_POSITION_SECONDS;
       if (isSame) return;
@@ -846,7 +887,7 @@ export class SyncEngine {
     if (!this.joined || !video || this.isLive()) return;
 
     const state: PlaybackState = {
-      playing: !video.paused,
+      playing: !this.isPaused(video),
       position:
         position ?? (Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : 0),
       rate: Math.min(MAX_RATE, Math.max(MIN_RATE, this.baseRate)),
