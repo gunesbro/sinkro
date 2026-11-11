@@ -367,6 +367,11 @@ describe("HTTP routes", () => {
     expect(response.status).toBe(400);
   });
 
+  it("rejects a code with a broken escape the same way, instead of failing", async () => {
+    const response = await request("/rooms/%E0%A4%A/ws", { headers: { Upgrade: "websocket" } });
+    expect(response.status).toBe(400);
+  });
+
   it("doesn't let a room be created twice", async () => {
     const code = await createRoom();
     expect(await env.ROOMS.getByName(code).create()).toBe(false);

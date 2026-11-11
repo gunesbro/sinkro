@@ -40,6 +40,15 @@ async function hashOf(value: string, env: Cloudflare.Env): Promise<string> {
   return toHex(await crypto.subtle.sign("HMAC", key, data));
 }
 
+/** A path segment as it was meant, or nothing if its escapes are broken. */
+function decoded(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return "";
+  }
+}
+
 async function createRoom(request: Request, env: Cloudflare.Env): Promise<Response> {
   // Rooms cost storage and anyone can ask for one, so one address can't ask endlessly.
   const address = request.headers.get("CF-Connecting-IP") ?? "unknown";
@@ -70,7 +79,7 @@ export default {
         return text("Expected a WebSocket upgrade", 426);
       }
       // Checked here so malformed codes never instantiate a Durable Object.
-      const code = normalizeRoomCode(decodeURIComponent(match[1] ?? ""));
+      const code = normalizeRoomCode(decoded(match[1] ?? ""));
       if (!code) return text("Invalid room code", 400);
       // Every connection costs a request against the daily limit, and codes can be guessed.
       // Cloudflare always sends the address. Local runs, which don't, aren't limited.
