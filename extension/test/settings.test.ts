@@ -5,7 +5,10 @@ import {
   getServerUrl,
   normalizeServerUrl,
   roomSocketUrl,
+  getShowReactions,
   setServerUrl,
+  setShowReactions,
+  showReactionsChange,
 } from "../src/settings";
 
 const stored = new Map<string, unknown>();
@@ -84,5 +87,30 @@ describe("roomSocketUrl", () => {
     ["https://example.com/sinkro", "wss://example.com/sinkro/rooms/K7M-2QX/ws"],
   ])("builds from %s", (serverUrl, expected) => {
     expect(roomSocketUrl(serverUrl, "K7M-2QX")).toBe(expected);
+  });
+});
+
+describe("the setting for showing reactions", () => {
+  it("shows them until the viewer turns them off", async () => {
+    expect(await getShowReactions()).toBe(true);
+  });
+
+  it("keeps them hidden once turned off", async () => {
+    await setShowReactions(false);
+    expect(await getShowReactions()).toBe(false);
+    expect(stored.get("showReactions")).toBe(false);
+  });
+
+  it("keeps nothing once they're turned back on", async () => {
+    await setShowReactions(false);
+    await setShowReactions(true);
+    expect(await getShowReactions()).toBe(true);
+    expect(stored.has("showReactions")).toBe(false);
+  });
+
+  it("tells a change of it from a change of something else", () => {
+    expect(showReactionsChange({ showReactions: { newValue: false } })).toBe(false);
+    expect(showReactionsChange({ showReactions: {} })).toBe(true);
+    expect(showReactionsChange({ serverUrl: {} })).toBeNull();
   });
 });

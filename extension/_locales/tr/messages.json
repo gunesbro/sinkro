@@ -522,6 +522,12 @@
   "newName": {
     "message": "Başka ad seç"
   },
+  "showReactions": {
+    "message": "Tepkileri göster"
+  },
+  "showReactionsHelp": {
+    "message": "Odadakilerin emojileri, videonun üstünde."
+  },
   "personUnnamed": {
     "message": "Biri",
     "description": "Someone in the room whose name isn't known, as with an older version."

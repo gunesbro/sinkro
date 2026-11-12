@@ -20,7 +20,13 @@ import type {
 } from "../messages";
 import { nameText, namesInRoom, pickAnotherName } from "../names";
 import { openRoomVideo, sealRoomVideo } from "../room-video";
-import { getCustomServerUrl, roomSocketUrl, setServerUrl } from "../settings";
+import {
+  getCustomServerUrl,
+  getShowReactions,
+  roomSocketUrl,
+  setServerUrl,
+  setShowReactions,
+} from "../settings";
 import {
   isVideoChangeAction,
   noticeFor,
@@ -506,6 +512,12 @@ function connectEvents(): void {
     // The tab passes it to the room, and the next look at its status shows the new one.
     void pickAnotherName();
   });
+  const showReactions = element<HTMLInputElement>("show-reactions");
+  void getShowReactions().then((show) => {
+    showReactions.checked = show;
+  });
+  // The tabs hear it from storage, so the video changes as the switch does.
+  showReactions.addEventListener("change", () => void setShowReactions(showReactions.checked));
   element("move-badge").addEventListener("click", () => {
     if (tabId === undefined) return;
     const request: TabRequest = { type: "badge/move" };
