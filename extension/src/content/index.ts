@@ -2,7 +2,12 @@
 // videos and reports its best one, and the background picks one frame to run the room
 // connection and sync engine. Pages that aren't in a room get no socket and no timers.
 import type { Messages } from "../i18n";
-import type { Film as FilmDetails, Person, RoomState } from "../../../server/src/protocol";
+import type {
+  Film as FilmDetails,
+  Person,
+  ReactionId,
+  RoomState,
+} from "../../../server/src/protocol";
 import {
   forgetNamesOfThoseGone,
   isOwnNameChange,
@@ -22,7 +27,7 @@ import type {
 } from "../messages";
 import { formatRate } from "../format";
 import { INVITE_ORIGIN, isSamePage } from "../invite";
-import { roomSocketUrl } from "../settings";
+import { getShowReactions, roomSocketUrl, showReactionsChange } from "../settings";
 import { noticeFor } from "../status";
 import type { VideoChange } from "../video-change";
 import { VideoBadge } from "./badge";
@@ -91,6 +96,9 @@ type Room = {
   /** Puts away "not everyone's here" until the count changes. */
   dismissBehind: () => void;
   sendVideo: (sealed: string, fresh: boolean) => void;
+  /** False when it wasn't sent: not connected, or a room that doesn't relay reactions. */
+  sendReaction: (emoji: ReactionId) => boolean;
+  relaysReactions: () => boolean;
   status: () => SessionStatus;
   stop: () => void;
 };
@@ -121,6 +129,8 @@ type RoomHooks = {
   onOwnChange: (change: PlaybackChange, details: ChangeDetails) => void;
   onRoomVideo: (sealed: string, announced: boolean) => void;
   onPeopleChange: (count: number) => void;
+  /** Someone else reacted. `from` is their id in the room. */
+  onReaction: (emoji: ReactionId, from: string) => void;
   onOthersAdEnded: () => void;
   onEveryoneArrived: () => void;
   isOnOtherVideo: () => boolean;
@@ -265,6 +275,7 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
         if (!isNameSent) sendName();
         openNames(list);
       },
+      onReaction: (emoji, from) => hooks.onReaction(emoji, from),
       onLeftBehind: (count) => {
         if (count !== othersBehind) dismissedBehind = null;
         othersBehind = count;
@@ -344,6 +355,8 @@ function startRoom({ code, serverUrl }: TabSession, tracker: VideoTracker, hooks
       if (connectionStatus === "connected" && people.length > 0) sendName();
     },
     sendVideo: (sealed, fresh) => void connection.sendVideo(sealed, fresh),
+    sendReaction: (emoji) => connection.sendReaction(emoji),
+    relaysReactions: () => connection.relaysReactions(),
     dismissBehind: () => {
       dismissedBehind = othersBehind;
     },
@@ -474,15 +487,25 @@ class FrameSession {
     this.report(0);
     this.setActive(false);
   };
+  /** The viewer's own choice, from the popup. */
+  private showsReactions = true;
   private readonly onStorageChange = (changes: Record<string, chrome.storage.StorageChange>) => {
     if (LANGUAGE_KEY in changes && this.room) {
       this.stopBadge();
       void this.startBadge();
     }
     if (isOwnNameChange(changes)) this.room?.resendName();
+    const show = showReactionsChange(changes);
+    if (show !== null) this.showsReactions = show;
   };
 
+  /** Someone's reaction, on the video with their name. */
+  private showReaction(emoji: ReactionId, from: string): void {
+    this.badge?.showReaction(emoji, this.nameOf(from), from);
+  }
+
   /** Someone's name as everyone in the room sees it, with a number if two drew the same. */
+
   private nameOf(id: string): string | null {
     const { messages, room } = this;
     if (!messages || !room) return null;
@@ -504,6 +527,11 @@ class FrameSession {
     });
     window.addEventListener("pagehide", this.onPageHide);
     chrome.storage.onChanged.addListener(this.onStorageChange);
+    void getShowReactions()
+      .then((show) => {
+        this.showsReactions = show;
+      })
+      .catch(() => undefined);
     // It goes into the page's own world, where a site could notice it, so only rooms get it.
     void send({ type: "hook/install" });
     const { signal } = this.pointerListeners;
@@ -560,6 +588,7 @@ class FrameSession {
         onEveryoneArrived: () => this.badge?.flash("notifyEveryoneHere"),
         onRoomVideo: (sealed, announced) => this.onRoomVideo(sealed, announced),
         onPeopleChange: (count) => void send({ type: "room/people", count }),
+        onReaction: (emoji, from) => this.showReaction(emoji, from),
         isOnOtherVideo: () => this.isOnOtherVideo(),
         videoChange: () => (this.isFilmStillPlaying() ? null : this.videoChange),
         isFilmStillPlaying: () => this.isFilmStillPlaying(),
@@ -819,11 +848,14 @@ class FrameSession {
         }
       },
       onPositionChange: (moved) => void saveBadgePosition(location.hostname, moved),
+      onReact: (id) => void this.room?.sendReaction(id),
     });
     this.badgeTimer = setInterval(() => {
       this.checkRoomPage();
       const video = this.tracker.video();
       // A preview isn't the film, so the badge doesn't sit on it: off a film it has its own spot.
+      // Off for a room that doesn't pass them on, and for a viewer who'd rather not see them.
+      this.badge?.setReactions(this.showsReactions && this.room?.relaysReactions() === true);
       this.badge?.update(
         this.isHoverPreview() || previewLike(video) ? null : video,
         this.room?.status() ?? null,

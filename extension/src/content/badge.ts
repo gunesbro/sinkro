@@ -1,3 +1,4 @@
+import type { ReactionId } from "../../../server/src/protocol";
 import { translate, type Messages } from "../i18n";
 import type { SessionStatus } from "../messages";
 import { parentAcrossShadow } from "./detection/floating";
@@ -21,7 +22,9 @@ import {
   type BadgePosition,
   type Box,
 } from "./badge-position";
+import { COOLDOWN_MS, REACTION_EMOJI, admit, canSend, type Floater } from "../reactions";
 import { markOwnElement } from "./detection/discovery";
+import { ReactionsLayer } from "./reactions-layer";
 import {
   ACCENT,
   BUTTON_BORDER,
@@ -60,6 +63,18 @@ const MAX_BAR_SHARE_OF_WINDOW_HEIGHT = 0.25;
 const CARD_WIDTH_PX = 288;
 /** The widest the pill and card together get. */
 const STACK_MAX_WIDTH_PX = 300;
+/** Long enough for the pointer to cross from the chip to the reactions under it. */
+const HOVER_GAP_MS = 300;
+/** Whose reaction it is, for the viewer's own. No id from a room looks like this. */
+const OWN_REACTION = "own";
+const REACTION_LABELS: Record<ReactionId, string> = {
+  laugh: "reactLaugh",
+  heart: "reactHeart",
+  wow: "reactWow",
+  sad: "reactSad",
+  clap: "reactClap",
+  fire: "reactFire",
+};
 /** A pointer on the badge must never reach the player underneath. */
 const SWALLOWED_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick"];
 
@@ -80,6 +95,8 @@ export type BadgeOptions = {
   onPause: () => void;
   onDismiss: () => void;
   onPositionChange: (position: BadgePosition | null) => void;
+  /** The viewer pressed a reaction. It's already on their own screen. */
+  onReact: (id: ReactionId) => void;
 };
 
 function containsAcrossShadow(outer: Element, inner: Element): boolean {
@@ -149,6 +166,17 @@ export class VideoBadge {
   private readonly bringAction: HTMLElement;
   private readonly leaveAction: HTMLElement;
   private readonly movePanel = document.createElement("div");
+  private readonly reactionRow = document.createElement("div");
+  private readonly reactionButtons: HTMLButtonElement[] = [];
+  private readonly layer: ReactionsLayer;
+  private readonly onReact: (id: ReactionId) => void;
+  /** Whether there's anyone to send a reaction to, and the viewer wants them at all. */
+  private reactionsShown = false;
+  private isFocusInReactions = false;
+  private lastReactionAt: number | null = null;
+  private cooldownTimer: ReturnType<typeof setTimeout> | null = null;
+  private closeTimer: ReturnType<typeof setTimeout> | null = null;
+  private onScreen: Floater[] = [];
   private readonly listeners = new AbortController();
   private readonly messages: Messages;
   private readonly onPositionChange: (position: BadgePosition | null) => void;
@@ -174,6 +202,7 @@ export class VideoBadge {
     this.messages = options.messages;
     this.position = options.position;
     this.onPositionChange = options.onPositionChange;
+    this.onReact = options.onReact;
 
     markOwnElement(this.host);
     this.host.style.cssText = `all: initial; position: fixed; inset: 0; z-index: ${TOP_LAYER};
@@ -190,6 +219,7 @@ export class VideoBadge {
     this.returnAction.style.flex = "1";
     this.bringAction.style.flex = "1";
     this.buildContent(root);
+    this.layer = new ReactionsLayer(root);
 
     this.action.addEventListener("click", (event) => {
       event.preventDefault();
@@ -238,6 +268,7 @@ export class VideoBadge {
     }
     this.stack.style.display = "flex";
     this.renderPill(status);
+    this.renderReactions();
     this.renderCard(status);
     // Opening up mustn't shift it from under the pointer, or it would close and open again.
     if (this.isHovering && !isHeld) return;
@@ -276,7 +307,36 @@ export class VideoBadge {
     }, FLASH_MS);
   }
 
+  /** Whether reactions are on: the row to send one is offered, and other people's are drawn. */
+  setReactions(shown: boolean): void {
+    if (shown === this.reactionsShown) return;
+    this.reactionsShown = shown;
+    if (!shown) {
+      this.layer.clear();
+      this.onScreen = [];
+      this.isFocusInReactions = false;
+    }
+    this.renderReactions();
+  }
+
+  /** Someone's reaction, rising beside the badge. `name` is null when it isn't known yet. */
+  showReaction(id: ReactionId, name: string | null, from: string): void {
+    if (!this.reactionsShown || !this.video || this.stack.style.display === "none") return;
+    const next = admit(this.onScreen, from, Date.now(), document.hidden);
+    if (!next) return;
+    this.onScreen = next;
+    this.layer.show(
+      id,
+      name,
+      this.stack.getBoundingClientRect(),
+      this.video.getBoundingClientRect(),
+    );
+  }
+
   stop(): void {
+    if (this.cooldownTimer !== null) clearTimeout(this.cooldownTimer);
+    if (this.closeTimer !== null) clearTimeout(this.closeTimer);
+    this.layer.clear();
     if (this.flashTimer !== null) clearTimeout(this.flashTimer);
     if (this.frameRequest !== null) cancelAnimationFrame(this.frameRequest);
     this.listeners.abort();
@@ -392,6 +452,135 @@ export class VideoBadge {
     if (hint) this.setText(this.pillHint, translate(this.messages, hint));
   }
 
+  /**
+   * The row is out whenever the badge is open, under the pointer or with the keyboard in it.
+   * Put away it's shrunk to nothing rather than removed, so the keyboard can still reach it.
+   */
+  private renderReactions(): void {
+    const { style } = this.reactionRow;
+    if (!this.reactionsShown || this.isMoving) {
+      style.display = "none";
+      return;
+    }
+    const isOut = (this.isHovering || this.isFocusInReactions) && this.dragOffset === null;
+    style.display = "flex";
+    style.position = isOut ? "static" : "absolute";
+    style.transform = isOut ? "none" : "scale(0.01)";
+    style.opacity = isOut ? "1" : "0";
+    style.pointerEvents = isOut ? "auto" : "none";
+  }
+
+  private react(id: ReactionId): void {
+    const now = Date.now();
+    if (!canSend(this.lastReactionAt, now)) return;
+    this.lastReactionAt = now;
+    this.setCooling(true);
+    this.cooldownTimer = setTimeout(() => {
+      this.cooldownTimer = null;
+      this.setCooling(false);
+    }, COOLDOWN_MS);
+    this.showReaction(id, translate(this.messages, "reactionYou"), OWN_REACTION);
+    this.onReact(id);
+  }
+
+  /** Not `disabled`, which would drop the keyboard's place in the row. */
+  private setCooling(isCooling: boolean): void {
+    for (const button of this.reactionButtons) {
+      button.setAttribute("aria-disabled", String(isCooling));
+      button.style.opacity = isCooling ? "0.45" : "1";
+      button.style.cursor = isCooling ? "default" : "pointer";
+    }
+  }
+
+  private buildReactions(): void {
+    this.reactionRow.setAttribute("role", "toolbar");
+    this.reactionRow.setAttribute("aria-label", translate(this.messages, "reactionsLabel"));
+    this.reactionRow.style.cssText = `display: none; gap: 2px; box-sizing: border-box; padding: 4px;
+      border-radius: 14px; background: ${OVERLAY_BACKGROUND}; border: 1px solid ${OVERLAY_BORDER};
+      transform-origin: top right;`;
+    for (const id of Object.keys(REACTION_EMOJI) as ReactionId[]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.reaction = id;
+      button.textContent = REACTION_EMOJI[id];
+      button.setAttribute("aria-label", translate(this.messages, REACTION_LABELS[id]));
+      button.setAttribute("aria-disabled", "false");
+      // One stop for the Tab key; the arrow keys move along the row from there.
+      button.tabIndex = this.reactionButtons.length === 0 ? 0 : -1;
+      button.style.cssText = `all: unset; box-sizing: border-box; width: 44px; height: 44px;
+        display: flex; align-items: center; justify-content: center; border-radius: 10px;
+        font-size: 22px; line-height: 1; cursor: pointer; pointer-events: auto;
+        outline: 2px solid transparent; outline-offset: -2px;`;
+      button.addEventListener("focus", () => (button.style.outlineColor = TEXT));
+      button.addEventListener("blur", () => (button.style.outlineColor = "transparent"));
+      button.addEventListener("pointerenter", () => (button.style.background = OVERLAY_BORDER));
+      button.addEventListener("pointerleave", () => (button.style.background = "transparent"));
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.react(id);
+      });
+      this.reactionButtons.push(button);
+      this.reactionRow.append(button);
+    }
+  }
+
+  private connectReactions(signal: AbortSignal): void {
+    const row = this.reactionRow;
+    for (const type of SWALLOWED_EVENTS) {
+      row.addEventListener(type, (event) => event.stopPropagation(), { signal });
+    }
+    row.addEventListener(
+      "focusin",
+      () => {
+        this.isFocusInReactions = true;
+        this.renderReactions();
+      },
+      { signal },
+    );
+    row.addEventListener(
+      "focusout",
+      (event) => {
+        if (event.relatedTarget instanceof Node && row.contains(event.relatedTarget)) return;
+        this.isFocusInReactions = false;
+        this.renderReactions();
+      },
+      { signal },
+    );
+    // Players listen for these keys to seek and to play, so they stop here.
+    const stopKeys = (event: KeyboardEvent) => {
+      if (!["ArrowLeft", "ArrowRight", "Enter", " "].includes(event.key)) return;
+      event.stopPropagation();
+      if (event.type !== "keydown" || !event.key.startsWith("Arrow")) return;
+      event.preventDefault();
+      const buttons = this.reactionButtons;
+      const at = buttons.findIndex((button) => button.matches(":focus"));
+      const step = event.key === "ArrowRight" ? 1 : -1;
+      const next = buttons[(at + step + buttons.length) % buttons.length];
+      if (!next) return;
+      for (const button of buttons) button.tabIndex = button === next ? 0 : -1;
+      next.focus();
+    };
+    row.addEventListener("keydown", stopKeys, { signal });
+    row.addEventListener("keyup", stopKeys, { signal });
+  }
+
+  /** Open as soon as the pointer is on the chip or the row, shut a moment after it's off both. */
+  private setHovering(isOver: boolean): void {
+    if (this.closeTimer !== null) clearTimeout(this.closeTimer);
+    this.closeTimer = null;
+    if (isOver || !this.reactionsShown) {
+      this.isHovering = isOver;
+      this.update(this.video, this.status);
+      return;
+    }
+    this.closeTimer = setTimeout(() => {
+      this.closeTimer = null;
+      this.isHovering = false;
+      this.update(this.video, this.status);
+    }, HOVER_GAP_MS);
+  }
+
   private renderCard(status: SessionStatus): void {
     const notice = this.isMoving ? null : noticeFor(status);
     this.card.style.display = notice ? "flex" : "none";
@@ -457,22 +646,11 @@ export class VideoBadge {
       }
     }
 
-    this.pill.addEventListener(
-      "pointerenter",
-      () => {
-        this.isHovering = true;
-        this.update(this.video, this.status);
-      },
-      { signal },
-    );
-    this.pill.addEventListener(
-      "pointerleave",
-      () => {
-        this.isHovering = false;
-        this.update(this.video, this.status);
-      },
-      { signal },
-    );
+    this.connectReactions(signal);
+    for (const target of [this.pill, this.reactionRow]) {
+      target.addEventListener("pointerenter", () => this.setHovering(true), { signal });
+      target.addEventListener("pointerleave", () => this.setHovering(false), { signal });
+    }
     this.pill.addEventListener(
       "pointerdown",
       (event) => {
@@ -718,7 +896,15 @@ export class VideoBadge {
     );
     this.movePanel.append(hint, buttons);
 
-    this.stack.append(this.pill, this.pillHint, this.flashMessage, this.card, this.movePanel);
+    this.buildReactions();
+    this.stack.append(
+      this.pill,
+      this.reactionRow,
+      this.pillHint,
+      this.flashMessage,
+      this.card,
+      this.movePanel,
+    );
     root.append(this.stack);
   }
 }

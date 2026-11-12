@@ -7,6 +7,7 @@ import {
   type OutgoingState,
   type Person,
   type PlaybackState,
+  type ReactionId,
   type RoomState,
 } from "../../../../server/src/protocol";
 import type { ServerClock } from "./clock";
@@ -36,6 +37,7 @@ export type ConnectionEvents = {
     peers: number;
     video?: string;
     ads?: number;
+    reactions?: true;
   }) => void;
   onState: (state: RoomState) => void;
   onPeers: (count: number) => void;
@@ -49,6 +51,8 @@ export type ConnectionEvents = {
   onFilms: (films: OthersFilm[]) => void;
   /** Everyone in the room, this viewer too. Only from a server that keeps names. */
   onPeople: (people: Person[]) => void;
+  /** Someone else's reaction to the film. `from` is their id, as in the list of people. */
+  onReaction: (emoji: ReactionId, from: string) => void;
   /** Someone moved the room to another video. `fresh` means it's a different film. */
   onVideo: (sealed: string, fresh: boolean) => void;
   onRejected: () => void;
@@ -91,6 +95,8 @@ export class RoomConnection {
   private socket: SocketLike | null = null;
   private stopped = true;
   private joined = false;
+  /** Whether the room said it passes reactions on. An older one answers them with an error. */
+  private relaying = false;
   private attempts = 0;
   private initialPongs = 0;
   private keepalivesSent = 0;
@@ -127,6 +133,7 @@ export class RoomConnection {
     this.socket = null;
     socket?.close();
     this.joined = false;
+    this.relaying = false;
   }
 
   /** Skips the backoff wait, for when the browser reports the network is back. */
@@ -159,6 +166,15 @@ export class RoomConnection {
 
   sendName(sealed: string): boolean {
     return this.joined && this.send({ type: "name", sealed });
+  }
+
+  /** False, with nothing sent, to a room that hasn't said it relays reactions. */
+  sendReaction(emoji: ReactionId): boolean {
+    return this.relaysReactions() && this.send({ type: "react", emoji });
+  }
+
+  relaysReactions(): boolean {
+    return this.joined && this.relaying;
   }
 
   sendVideo(sealed: string, fresh: boolean): boolean {
@@ -222,6 +238,7 @@ export class RoomConnection {
         return;
       case "joined":
         this.joined = true;
+        this.relaying = message.reactions === true;
         this.attempts = 0;
         this.startKeepalive();
         events.onStatus("connected", null);
@@ -248,6 +265,9 @@ export class RoomConnection {
       case "people":
         events.onPeople(message.people);
         return;
+      case "reaction":
+        events.onReaction(message.emoji, message.from);
+        return;
       case "video":
         if (message.sealed !== null) events.onVideo(message.sealed, message.fresh === true);
         return;
@@ -260,6 +280,7 @@ export class RoomConnection {
   private onClose(code: number): void {
     const wasJoined = this.joined;
     this.joined = false;
+    this.relaying = false;
     this.socket = null;
     this.clearTimers();
     if (wasJoined) this.options.events.onDisconnected();

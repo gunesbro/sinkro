@@ -522,6 +522,30 @@
   "newName": {
     "message": "Başka ad seç"
   },
+  "reactionsLabel": {
+    "message": "Tepkiler"
+  },
+  "reactionYou": {
+    "message": "Sen"
+  },
+  "reactLaugh": {
+    "message": "Gülme tepkisi gönder"
+  },
+  "reactHeart": {
+    "message": "Kalp gönder"
+  },
+  "reactWow": {
+    "message": "Şaşırma tepkisi gönder"
+  },
+  "reactSad": {
+    "message": "Üzülme tepkisi gönder"
+  },
+  "reactClap": {
+    "message": "Alkış gönder"
+  },
+  "reactFire": {
+    "message": "Ateş tepkisi gönder"
+  },
   "showReactions": {
     "message": "Tepkileri göster"
   },
