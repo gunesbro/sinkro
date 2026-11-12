@@ -56,7 +56,8 @@ export function isHoverPreview(video: PreviewSignals): boolean {
   return video.wasPreview || (video.isPointerOver && video.position < PREVIEW_START_SECONDS);
 }
 
-function parentAcrossShadow(node: Element): Element | null {
+/** The element above this one, going out through a shadow root to its host. */
+export function parentAcrossShadow(node: Element): Element | null {
   if (node.parentElement) return node.parentElement;
   const root = node.getRootNode();
   return root instanceof ShadowRoot ? root.host : null;

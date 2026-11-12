@@ -2,13 +2,13 @@
 // "Calm Owl". Nobody types one, so it never says who someone is. It's kept as the two picks,
 // not the words, so each person reads everyone's names in their own language.
 import type { Messages } from "./i18n";
+import { keyFor, openText, sealText } from "./sealing";
 
 /** Which adjective and which animal, by their place in the lists. */
 export type NamePick = readonly [adjective: number, animal: number];
 
 const STORAGE_KEY = "roomName";
-const NAME_CONTEXT = new TextEncoder().encode("sinkro room name v1");
-const IV_BYTES = 12;
+const NAME_CONTEXT = "sinkro room name v1";
 /** Both lists are this long in every language, which the locale tests hold them to. */
 export const ADJECTIVES = 16;
 export const ANIMALS = 16;
@@ -78,24 +78,6 @@ export function namesInRoom(texts: (string | null)[]): (string | null)[] {
   });
 }
 
-async function keyFor(code: string): Promise<CryptoKey> {
-  const material = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(code),
-    "HKDF",
-    false,
-    ["deriveKey"],
-  );
-  return crypto.subtle.deriveKey(
-    { name: "HKDF", hash: "SHA-256", salt: NAME_CONTEXT, info: NAME_CONTEXT },
-    material,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
-  );
-}
-
-/** Sealed with a key from the room code, so the server can't read it. */
 /**
  * Forgets what was opened for people who are no longer in the room. The names of those still
  * there stay, or they'd go unnamed until the room's next list.
@@ -107,26 +89,17 @@ export function forgetNamesOfThoseGone<T>(opened: Map<string, T>, present: Itera
   }
 }
 
+/** Sealed with a key from the room code, so the server can't read it. */
 export async function sealName(code: string, pick: NamePick): Promise<string> {
-  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
-  const sealed = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    await keyFor(code),
-    new TextEncoder().encode(JSON.stringify({ pick })),
-  );
-  return btoa(String.fromCharCode(...iv, ...new Uint8Array(sealed)));
+  return sealText(await keyFor(code, NAME_CONTEXT), JSON.stringify({ pick }));
 }
 
 /** Null for anything that doesn't open with this code or isn't a name. */
 export async function openName(code: string, sealed: string): Promise<NamePick | null> {
+  const opened = await openText(await keyFor(code, NAME_CONTEXT), sealed);
+  if (opened === null) return null;
   try {
-    const bytes = Uint8Array.from(atob(sealed), (character) => character.charCodeAt(0));
-    const opened = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: bytes.slice(0, IV_BYTES) },
-      await keyFor(code),
-      bytes.slice(IV_BYTES),
-    );
-    const { pick } = JSON.parse(new TextDecoder().decode(opened)) as { pick?: unknown };
+    const { pick } = JSON.parse(opened) as { pick?: unknown };
     return isPick(pick) ? pick : null;
   } catch {
     return null;
