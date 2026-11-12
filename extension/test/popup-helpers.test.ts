@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { formatRate, formatTimecode } from "../src/format";
-import { inviteLink, isSamePage, parseInviteFragment, parseJoinInput } from "../src/invite";
+import {
+  inviteLink,
+  inviteTabToShow,
+  isSamePage,
+  parseInviteFragment,
+  parseJoinInput,
+} from "../src/invite";
 
 describe("formatRate", () => {
   it.each([
@@ -135,5 +141,32 @@ describe("isSamePage", () => {
     ["not a url", "https://a.com/"],
   ])("treats %s and %s as different pages", (a, b) => {
     expect(isSamePage(a, b)).toBe(false);
+  });
+});
+
+describe("the invite tab to show once Sinkro is installed", () => {
+  const invite = "https://sinkro.pages.dev/#room=K7M-2QX";
+
+  it("is the one with an invite, not the plain landing page", () => {
+    const tabs = [
+      { id: 1, url: "https://sinkro.pages.dev/", lastAccessed: 30 },
+      { id: 2, url: invite, lastAccessed: 10 },
+    ];
+    expect(inviteTabToShow(tabs)?.id).toBe(2);
+  });
+
+  it("is the one looked at last, when there are several", () => {
+    const tabs = [
+      { id: 1, url: invite, lastAccessed: 10 },
+      { id: 2, url: "https://sinkro.pages.dev/#room=ABC-DEF", lastAccessed: 20 },
+    ];
+    expect(inviteTabToShow(tabs)?.id).toBe(2);
+  });
+
+  it("is none without an invite to join, or on another site's page", () => {
+    expect(inviteTabToShow([])).toBeNull();
+    expect(inviteTabToShow([{ id: 1, url: "https://sinkro.pages.dev/#room=nope" }])).toBeNull();
+    expect(inviteTabToShow([{ id: 1, url: "https://example.com/#room=K7M-2QX" }])).toBeNull();
+    expect(inviteTabToShow([{ id: 1, lastAccessed: 5 }])).toBeNull();
   });
 });

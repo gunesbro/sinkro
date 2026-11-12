@@ -28,6 +28,27 @@ export function parseInviteFragment(fragment: string): { code: string; url: stri
   }
 }
 
+/**
+ * Of the tabs open on the invite page, the one to bring forward once Sinkro is installed: one
+ * with an invite to join, and the one looked at last if there are several.
+ */
+export function inviteTabToShow<T extends { url?: string; lastAccessed?: number }>(
+  tabs: T[],
+): T | null {
+  let shown: T | null = null;
+  for (const tab of tabs) {
+    let address: URL;
+    try {
+      address = new URL(tab.url ?? "");
+    } catch {
+      continue;
+    }
+    if (address.origin !== INVITE_ORIGIN || !parseInviteFragment(address.hash.slice(1))) continue;
+    if (!shown || (tab.lastAccessed ?? 0) > (shown.lastAccessed ?? 0)) shown = tab;
+  }
+  return shown;
+}
+
 /** Accepts a room code or a whole invite link. Returns the code, or null if there isn't one. */
 export function parseJoinInput(input: string): { code: string; url: string | null } | null {
   const code = normalizeRoomCode(input);

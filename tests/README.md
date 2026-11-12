@@ -31,6 +31,7 @@ Each scenario prints a line per check, `ok` or `FAIL`, and the run ends with the
 | `buffering`        | A slow connection whose player pauses itself to buffer never pauses the room  |
 | `empty-room-page`  | A room started on a page with no video asks to make the first video its own   |
 | `frame-swap`       | A player's frame replaced, or the page left, hands the room over at once      |
+| `invite-install`   | Installing with an invite open brings its tab forward, ready to join          |
 
 ## Settings
 
