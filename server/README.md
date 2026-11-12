@@ -50,6 +50,10 @@ A client that has joined can send `{"type":"ad","watching":true}`. Everyone who 
 
 A client that has joined sends `{"type":"film","duration":1420,"source":"..."}` when its film changes and after joining: the length in seconds once it has settled, left out for a live stream, and the player's site sealed by the extension. Everyone who has joined gets `{"type":"films","films":[{"duration":1420,"source":"...","count":2}]}`, the others' films with alike ones counted together, leaving out anyone on another page; someone joining gets it too. A client compares its own length with what most of the others have. It's kept with the connection, not in storage.
 
+## Reactions
+
+A room says it relays reactions with `"reactions":true` in `joined`. A client that has joined can then send `{"type":"react","emoji":"fire"}`, one of `laugh`, `heart`, `wow`, `sad`, `clap` and `fire`; anything else is an invalid message. Everyone else who has joined gets `{"type":"reaction","emoji":"fire","from":"..."}`, with the sender's id. One person may send 6 in 10 seconds and a room passes on 30 in 10 seconds; past either, a reaction is dropped without an answer. Nothing about a reaction is stored, and it doesn't count as the room being in use.
+
 ## Someone on another video
 
 A client that has joined and isn't on the room's video, because it went elsewhere or hasn't followed after someone brought everyone, sends `{"type":"behind","behind":true}`, and `false` once it's back. It says nothing about which page. Everyone who has joined gets `{"type":"left_behind","count":n}`, counting the others who aren't on it, and someone joining gets it too when any are. It's kept with the connection, not in storage.
