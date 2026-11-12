@@ -69,6 +69,7 @@ function setup() {
     onLeftBehind: vi.fn(),
     onFilms: vi.fn(),
     onPeople: vi.fn(),
+    onReaction: vi.fn(),
     onDisconnected: vi.fn(),
     onStatus: vi.fn(),
   };
@@ -90,7 +91,7 @@ function setup() {
     return socket;
   };
   /** Answers pings, as the room would, until the client joins. */
-  const handshake = (socket = latest()) => {
+  const handshake = (socket = latest(), extra: object = {}) => {
     socket.open();
     let answered = 0;
     for (const ping of socket.ofType("ping")) {
@@ -102,7 +103,7 @@ function setup() {
       answered += 1;
       socket.receive({ type: "pong", clientTime: ping?.clientTime, serverTime: Date.now() });
     }
-    socket.receive({ type: "joined", clientId: "me", state: null, peers: 1 });
+    socket.receive({ type: "joined", clientId: "me", state: null, peers: 1, ...extra });
   };
   return { connection, sockets, clock, events, latest, handshake, refusal };
 }
@@ -445,5 +446,63 @@ describe("keepalive", () => {
 
     expect(socket.closedByClient).toBe(false);
     expect(events.onDisconnected).not.toHaveBeenCalled();
+  });
+});
+
+describe("reactions", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const relaying = { reactions: true };
+
+  it("sends a reaction once the room says it relays them", () => {
+    const { connection, latest, handshake } = setup();
+    connection.start();
+    handshake(latest(), relaying);
+
+    expect(connection.sendReaction("clap")).toBe(true);
+    expect(latest().ofType("react")).toEqual([{ type: "react", emoji: "clap" }]);
+  });
+
+  it("sends no reaction to a room that doesn't relay them", () => {
+    const { connection, latest, handshake } = setup();
+    connection.start();
+    handshake();
+
+    expect(connection.relaysReactions()).toBe(false);
+    expect(connection.sendReaction("clap")).toBe(false);
+    expect(latest().ofType("react")).toEqual([]);
+  });
+
+  it("stops sending reactions while reconnecting, until the room says so again", () => {
+    const { connection, latest, handshake } = setup();
+    connection.start();
+    handshake(latest(), relaying);
+    expect(connection.relaysReactions()).toBe(true);
+
+    latest().drop();
+    expect(connection.relaysReactions()).toBe(false);
+    expect(connection.sendReaction("clap")).toBe(false);
+
+    // Back on a room that doesn't relay them, as after changing to an older server.
+    vi.advanceTimersByTime(2000);
+    handshake();
+    expect(connection.relaysReactions()).toBe(false);
+    expect(connection.sendReaction("clap")).toBe(false);
+
+    latest().drop();
+    vi.advanceTimersByTime(4000);
+    handshake(latest(), relaying);
+    expect(connection.sendReaction("clap")).toBe(true);
+  });
+
+  it("passes on a reaction it hears", () => {
+    const { connection, latest, handshake, events } = setup();
+    connection.start();
+    handshake();
+
+    latest().receive({ type: "reaction", emoji: "fire", from: "c2" });
+
+    expect(events.onReaction).toHaveBeenCalledWith("fire", "c2");
   });
 });

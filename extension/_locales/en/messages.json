@@ -522,6 +522,30 @@
   "newName": {
     "message": "Pick a new name"
   },
+  "reactionsLabel": {
+    "message": "Reactions"
+  },
+  "reactionYou": {
+    "message": "You"
+  },
+  "reactLaugh": {
+    "message": "Send a laughing reaction"
+  },
+  "reactHeart": {
+    "message": "Send a heart"
+  },
+  "reactWow": {
+    "message": "Send a surprised reaction"
+  },
+  "reactSad": {
+    "message": "Send a sad reaction"
+  },
+  "reactClap": {
+    "message": "Send applause"
+  },
+  "reactFire": {
+    "message": "Send a fire reaction"
+  },
   "showReactions": {
     "message": "Show reactions"
   },
