@@ -172,7 +172,6 @@ export class VideoBadge {
   private readonly onReact: (id: ReactionId) => void;
   /** Whether there's anyone to send a reaction to, and the viewer wants them at all. */
   private reactionsShown = false;
-  private isFocusInReactions = false;
   private lastReactionAt: number | null = null;
   private cooldownTimer: ReturnType<typeof setTimeout> | null = null;
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -314,7 +313,6 @@ export class VideoBadge {
     if (!shown) {
       this.layer.clear();
       this.onScreen = [];
-      this.isFocusInReactions = false;
     }
     this.renderReactions();
   }
@@ -462,7 +460,9 @@ export class VideoBadge {
       style.display = "none";
       return;
     }
-    const isOut = (this.isHovering || this.isFocusInReactions) && this.dragOffset === null;
+    // Asked each time, not remembered: hiding a focused row doesn't always say focus left.
+    const hasFocus = this.reactionButtons.some((button) => button.matches(":focus"));
+    const isOut = (this.isHovering || hasFocus) && this.dragOffset === null;
     style.display = "flex";
     style.position = isOut ? "static" : "absolute";
     style.transform = isOut ? "none" : "scale(0.01)";
@@ -530,23 +530,12 @@ export class VideoBadge {
     for (const type of SWALLOWED_EVENTS) {
       row.addEventListener(type, (event) => event.stopPropagation(), { signal });
     }
-    row.addEventListener(
-      "focusin",
-      () => {
-        this.isFocusInReactions = true;
-        this.renderReactions();
-      },
-      { signal },
-    );
-    row.addEventListener(
-      "focusout",
-      (event) => {
-        if (event.relatedTarget instanceof Node && row.contains(event.relatedTarget)) return;
-        this.isFocusInReactions = false;
-        this.renderReactions();
-      },
-      { signal },
-    );
+    // A press with the pointer mustn't take the keyboard's focus: the row would stay out
+    // after the pointer left, and the player's keys would land on it.
+    row.addEventListener("mousedown", (event) => event.preventDefault(), { signal });
+    row.addEventListener("focusin", () => this.renderReactions(), { signal });
+    // Once focus has settled, since it's between two places while this is heard.
+    row.addEventListener("focusout", () => setTimeout(() => this.renderReactions()), { signal });
     // Players listen for these keys to seek and to play, so they stop here.
     const stopKeys = (event: KeyboardEvent) => {
       if (!["ArrowLeft", "ArrowRight", "Enter", " "].includes(event.key)) return;

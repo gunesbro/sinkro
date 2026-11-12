@@ -1468,11 +1468,17 @@ describe("reactions", () => {
     expect(await client.next()).toEqual({ type: "error", code: "not_joined" });
   });
 
-  it("refuses a reaction that isn't on the list", async () => {
-    const { client } = await join(await createRoom());
-    await client.within(50);
-    client.send({ type: "react", emoji: "party" });
-    expect(await client.next()).toEqual({ type: "error", code: "invalid_message" });
+  it("drops a reaction that isn't on the list, without an answer", async () => {
+    const code = await createRoom();
+    const sender = await join(code);
+    const other = await join(code);
+    await sender.client.within(50);
+    await other.client.within(50);
+
+    sender.client.send({ type: "react", emoji: "party" });
+
+    expect(await other.client.within(200)).toEqual([]);
+    expect(await sender.client.within(0)).toEqual([]);
   });
 
   it("drops a person's reactions past six in ten seconds, without an answer", async () => {

@@ -505,7 +505,6 @@ class FrameSession {
   }
 
   /** Someone's name as everyone in the room sees it, with a number if two drew the same. */
-
   private nameOf(id: string): string | null {
     const { messages, room } = this;
     if (!messages || !room) return null;
