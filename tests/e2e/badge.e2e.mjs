@@ -466,7 +466,8 @@ try {
   const hovered = await d.tab.screenshot({ clip: chipClip });
   check("hovering opens the chip", pixelsDiffer(atRest, hovered));
   await d.tab.mouse.move(100, 400);
-  await wait(400);
+  // It stays open a moment, for the pointer to reach the reactions, then fades back.
+  await wait(900);
   check("and it closes again", !pixelsDiffer(atRest, await d.tab.screenshot({ clip: chipClip })));
 
   const dragClicks = await d.tab.evaluate(() => window.clicks.length);

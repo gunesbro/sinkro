@@ -11,27 +11,28 @@ npm run test:e2e -- sync --repeat 3     # again and again, for timing bugs that 
 
 Each scenario prints a line per check, `ok` or `FAIL`, and the run ends with the ones that failed. CI runs every scenario on every pull request.
 
-| Scenario           | What it checks                                                                |
-| ------------------ | ----------------------------------------------------------------------------- |
-| `sync`             | Three people play, pause, seek and change speed together; drift stays small   |
-| `detection`        | The right video is found across frames, shadow roots, previews and decoys     |
-| `popup`            | Creating, joining and leaving a room through the real popup                   |
-| `badge`            | The on-video badge, its notices and dragging it                               |
-| `other-video`      | Moving to another video, bringing everyone there, going back                  |
-| `invite-page`      | The invite page, with the extension installed and without                     |
-| `source-check`     | Two people on players of different lengths, or different players, are told so |
-| `unstarted-player` | A player that's only a picture and a button until someone presses it          |
-| `network-drop`     | Reconnecting after the network drops                                          |
-| `people-count`     | The room counts each person once, back/forward cache included                 |
-| `extension-reload` | What ran in a tab stops when the extension is reloaded                        |
-| `extension-update` | An open tab keeps its video after the extension updates                       |
-| `page-hook`        | The page hook goes only into tabs in a room                                   |
-| `toolbar-icon`     | The toolbar icon and its people count                                         |
-| `names`            | Random names: the popup's list, who did what on the badge, drawing a new name |
-| `buffering`        | A slow connection whose player pauses itself to buffer never pauses the room  |
-| `empty-room-page`  | A room started on a page with no video asks to make the first video its own   |
-| `frame-swap`       | A player's frame replaced, or the page left, hands the room over at once      |
-| `invite-install`   | Installing with an invite open brings its tab forward, ready to join          |
+| Scenario           | What it checks                                                                   |
+| ------------------ | -------------------------------------------------------------------------------- |
+| `sync`             | Three people play, pause, seek and change speed together; drift stays small      |
+| `detection`        | The right video is found across frames, shadow roots, previews and decoys        |
+| `popup`            | Creating, joining and leaving a room through the real popup                      |
+| `badge`            | The on-video badge, its notices and dragging it                                  |
+| `other-video`      | Moving to another video, bringing everyone there, going back                     |
+| `invite-page`      | The invite page, with the extension installed and without                        |
+| `source-check`     | Two people on players of different lengths, or different players, are told so    |
+| `unstarted-player` | A player that's only a picture and a button until someone presses it             |
+| `network-drop`     | Reconnecting after the network drops                                             |
+| `people-count`     | The room counts each person once, back/forward cache included                    |
+| `extension-reload` | What ran in a tab stops when the extension is reloaded                           |
+| `extension-update` | An open tab keeps its video after the extension updates                          |
+| `page-hook`        | The page hook goes only into tabs in a room                                      |
+| `toolbar-icon`     | The toolbar icon and its people count                                            |
+| `names`            | Random names: the popup's list, who did what on the badge, drawing a new name    |
+| `reactions`        | Six emoji from the badge rise on everyone's video with a name, and can be hidden |
+| `buffering`        | A slow connection whose player pauses itself to buffer never pauses the room     |
+| `empty-room-page`  | A room started on a page with no video asks to make the first video its own      |
+| `frame-swap`       | A player's frame replaced, or the page left, hands the room over at once         |
+| `invite-install`   | Installing with an invite open brings its tab forward, ready to join             |
 
 ## Settings
 
