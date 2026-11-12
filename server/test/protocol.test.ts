@@ -184,3 +184,36 @@ describe("names", () => {
     expect(parseServerMessage(JSON.stringify({ type: "people", people }))).toBeNull();
   });
 });
+
+describe("reactions", () => {
+  it("takes a reaction from the list and nothing else", () => {
+    expect(parseClientMessage('{"type":"react","emoji":"laugh"}')).toEqual({
+      type: "react",
+      emoji: "laugh",
+    });
+    expect(parseClientMessage('{"type":"react","emoji":"😂"}')).toBeNull();
+    expect(parseClientMessage('{"type":"react","emoji":"party"}')).toBeNull();
+    expect(parseClientMessage('{"type":"react"}')).toBeNull();
+  });
+
+  it("reads a relayed reaction, and drops one it doesn't know", () => {
+    expect(parseServerMessage('{"type":"reaction","emoji":"fire","from":"c1"}')).toEqual({
+      type: "reaction",
+      emoji: "fire",
+      from: "c1",
+    });
+    expect(parseServerMessage('{"type":"reaction","emoji":"party","from":"c1"}')).toBeNull();
+    expect(parseServerMessage('{"type":"reaction","emoji":"fire"}')).toBeNull();
+    expect(
+      parseServerMessage(`{"type":"reaction","emoji":"fire","from":"${"x".repeat(65)}"}`),
+    ).toBeNull();
+  });
+
+  it("reads whether the room relays reactions", () => {
+    const joined = (extra: string) =>
+      parseServerMessage(`{"type":"joined","clientId":"c1","state":null,"peers":1${extra}}`);
+    expect(joined(',"reactions":true')).toMatchObject({ reactions: true });
+    expect(joined("")).not.toHaveProperty("reactions");
+    expect(joined(',"reactions":"yes"')).not.toHaveProperty("reactions");
+  });
+});
