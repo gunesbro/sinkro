@@ -2,7 +2,7 @@
 // the sync. It holds no connections, because it goes to sleep.
 import { normalizeRoomCode } from "../../../server/src/room-code";
 import { getLanguage, loadMessages } from "../i18n";
-import { INVITE_ORIGIN, isSamePage, parseInviteFragment } from "../invite";
+import { INVITE_ORIGIN, inviteTabToShow, isSamePage, parseInviteFragment } from "../invite";
 import type {
   BackgroundRequest,
   CreateRoomResponse,
@@ -389,6 +389,26 @@ async function handle(request: BackgroundRequest, sender: chrome.runtime.Message
 chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendResponse) => {
   void handle(request, sender).then(sendResponse);
   return true;
+});
+
+/**
+ * Someone who installed Sinkro from an invite still has that page open, from before there was
+ * a script to add to it. It gets one now, so its join button is there without a reload, and the
+ * tab comes forward: they were on their way to the room. Joining still takes their own click.
+ */
+async function readyInviteTabs(): Promise<void> {
+  const tabs = await chrome.tabs.query({ url: `${INVITE_ORIGIN}/*` }).catch(() => []);
+  await Promise.all(tabs.map((tab) => (tab.id === undefined ? null : restoreScripts(tab.id))));
+
+  const shown = inviteTabToShow(tabs);
+  if (shown?.id === undefined) return;
+  await chrome.tabs.update(shown.id, { active: true }).catch(() => undefined);
+  await chrome.windows.update(shown.windowId, { focused: true }).catch(() => undefined);
+}
+
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  // Not on an update: nobody is waiting on an invite then.
+  if (reason === "install") void readyInviteTabs();
 });
 
 chrome.tabs.onUpdated.addListener((tabId, change) => {
