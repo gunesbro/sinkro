@@ -2,32 +2,16 @@
 // encrypted with a key made from the room code, so they aren't sitting in plain sight in
 // storage or logs. The server sees room codes too, so this doesn't hide them from whoever
 // operates the server.
+import { keyFor, openText, sealText } from "./sealing";
+
 export type RoomVideo = { url: string; title: string };
 
 const MAX_ADDRESS_LENGTH = 2048;
 const MAX_TITLE_CHARACTERS = 200;
-const IV_BYTES = 12;
-const KEY_CONTEXT = new TextEncoder().encode("sinkro room video v1");
+const VIDEO_CONTEXT = "sinkro room video v1";
 /** A key of its own, so one kind of sealed value can't be passed off as the other. */
-const HOST_CONTEXT = new TextEncoder().encode("sinkro player host v1");
+const HOST_CONTEXT = "sinkro player host v1";
 const HOST_PATTERN = /^[a-z0-9.-]{1,253}$/i;
-
-async function keyFor(code: string, context = KEY_CONTEXT): Promise<CryptoKey> {
-  const material = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(code),
-    "HKDF",
-    false,
-    ["deriveKey"],
-  );
-  return crypto.subtle.deriveKey(
-    { name: "HKDF", hash: "SHA-256", salt: context, info: context },
-    material,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
-  );
-}
 
 function isOpenableAddress(address: string): boolean {
   try {
@@ -50,51 +34,20 @@ export async function sealRoomVideo(
 ): Promise<string | null> {
   if (url.length > MAX_ADDRESS_LENGTH || !isOpenableAddress(url)) return null;
 
-  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
-  const sealed = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    await keyFor(code),
-    new TextEncoder().encode(JSON.stringify({ url, title: tidyTitle(title) })),
+  return sealText(
+    await keyFor(code, VIDEO_CONTEXT),
+    JSON.stringify({ url, title: tidyTitle(title) }),
   );
-  return btoa(String.fromCharCode(...iv, ...new Uint8Array(sealed)));
 }
 
 /** Null for anything that doesn't open with this code or isn't a web page address. */
 export async function openRoomVideo(code: string, sealed: string): Promise<RoomVideo | null> {
+  const opened = await openText(await keyFor(code, VIDEO_CONTEXT), sealed);
+  if (opened === null) return null;
   try {
-    const bytes = Uint8Array.from(atob(sealed), (character) => character.charCodeAt(0));
-    const opened = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: bytes.slice(0, IV_BYTES) },
-      await keyFor(code),
-      bytes.slice(IV_BYTES),
-    );
-    const { url, title } = JSON.parse(new TextDecoder().decode(opened)) as Partial<RoomVideo>;
+    const { url, title } = JSON.parse(opened) as Partial<RoomVideo>;
     if (typeof url !== "string" || !isOpenableAddress(url)) return null;
     return { url, title: typeof title === "string" ? tidyTitle(title) : "" };
-  } catch {
-    return null;
-  }
-}
-
-async function sealText(key: CryptoKey, text: string): Promise<string> {
-  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
-  const sealed = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    key,
-    new TextEncoder().encode(text),
-  );
-  return btoa(String.fromCharCode(...iv, ...new Uint8Array(sealed)));
-}
-
-async function openText(key: CryptoKey, sealed: string): Promise<string | null> {
-  try {
-    const bytes = Uint8Array.from(atob(sealed), (character) => character.charCodeAt(0));
-    const opened = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: bytes.slice(0, IV_BYTES) },
-      key,
-      bytes.slice(IV_BYTES),
-    );
-    return new TextDecoder().decode(opened);
   } catch {
     return null;
   }

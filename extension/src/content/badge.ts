@@ -1,5 +1,6 @@
 import { translate, type Messages } from "../i18n";
 import type { SessionStatus } from "../messages";
+import { parentAcrossShadow } from "./detection/floating";
 import {
   hasMainButton,
   isVideoChangeAction,
@@ -80,12 +81,6 @@ export type BadgeOptions = {
   onDismiss: () => void;
   onPositionChange: (position: BadgePosition | null) => void;
 };
-
-function parentAcrossShadow(node: Element): Element | null {
-  if (node.parentElement) return node.parentElement;
-  const root = node.getRootNode();
-  return root instanceof ShadowRoot ? root.host : null;
-}
 
 function containsAcrossShadow(outer: Element, inner: Element): boolean {
   for (let node: Element | null = inner; node; node = parentAcrossShadow(node)) {
