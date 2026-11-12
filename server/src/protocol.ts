@@ -29,6 +29,14 @@ export type PlaybackState = {
   source?: string;
 };
 
+/** The reactions a viewer can send. A fixed list, so nothing typed ever travels as one. */
+export const REACTION_IDS = ["laugh", "heart", "wow", "sad", "clap", "fire"] as const;
+export type ReactionId = (typeof REACTION_IDS)[number];
+
+export function isReactionId(value: unknown): value is ReactionId {
+  return (REACTION_IDS as readonly unknown[]).includes(value);
+}
+
 /** The parts of a playback state a viewer's action can change. */
 export type PlaybackField = "playing" | "position" | "rate";
 const PLAYBACK_FIELDS: readonly PlaybackField[] = ["playing", "position", "rate"];
@@ -65,7 +73,9 @@ export type ClientMessage =
    * The name this viewer goes by in the room, sealed with a key from the room code: the server
    * can't read it. Sent once the room has said it keeps names, with `people`.
    */
-  | { type: "name"; sealed: string };
+  | { type: "name"; sealed: string }
+  /** A reaction to the film, for the others to see. Only to a room that said it relays them. */
+  | { type: "react"; emoji: ReactionId };
 
 /** Someone in the room: the id their states carry as `from`, and their name, sealed. */
 export type Person = { id: string; name?: string };
@@ -88,6 +98,8 @@ export type ServerMessage =
       video?: string;
       /** How many others are on an ad, when any are. */
       ads?: number;
+      /** The room passes reactions on. A client sends none to a room that doesn't say so. */
+      reactions?: true;
     }
   /** How many people other than the one receiving this are on an ad. */
   | { type: "ads"; count: number }
@@ -101,6 +113,8 @@ export type ServerMessage =
   | { type: "peers"; count: number }
   /** Everyone in the room, the one receiving this included, so names can go with actions. */
   | { type: "people"; people: Person[] }
+  /** Someone else's reaction. `from` is their id, as in `people`. */
+  | { type: "reaction"; emoji: ReactionId; from: string }
   | { type: "pong"; clientTime: number; serverTime: number }
   | { type: "video"; sealed: string | null; fresh?: boolean }
   | { type: "error"; code: ErrorCode };
@@ -252,6 +266,8 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
         message.sealed.length <= MAX_SEALED_NAME_LENGTH
         ? { type: "name", sealed: message.sealed }
         : null;
+    case "react":
+      return isReactionId(message.emoji) ? { type: "react", emoji: message.emoji } : null;
     case "video/get":
       return { type: "video/get" };
     case "video/set":
@@ -281,7 +297,7 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
 
   switch (message.type) {
     case "joined": {
-      const { clientId, peers, state, video, ads } = message;
+      const { clientId, peers, state, video, ads, reactions } = message;
       if (typeof clientId !== "string" || !isFiniteNumber(peers)) return null;
       const parsed = isRecord(state) ? parseRoomState(state) : null;
       if (state !== null && !parsed) return null;
@@ -290,6 +306,7 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
         ...joined,
         ...(typeof video === "string" ? { video } : {}),
         ...(isFiniteNumber(ads) ? { ads } : {}),
+        ...(reactions === true ? { reactions } : {}),
       };
     }
     case "state": {
@@ -302,6 +319,16 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       return Array.isArray(message.people) && message.people.length <= MAX_PEOPLE
         ? { type: "people", people: message.people.flatMap(parsePerson) }
         : null;
+    case "reaction": {
+      // One this version doesn't know is dropped, so a later list can grow.
+      const { emoji, from } = message;
+      return isReactionId(emoji) &&
+        typeof from === "string" &&
+        from.length > 0 &&
+        from.length <= MAX_ID_LENGTH
+        ? { type: "reaction", emoji, from }
+        : null;
+    }
     case "ads":
       return isFiniteNumber(message.count) ? { type: "ads", count: message.count } : null;
     case "left_behind":
