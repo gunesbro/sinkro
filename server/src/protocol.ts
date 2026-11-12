@@ -74,8 +74,11 @@ export type ClientMessage =
    * can't read it. Sent once the room has said it keeps names, with `people`.
    */
   | { type: "name"; sealed: string }
-  /** A reaction to the film, for the others to see. Only to a room that said it relays them. */
-  | { type: "react"; emoji: ReactionId };
+  /**
+   * A reaction to the film, for the others to see. Only to a room that said it relays them.
+   * Null when parsed from one this version doesn't know.
+   */
+  | { type: "react"; emoji: ReactionId | null };
 
 /** Someone in the room: the id their states carry as `from`, and their name, sealed. */
 export type Person = { id: string; name?: string };
@@ -267,7 +270,9 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
         ? { type: "name", sealed: message.sealed }
         : null;
     case "react":
-      return isReactionId(message.emoji) ? { type: "react", emoji: message.emoji } : null;
+      // One this version doesn't know is null, for the room to drop without an answer: a
+      // later extension can send more, and an error would be taken for a refused state.
+      return { type: "react", emoji: isReactionId(message.emoji) ? message.emoji : null };
     case "video/get":
       return { type: "video/get" };
     case "video/set":

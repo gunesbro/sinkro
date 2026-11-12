@@ -52,7 +52,7 @@ A client that has joined sends `{"type":"film","duration":1420,"source":"..."}` 
 
 ## Reactions
 
-A room says it relays reactions with `"reactions":true` in `joined`. A client that has joined can then send `{"type":"react","emoji":"fire"}`, one of `laugh`, `heart`, `wow`, `sad`, `clap` and `fire`; anything else is an invalid message. Everyone else who has joined gets `{"type":"reaction","emoji":"fire","from":"..."}`, with the sender's id. One person may send 6 in 10 seconds and a room passes on 30 in 10 seconds; past either, a reaction is dropped without an answer. Nothing about a reaction is stored, and it doesn't count as the room being in use.
+A room says it relays reactions with `"reactions":true` in `joined`. A client that has joined can then send `{"type":"react","emoji":"fire"}`, one of `laugh`, `heart`, `wow`, `sad`, `clap` and `fire`; anything else is dropped without an answer, so a later version can send more. Everyone else who has joined gets `{"type":"reaction","emoji":"fire","from":"..."}`, with the sender's id. One person may send 6 in 10 seconds and a room passes on 30 in 10 seconds; past either, a reaction is dropped without an answer. Nothing about a reaction is stored, and it doesn't count as the room being in use.
 
 ## Someone on another video
 

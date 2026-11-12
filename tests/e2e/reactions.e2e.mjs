@@ -142,7 +142,15 @@ async function viewer(name) {
       const attributes = {};
       for (let i = 0; i < (node.attributes ?? []).length; i += 2)
         attributes[node.attributes[i]] = node.attributes[i + 1];
-      const entry = { nodeId: node.nodeId, tag: node.nodeName, attributes, ancestors, text: "" };
+      // The backend id stays the same from one look at the page to the next; the node id doesn't.
+      const entry = {
+        nodeId: node.nodeId,
+        key: node.backendNodeId,
+        tag: node.nodeName,
+        attributes,
+        ancestors,
+        text: "",
+      };
       if (node.nodeType === 1) found.push(entry);
       const inside =
         node.nodeType === 1 && attributes.id ? [...ancestors, attributes.id] : ancestors;
@@ -158,7 +166,8 @@ async function viewer(name) {
   const boxOf = async (nodeId) => {
     const { model } = await cdp.send("DOM.getBoxModel", { nodeId });
     const [x1, y1, x2, , , y3] = model.border;
-    return { x: (x1 + x2) / 2, y: (y1 + y3) / 2, width: model.width, height: model.height };
+    // As drawn, so a row shrunk out of sight measures as nothing.
+    return { x: (x1 + x2) / 2, y: (y1 + y3) / 2, width: x2 - x1, height: y3 - y1 };
   };
   /** The reaction buttons that can be pressed now: none while the row is put away. */
   const buttons = async () => {
@@ -197,7 +206,7 @@ async function viewer(name) {
     floaters: async () =>
       (await elements())
         .filter((element) => element.attributes["data-floater"] !== undefined)
-        .map(({ text, ancestors }) => ({ text, ancestors })),
+        .map(({ key, text, ancestors }) => ({ key, text, ancestors })),
     /** Presses a reaction with the pointer, opening the badge first. */
     react: async (id) => {
       await openBadge();
@@ -224,7 +233,7 @@ async function watch(person, ms) {
   const seen = new Map();
   const end = Date.now() + ms;
   while (Date.now() < end) {
-    for (const floater of await person.floaters()) seen.set(floater.text, floater);
+    for (const { key, ...floater } of await person.floaters()) seen.set(key, floater);
     await wait(150);
   }
   return [...seen.values()];
@@ -279,7 +288,10 @@ try {
 
   // ---- one reaction, seen by both
   const before = { a: await a.status(), b: await b.status(), at: Date.now() };
-  const [onA, onB] = await Promise.all([watch(a, 1800), watch(b, 1800), a.react("fire")]);
+  const watching = [watch(a, 2200), watch(b, 2200)];
+  await a.react("fire");
+  const pressed = await a.buttons();
+  const [onA, onB] = await Promise.all(watching);
   check(
     "the sender sees it at once, as their own",
     onA.some(({ text }) => text.includes("🔥") && text.includes("You")),
@@ -290,7 +302,6 @@ try {
     onB.some(({ text }) => text.includes("🔥") && text.includes(aName)),
     `${aName} | ${JSON.stringify(onB)}`,
   );
-  const pressed = await a.buttons();
   check(
     "the row waits before the next one",
     pressed.length === 6 &&
@@ -307,7 +318,7 @@ try {
       Math.abs(after.b.position - before.b.position - elapsed) < 1,
     JSON.stringify([before.a.position, after.a.position, before.b.position, after.b.position]),
   );
-  await wait(2300);
+  await wait(500);
   const rested = await a.buttons();
   check(
     "and takes one again after two seconds",
@@ -319,9 +330,19 @@ try {
     (await a.floaters()).length === 0 && (await b.floaters()).length === 0,
   );
 
+  // ---- a press with the pointer doesn't keep the row
+  await a.page.mouse.move(5, 600);
+  const putAway = await until(async () => (await a.buttons()).length === 0, 3000);
+  check("the row closes once the pointer has left, after a press too", putAway === true);
+  await a.page.keyboard.press("ArrowRight");
+  await a.page.keyboard.press("Enter");
+  check(
+    "and keys pressed afterwards aren't taken for reactions",
+    (await watch(b, 1200)).length === 0,
+  );
+
   // ---- a key held down is one reaction
   await a.page.bringToFront();
-  await a.page.mouse.move(5, 600);
   await a.page.focus("#fs");
   await a.page.keyboard.press("Tab");
   const held = watch(b, 2600);

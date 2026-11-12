@@ -191,9 +191,11 @@ describe("reactions", () => {
       type: "react",
       emoji: "laugh",
     });
-    expect(parseClientMessage('{"type":"react","emoji":"😂"}')).toBeNull();
-    expect(parseClientMessage('{"type":"react","emoji":"party"}')).toBeNull();
-    expect(parseClientMessage('{"type":"react"}')).toBeNull();
+    // One it doesn't know is still a reaction, to be dropped: a later version may send more.
+    const unknown = { type: "react", emoji: null };
+    expect(parseClientMessage('{"type":"react","emoji":"😂"}')).toEqual(unknown);
+    expect(parseClientMessage('{"type":"react","emoji":"party"}')).toEqual(unknown);
+    expect(parseClientMessage('{"type":"react"}')).toEqual(unknown);
   });
 
   it("reads a relayed reaction, and drops one it doesn't know", () => {

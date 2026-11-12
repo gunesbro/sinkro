@@ -170,9 +170,9 @@ export class Room extends DurableObject {
       case "react": {
         const clientId = this.clientIdOf(ws);
         if (!clientId) return this.sendError(ws, "not_joined");
-        // One too many is dropped without a word: a client takes an error for its playback
+        // One too many, or one from a later list, is dropped without a word: a client takes an error for its playback
         // state being refused, and silence tells someone trying the limit nothing.
-        if (!this.mayReact(ws)) return;
+        if (message.emoji === null || !this.mayReact(ws)) return;
         // Passed on and forgotten: nothing is stored, and it doesn't keep an idle room open.
         this.broadcast({ type: "reaction", emoji: message.emoji, from: clientId }, ws);
         return;
