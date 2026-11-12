@@ -16,6 +16,7 @@ Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox
 - **Tight sync.** Everyone is measured against the room's shared timeline, with each computer's clock corrected. Small drift is evened out by playing a touch faster or slower, so nobody sees a jump; the popup shows how far apart the room is, usually a few hundredths of a second.
 - **Rooms for up to 50 people.**
 - **Says what's going on.** A small badge on the video shows whether you're in sync and who paused or skipped, by a random name like "Calm Owl" that nobody has to type. It offers a one-click fix when something's off: someone on an ad, someone on a different video, a browser that wants a click first.
+- **Reactions.** Six emoji, one click from the badge, rise on everyone's video with your random name. Nothing is typed, and anyone can turn them off for themselves.
 - **English and Turkish.**
 
 ## Install
@@ -54,6 +55,7 @@ No accounts and no analytics. Only these reach the server:
 - playback state: playing or paused, position, speed and a timestamp, with the video's length and player site encrypted;
 - whether someone is on an ad, how far their video is from the room's, and whether they're on the room's video at all, as a yes or no, never which page;
 - each person's name in the room, drawn at random like "Calm Owl" and never typed, encrypted with the room code;
+- which of six reactions someone sends, picked from a fixed list, passed on and never stored;
 - the address and title of the room's video, encrypted with the room code, and only when someone creates a room or brings everyone to a video.
 
 The video itself never does. See the [privacy page](https://sinkro.pages.dev/privacy.html) for the details.
