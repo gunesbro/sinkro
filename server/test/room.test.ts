@@ -66,6 +66,12 @@ class TestClient {
     return latest;
   }
 
+  /** Everything but lists of people that arrives within a while, the queued included. */
+  async within(ms: number): Promise<ServerMessage[]> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    return this.frames.splice(0).map((frame) => JSON.parse(frame) as ServerMessage);
+  }
+
   send(message: unknown): void {
     this.socket.send(typeof message === "string" ? message : JSON.stringify(message));
   }
@@ -1424,5 +1430,87 @@ describe("expiry", () => {
     const code = await createRoom();
     await runDurableObjectAlarm(env.ROOMS.getByName(code));
     expect(await env.ROOMS.getByName(code).create()).toBe(true);
+  });
+});
+
+describe("reactions", () => {
+  const reactionsIn = (messages: ServerMessage[]) =>
+    messages.filter((message) => message.type === "reaction");
+  const stored = (code: string) =>
+    runInDurableObject(env.ROOMS.getByName(code), async (_, state) =>
+      JSON.stringify([...(await state.storage.list())]),
+    );
+
+  it("tells a joining client it relays reactions", async () => {
+    const client = await connect(await createRoom());
+    client.send({ type: "join", protocol: 1 });
+    expect(await client.next()).toMatchObject({ type: "joined", reactions: true });
+  });
+
+  it("relays a reaction to the others, not to the sender", async () => {
+    const code = await createRoom();
+    const sender = await join(code);
+    const other = await join(code);
+    await sender.client.within(50);
+    await other.client.within(50);
+
+    sender.client.send({ type: "react", emoji: "fire" });
+
+    expect(await other.client.within(200)).toEqual([
+      { type: "reaction", emoji: "fire", from: sender.clientId },
+    ]);
+    expect(await sender.client.within(0)).toEqual([]);
+  });
+
+  it("refuses a reaction before joining", async () => {
+    const client = await connect(await createRoom());
+    client.send({ type: "react", emoji: "fire" });
+    expect(await client.next()).toEqual({ type: "error", code: "not_joined" });
+  });
+
+  it("refuses a reaction that isn't on the list", async () => {
+    const { client } = await join(await createRoom());
+    await client.within(50);
+    client.send({ type: "react", emoji: "party" });
+    expect(await client.next()).toEqual({ type: "error", code: "invalid_message" });
+  });
+
+  it("drops a person's reactions past six in ten seconds, without an answer", async () => {
+    const code = await createRoom();
+    const sender = await join(code);
+    const other = await join(code);
+    await sender.client.within(50);
+    await other.client.within(50);
+
+    for (let sent = 0; sent < 7; sent += 1) sender.client.send({ type: "react", emoji: "clap" });
+
+    expect(reactionsIn(await other.client.within(300))).toHaveLength(6);
+    expect(await sender.client.within(0)).toEqual([]);
+  });
+
+  it("drops a room's reactions past thirty in ten seconds", async () => {
+    const code = await createRoom();
+    const watcher = await join(code);
+    const senders = [];
+    for (let person = 0; person < 6; person += 1) senders.push(await join(code));
+
+    for (const { client } of senders) {
+      for (let sent = 0; sent < 6; sent += 1) client.send({ type: "react", emoji: "heart" });
+    }
+
+    expect(reactionsIn(await watcher.client.within(500))).toHaveLength(30);
+  });
+
+  it("stores nothing for a reaction", async () => {
+    const code = await createRoom();
+    const sender = await join(code);
+    const other = await join(code);
+    await other.client.within(50);
+    const before = await stored(code);
+
+    sender.client.send({ type: "react", emoji: "wow" });
+
+    expect(reactionsIn(await other.client.within(200))).toHaveLength(1);
+    expect(await stored(code)).toBe(before);
   });
 });

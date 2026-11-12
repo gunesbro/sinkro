@@ -26,6 +26,11 @@ const IDLE_CHECK_MS = 60 * 60 * 1000;
 const MAX_CLOCK_ERROR_MS = 30_000;
 const RATE_LIMIT_MESSAGES = 50;
 const RATE_LIMIT_WINDOW_MS = 10_000;
+const REACTION_WINDOW_MS = 10_000;
+/** The extension waits two seconds between reactions, which makes five. One more is slack. */
+const REACTIONS_PER_PERSON = 6;
+/** However many people press at once, nobody's screen gets more than this. */
+const REACTIONS_PER_ROOM = 30;
 /** Answered by the runtime without waking the room, so idle connections cost nothing. */
 const KEEPALIVE = "keepalive";
 
@@ -62,6 +67,8 @@ type RateWindow = { startedAt: number; count: number };
  */
 export class Room extends DurableObject {
   private readonly rateWindows = new WeakMap<WebSocket, RateWindow>();
+  private readonly reactionWindows = new WeakMap<WebSocket, RateWindow>();
+  private roomReactions: RateWindow | null = null;
   /** The newest record while it waits to be saved, which then wins over storage. */
   private unsaved: RoomRecord | null = null;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -158,6 +165,16 @@ export class Room extends DurableObject {
         if (this.nameOf(ws) === message.sealed) return;
         this.patchAttachment(ws, { name: message.sealed });
         this.announcePeople();
+        return;
+      }
+      case "react": {
+        const clientId = this.clientIdOf(ws);
+        if (!clientId) return this.sendError(ws, "not_joined");
+        // One too many is dropped without a word: a client takes an error for its playback
+        // state being refused, and silence tells someone trying the limit nothing.
+        if (!this.mayReact(ws)) return;
+        // Passed on and forgotten: nothing is stored, and it doesn't keep an idle room open.
+        this.broadcast({ type: "reaction", emoji: message.emoji, from: clientId }, ws);
         return;
       }
       case "drift": {
@@ -287,7 +304,15 @@ export class Room extends DurableObject {
     const video = record.video ? { video: record.video } : {};
     const othersOnAd = this.joinedSockets().filter((socket) => this.isOnAd(socket)).length;
     const ads = othersOnAd > 0 ? { ads: othersOnAd } : {};
-    this.send(ws, { type: "joined", clientId, state: record.state, peers, ...video, ...ads });
+    this.send(ws, {
+      type: "joined",
+      clientId,
+      state: record.state,
+      peers,
+      ...video,
+      ...ads,
+      reactions: true,
+    });
     this.broadcast({ type: "peers", count: peers }, ws);
     // Everyone, the newcomer too: hearing it is also how a client learns the room keeps names.
     this.announcePeople();
@@ -480,6 +505,24 @@ export class Room extends DurableObject {
     }
     current.count += 1;
     return current.count <= RATE_LIMIT_MESSAGES;
+  }
+
+  /** Counts a reaction against its sender's allowance, then the room's. */
+  private mayReact(ws: WebSocket): boolean {
+    const now = Date.now();
+    const own = this.reactionWindows.get(ws);
+    if (!own || now - own.startedAt >= REACTION_WINDOW_MS) {
+      this.reactionWindows.set(ws, { startedAt: now, count: 1 });
+    } else {
+      own.count += 1;
+      if (own.count > REACTIONS_PER_PERSON) return false;
+    }
+    if (!this.roomReactions || now - this.roomReactions.startedAt >= REACTION_WINDOW_MS) {
+      this.roomReactions = { startedAt: now, count: 1 };
+      return true;
+    }
+    this.roomReactions.count += 1;
+    return this.roomReactions.count <= REACTIONS_PER_ROOM;
   }
 
   private broadcast(message: ServerMessage, except?: WebSocket): void {
