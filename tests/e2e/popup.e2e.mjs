@@ -227,6 +227,32 @@ try {
     (await popup.locator("#room").isVisible()) && (await text(popup, "#room-code")) === code,
   );
 
+  // ---- the switch for reactions
+  const keptReactions = () =>
+    popup.evaluate(async () => (await chrome.storage.local.get("showReactions")).showReactions);
+  check(
+    "reactions are shown until they're turned off",
+    (await popup.locator("#show-reactions").isChecked()) && (await keptReactions()) === undefined,
+  );
+  await popup.click("#show-reactions");
+  check(
+    "turning them off is kept",
+    (await until(async () => (await keptReactions()) === false)) === true,
+  );
+  await popup.close();
+  popup = await a.openPopup();
+  await until(() => popup.locator("#room").isVisible());
+  check(
+    "and still off when the popup is opened again",
+    (await until(async () => !(await popup.locator("#show-reactions").isChecked()))) === true,
+  );
+  await popup.click("#show-reactions");
+  check(
+    "turning them back on keeps nothing",
+    (await until(async () => (await keptReactions()) === undefined)) === true &&
+      (await popup.locator("#show-reactions").isChecked()),
+  );
+
   // ---- invite link
   await popup.bringToFront();
   await popup.click("#copy-link");

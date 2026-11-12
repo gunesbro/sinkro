@@ -44,3 +44,25 @@ export async function setServerUrl(input: string): Promise<boolean> {
   else await chrome.storage.local.set({ [SERVER_URL_KEY]: serverUrl });
   return true;
 }
+
+const SHOW_REACTIONS_KEY = "showReactions";
+
+/** Whether other people's reactions rise on the video, and the row to send one is offered. */
+export async function getShowReactions(): Promise<boolean> {
+  const stored = await chrome.storage.local.get(SHOW_REACTIONS_KEY);
+  return stored[SHOW_REACTIONS_KEY] !== false;
+}
+
+/** Only "off" is kept, so there's nothing stored for someone who never touched it. */
+export async function setShowReactions(show: boolean): Promise<void> {
+  if (show) await chrome.storage.local.remove(SHOW_REACTIONS_KEY);
+  else await chrome.storage.local.set({ [SHOW_REACTIONS_KEY]: false });
+}
+
+/** What a change in storage makes of it, or null if the change is about something else. */
+export function showReactionsChange(
+  changes: Record<string, { newValue?: unknown }>,
+): boolean | null {
+  const change = changes[SHOW_REACTIONS_KEY];
+  return change ? change.newValue !== false : null;
+}

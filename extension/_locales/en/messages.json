@@ -522,6 +522,12 @@
   "newName": {
     "message": "Pick a new name"
   },
+  "showReactions": {
+    "message": "Show reactions"
+  },
+  "showReactionsHelp": {
+    "message": "Emoji from the people in the room, on the video."
+  },
   "personUnnamed": {
     "message": "Someone",
     "description": "Someone in the room whose name isn't known, as with an older version."
