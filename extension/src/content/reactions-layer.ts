@@ -10,8 +10,11 @@ const MAX_RISE_PX = 140;
 const FROM_EDGE_PX = 64;
 /** Above the bottom of the video, where players keep their controls. */
 const ABOVE_BOTTOM_PX = 96;
-/** Between the badge and the nearest reaction, when the badge is in the lane's way. */
-const CLEAR_OF_BADGE_PX = 30;
+/** A reaction's own size, about: the emoji with a name under it. */
+const FLOATER_HEIGHT_PX = 48;
+const FLOATER_HALF_WIDTH_PX = 60;
+/** Between the badge and a reaction that starts above it. */
+const CLEAR_OF_BADGE_PX = 8;
 /** Each starts a little to one side of the last, so several at once can all be seen. */
 const SPREAD_PX = 16;
 /** Kept this far inside the video's edges. */
@@ -45,9 +48,9 @@ export class ReactionsLayer {
 
   /**
    * `badge` is what's showing of the badge now, open or not, and `video` the film's box. The
-   * reaction rises near the bottom of the video, along the edge the badge is on, which keeps it
-   * off the middle of the picture and off subtitles. If the badge sits in that lane, the lane
-   * moves in beside it.
+   * reaction rises near the bottom of the video, along its right edge, which keeps it off the
+   * middle of the picture and off subtitles. It's the same place wherever the badge has been
+   * put; only a badge sitting in that very corner makes reactions start above it.
    */
   show(id: ReactionId, name: string | null, badge: DOMRect, video: DOMRect): void {
     const emoji = REACTION_EMOJI[id];
@@ -71,24 +74,20 @@ export class ReactionsLayer {
       floater.append(label);
     }
 
-    const isBadgeOnRight = badge.left + badge.width / 2 > video.left + video.width / 2;
-    const inward = isBadgeOnRight ? -1 : 1;
-    const edge = isBadgeOnRight ? video.right : video.left;
-    const start = Math.max(video.top + INSIDE_PX, video.bottom - ABOVE_BOTTOM_PX);
-    const rise = Math.max(
-      0,
-      Math.min(
-        Math.max(MIN_RISE_PX, Math.min(MAX_RISE_PX, video.height * RISE_SHARE)),
-        start - video.top - INSIDE_PX,
-      ),
-    );
-    // With the badge low on that edge, the lane would run through it.
+    const lane = video.right - FROM_EDGE_PX;
+    const usual = Math.max(video.top + INSIDE_PX, video.bottom - ABOVE_BOTTOM_PX);
+    const height = Math.max(MIN_RISE_PX, Math.min(MAX_RISE_PX, video.height * RISE_SHARE));
+    // Only a badge in this very corner is in the way: across the lane, and at its height.
     const isBadgeInTheWay =
-      badge.bottom > start - rise - INSIDE_PX && badge.top < start + 2 * INSIDE_PX;
-    const lane = isBadgeInTheWay
-      ? (isBadgeOnRight ? badge.left : badge.right) + inward * CLEAR_OF_BADGE_PX
-      : edge + inward * FROM_EDGE_PX;
-    const x = lane + inward * Math.random() * SPREAD_PX;
+      badge.right > lane - SPREAD_PX - FLOATER_HALF_WIDTH_PX &&
+      badge.left < lane + FLOATER_HALF_WIDTH_PX &&
+      badge.bottom > usual - height &&
+      badge.top < usual + FLOATER_HEIGHT_PX;
+    const above = badge.top - CLEAR_OF_BADGE_PX - FLOATER_HEIGHT_PX;
+    // Above it when there's room to rise from there; otherwise where it always is.
+    const start = isBadgeInTheWay && above - video.top > MIN_RISE_PX ? above : usual;
+    const rise = Math.max(0, Math.min(height, start - video.top - INSIDE_PX));
+    const x = lane - Math.random() * SPREAD_PX;
     const left = Math.min(Math.max(x, video.left + INSIDE_PX), video.right - INSIDE_PX);
     floater.style.left = `${left}px`;
     floater.style.top = `${start}px`;
