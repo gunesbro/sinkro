@@ -203,10 +203,15 @@ async function viewer(name) {
     status: () =>
       control.evaluate((t) => chrome.tabs.sendMessage(t, { type: "session/status" }), tabId),
     /** The reactions on screen now: what each says, and the ids of the elements it's inside. */
-    floaters: async () =>
-      (await elements())
-        .filter((element) => element.attributes["data-floater"] !== undefined)
-        .map(({ key, text, ancestors }) => ({ key, text, ancestors })),
+    floaters: async () => {
+      const found = [];
+      for (const element of await elements()) {
+        if (element.attributes["data-floater"] === undefined) continue;
+        const { key, text, ancestors, nodeId } = element;
+        found.push({ key, text, ancestors, box: await boxOf(nodeId).catch(() => null) });
+      }
+      return found;
+    },
     /** Presses a reaction with the pointer, opening the badge first. */
     react: async (id) => {
       await openBadge();
@@ -233,7 +238,9 @@ async function watch(person, ms) {
   const seen = new Map();
   const end = Date.now() + ms;
   while (Date.now() < end) {
-    for (const { key, ...floater } of await person.floaters()) seen.set(key, floater);
+    // Where each was first seen, since it moves.
+    for (const { key, ...floater } of await person.floaters())
+      if (!seen.has(key)) seen.set(key, floater);
     await wait(150);
   }
   return [...seen.values()];
@@ -292,6 +299,14 @@ try {
   await a.react("fire");
   const pressed = await a.buttons();
   const [onA, onB] = await Promise.all(watching);
+  // The film is 800 by 450 with the badge in its top right corner.
+  const where = onB.find(({ text }) => text.includes("🔥"))?.box;
+  check(
+    "it rises along the badge's edge of the video, in the lower half, clear of the middle",
+    where != null && where.x > 700 && where.x < 780 && where.y > 225 && where.y < 420,
+    JSON.stringify(where),
+  );
+  check("and it's small", where != null && where.height <= 46, JSON.stringify(where));
   check(
     "the sender sees it at once, as their own",
     onA.some(({ text }) => text.includes("🔥") && text.includes("You")),

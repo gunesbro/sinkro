@@ -1,15 +1,23 @@
 import type { ReactionId } from "../../../server/src/protocol";
 import { FLOATER_MS, REACTION_EMOJI } from "../reactions";
-import { FONT, OVERLAY_BACKGROUND, TEXT } from "./theme";
+import { FONT, OVERLAY_BACKGROUND_QUIET, TEXT } from "./theme";
 
-/** How far a reaction rises before it's gone. */
-const RISE_PX = 120;
-/** Between the badge and the nearest reaction, so neither covers the other. */
+/** A reaction rises this share of the video's height, within these limits. */
+const RISE_SHARE = 0.3;
+const MIN_RISE_PX = 80;
+const MAX_RISE_PX = 140;
+/** From the video's edge to the middle of the lane reactions rise in: room for half a long name. */
+const FROM_EDGE_PX = 64;
+/** Above the bottom of the video, where players keep their controls. */
+const ABOVE_BOTTOM_PX = 96;
+/** Between the badge and the nearest reaction, when the badge is in the lane's way. */
 const CLEAR_OF_BADGE_PX = 30;
 /** Each starts a little to one side of the last, so several at once can all be seen. */
-const SPREAD_PX = 28;
+const SPREAD_PX = 16;
 /** Kept this far inside the video's edges. */
 const INSIDE_PX = 24;
+/** Seen, but not pulling the eye off the film. */
+const EMOJI_OPACITY = 0.85;
 /** If an animation never says it's finished, as in a tab that's been put to sleep. */
 const REMOVE_ANYWAY_MS = FLOATER_MS + 500;
 
@@ -19,7 +27,7 @@ export function floaterLabel(name: string | null, emoji: string): string {
 }
 
 /**
- * The reactions rising beside the badge. They live in the badge's shadow root, take no
+ * The reactions rising up the edge of the video. They live in the badge's shadow root, take no
  * clicks and touch nothing of the page. Styled through the CSSOM and animated with the Web
  * Animations API, because a page's CSP can block style elements.
  */
@@ -37,7 +45,9 @@ export class ReactionsLayer {
 
   /**
    * `badge` is what's showing of the badge now, open or not, and `video` the film's box. The
-   * reaction rises in a lane beside the badge, on the side with more of the video.
+   * reaction rises near the bottom of the video, along the edge the badge is on, which keeps it
+   * off the middle of the picture and off subtitles. If the badge sits in that lane, the lane
+   * moves in beside it.
    */
   show(id: ReactionId, name: string | null, badge: DOMRect, video: DOMRect): void {
     const emoji = REACTION_EMOJI[id];
@@ -50,24 +60,36 @@ export class ReactionsLayer {
 
     const character = document.createElement("span");
     character.textContent = emoji;
-    character.style.cssText = `font-size: 28px; line-height: 1.15;
-      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));`;
+    character.style.cssText = `font-size: 22px; line-height: 1.15; opacity: ${EMOJI_OPACITY};
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));`;
     floater.append(character);
     if (name !== null) {
       const label = document.createElement("span");
       label.textContent = name;
-      label.style.cssText = `padding: 1px 7px; border-radius: 999px; background: ${OVERLAY_BACKGROUND};
-        color: ${TEXT}; font-size: 12px; font-weight: 600; line-height: 1.5; white-space: nowrap;`;
+      label.style.cssText = `padding: 0 6px; border-radius: 999px; background: ${OVERLAY_BACKGROUND_QUIET};
+        color: ${TEXT}; font-size: 11px; font-weight: 600; line-height: 1.5; white-space: nowrap;`;
       floater.append(label);
     }
 
     const isBadgeOnRight = badge.left + badge.width / 2 > video.left + video.width / 2;
-    const away = isBadgeOnRight ? -1 : 1;
-    const beside = isBadgeOnRight ? badge.left : badge.right;
-    const x = beside + away * (CLEAR_OF_BADGE_PX + Math.random() * SPREAD_PX);
+    const inward = isBadgeOnRight ? -1 : 1;
+    const edge = isBadgeOnRight ? video.right : video.left;
+    const start = Math.max(video.top + INSIDE_PX, video.bottom - ABOVE_BOTTOM_PX);
+    const rise = Math.max(
+      0,
+      Math.min(
+        Math.max(MIN_RISE_PX, Math.min(MAX_RISE_PX, video.height * RISE_SHARE)),
+        start - video.top - INSIDE_PX,
+      ),
+    );
+    // With the badge low on that edge, the lane would run through it.
+    const isBadgeInTheWay =
+      badge.bottom > start - rise - INSIDE_PX && badge.top < start + 2 * INSIDE_PX;
+    const lane = isBadgeInTheWay
+      ? (isBadgeOnRight ? badge.left : badge.right) + inward * CLEAR_OF_BADGE_PX
+      : edge + inward * FROM_EDGE_PX;
+    const x = lane + inward * Math.random() * SPREAD_PX;
     const left = Math.min(Math.max(x, video.left + INSIDE_PX), video.right - INSIDE_PX);
-    const start = Math.min(video.bottom - 2 * INSIDE_PX, badge.top + RISE_PX - INSIDE_PX);
-    const rise = Math.max(0, Math.min(RISE_PX, start - video.top - INSIDE_PX));
     floater.style.left = `${left}px`;
     floater.style.top = `${start}px`;
 
@@ -76,15 +98,15 @@ export class ReactionsLayer {
     this.live.textContent = floaterLabel(name, emoji);
 
     const isStill = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const at = (y: number, scale = 1) => `translate(-50%, ${isStill ? 0 : -y}px) scale(${scale})`;
+    const at = (y: number) => `translate(-50%, ${isStill ? 0 : -y}px)`;
     const animation = floater.animate(
       [
-        { opacity: 0, transform: at(0, isStill ? 1 : 0.6) },
-        { opacity: 1, transform: at(rise * 0.15), offset: 0.15 },
-        { opacity: 1, transform: at(rise * 0.75), offset: 0.75 },
+        { opacity: 0, transform: at(0) },
+        { opacity: 1, transform: at(rise * 0.2), offset: 0.2 },
+        { opacity: 1, transform: at(rise * 0.7), offset: 0.7 },
         { opacity: 0, transform: at(rise) },
       ],
-      { duration: FLOATER_MS, easing: "ease-out" },
+      { duration: FLOATER_MS, easing: "linear" },
     );
     const remove = () => {
       floater.remove();
