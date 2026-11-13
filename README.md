@@ -9,7 +9,7 @@ Sinkro is a free, open-source watch party extension for Chrome, Edge and Firefox
 
 **For example:** you and a friend, on different computers, want to watch the same lecture on some site. You open it, click Sinkro and create a room, then send your friend the link. They open it, press **Join**, and land on the same video at the same second. From then on, when either of you plays, pauses, skips ahead or changes speed, the other's video does the same, within a fraction of a second. Everyone needs the extension; nobody needs an account.
 
-**Status:** early development. Sinkro is in the [Chrome Web Store](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc), which also installs it in Edge, and in [Firefox Add-ons](https://addons.mozilla.org/en-GB/firefox/addon/sinkro/). See [Install](#install).
+**Get it:** Sinkro is in the [Chrome Web Store](https://chromewebstore.google.com/detail/sinkro-%E2%80%94-watch-party-sync/gndjbfbcaaffalmlcjlhofbboopbcgdc), which also installs it in Edge, and in [Firefox Add-ons](https://addons.mozilla.org/en-GB/firefox/addon/sinkro/). See [Install](#install).
 
 - **Any video, any site.** No list of supported sites: Sinkro finds the video on the page, inside frames and players that hide it, and tells it apart from previews and ads.
 - **No account.** Open a video, create a room, send the link. Whoever opens it lands on the same video, at the same second.

@@ -83,8 +83,7 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" "${files[@]}" \
               --title "Sinkro $GITHUB_REF_NAME" \
-              --notes-file "$RUNNER_TEMP/notes.md" \
-              --prerelease
+              --notes-file "$RUNNER_TEMP/notes.md"
           fi
 
       - name: Keep the packages from a run by hand
