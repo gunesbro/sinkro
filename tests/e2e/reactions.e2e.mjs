@@ -298,6 +298,7 @@ try {
   const before = { a: await a.status(), b: await b.status(), at: Date.now() };
   const watching = [watch(a, 2200), watch(b, 2200)];
   await a.react("fire");
+  const pressedAt = Date.now();
   const pressed = await a.buttons();
   const [onA, onB] = await Promise.all(watching);
   // The film is 800 by 450 with the badge in its top right corner.
@@ -334,7 +335,9 @@ try {
       Math.abs(after.b.position - before.b.position - elapsed) < 1,
     JSON.stringify([before.a.position, after.a.position, before.b.position, after.b.position]),
   );
-  await wait(500);
+  // Counted from the press, which can itself take a second: past the wait, and past the
+  // reaction's two seconds on the other screen.
+  await wait(Math.max(0, pressedAt + 2800 - Date.now()));
   const rested = await a.buttons();
   check(
     "and takes one again after two seconds",
@@ -455,8 +458,20 @@ try {
     withBadgeInCorner != null &&
       withBadgeInCorner.x > 700 &&
       withBadgeInCorner.x < 780 &&
-      withBadgeInCorner.y + withBadgeInCorner.height / 2 < cornered.y,
+      withBadgeInCorner.y + withBadgeInCorner.height / 2 < cornered.y &&
+      // Only a little higher: still the bottom right of the video.
+      withBadgeInCorner.y > 225,
     JSON.stringify([withBadgeInCorner, cornered]),
+  );
+  await dragBadgeTo(740, 230);
+  const withBadgeHigher = await firstSeenOnA("sad");
+  check(
+    "with the badge higher on that edge, a reaction starts where it always does",
+    withBadgeHigher != null &&
+      withBadgeHigher.x > 700 &&
+      withBadgeHigher.x < 780 &&
+      withBadgeHigher.y > 320,
+    JSON.stringify(withBadgeHigher),
   );
 
   if (shotDir) {

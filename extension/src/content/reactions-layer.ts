@@ -50,7 +50,7 @@ export class ReactionsLayer {
    * `badge` is what's showing of the badge now, open or not, and `video` the film's box. The
    * reaction rises near the bottom of the video, along its right edge, which keeps it off the
    * middle of the picture and off subtitles. It's the same place wherever the badge has been
-   * put; only a badge sitting in that very corner makes reactions start above it.
+   * put; only a badge sitting on the very spot makes reactions start just above it.
    */
   show(id: ReactionId, name: string | null, badge: DOMRect, video: DOMRect): void {
     const emoji = REACTION_EMOJI[id];
@@ -77,15 +77,15 @@ export class ReactionsLayer {
     const lane = video.right - FROM_EDGE_PX;
     const usual = Math.max(video.top + INSIDE_PX, video.bottom - ABOVE_BOTTOM_PX);
     const height = Math.max(MIN_RISE_PX, Math.min(MAX_RISE_PX, video.height * RISE_SHARE));
-    // Only a badge in this very corner is in the way: across the lane, and at its height.
-    const isBadgeInTheWay =
+    // Only a badge sitting on the spot they start from moves them, and only to just above
+    // it, so its words stay readable. One higher up the edge is passed over.
+    const isBadgeOnTheSpot =
       badge.right > lane - SPREAD_PX - FLOATER_HALF_WIDTH_PX &&
       badge.left < lane + FLOATER_HALF_WIDTH_PX &&
-      badge.bottom > usual - height &&
+      badge.bottom > usual - CLEAR_OF_BADGE_PX &&
       badge.top < usual + FLOATER_HEIGHT_PX;
     const above = badge.top - CLEAR_OF_BADGE_PX - FLOATER_HEIGHT_PX;
-    // Above it when there's room to rise from there; otherwise where it always is.
-    const start = isBadgeInTheWay && above - video.top > MIN_RISE_PX ? above : usual;
+    const start = isBadgeOnTheSpot && above - video.top > MIN_RISE_PX ? above : usual;
     const rise = Math.max(0, Math.min(height, start - video.top - INSIDE_PX));
     const x = lane - Math.random() * SPREAD_PX;
     const left = Math.min(Math.max(x, video.left + INSIDE_PX), video.right - INSIDE_PX);
