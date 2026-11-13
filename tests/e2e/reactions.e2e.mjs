@@ -231,6 +231,7 @@ async function viewer(name) {
   };
 }
 
+const REACTIONS = { laugh: "😂", heart: "❤️", wow: "😮", sad: "😢", clap: "👏", fire: "🔥" };
 const nameOf = (pick) =>
   `${words("en", "nameAdjectives")[pick[0]]} ${words("en", "nameAnimals")[pick[1]]}`;
 /** Collects the reactions seen over a while, since each is only up for two seconds. */
@@ -302,7 +303,7 @@ try {
   // The film is 800 by 450 with the badge in its top right corner.
   const where = onB.find(({ text }) => text.includes("🔥"))?.box;
   check(
-    "it rises along the badge's edge of the video, in the lower half, clear of the middle",
+    "it rises along the right edge of the video, in the lower half, clear of the middle",
     where != null && where.x > 700 && where.x < 780 && where.y > 225 && where.y < 420,
     JSON.stringify(where),
   );
@@ -418,6 +419,46 @@ try {
     seenAgain.some(({ text }) => text.includes("😂")),
     JSON.stringify(seenAgain),
   );
+  // ---- wherever the badge is put, reactions keep to the video's edge
+  const dragBadgeTo = async (x, y) => {
+    const from = await a.openBadge();
+    await a.page.mouse.down();
+    await a.page.mouse.move(x, y, { steps: 8 });
+    await a.page.mouse.up();
+    await a.page.mouse.move(5, 600);
+    await wait(600);
+    return from;
+  };
+  const firstSeenOnA = async (emoji) => {
+    await wait(2200);
+    const seen = watch(a, 1800);
+    await b.react(emoji);
+    return (await seen).find(({ text }) => text.includes(REACTIONS[emoji]))?.box;
+  };
+  await dragBadgeTo(400, 400);
+  const withBadgeInMiddle = await firstSeenOnA("clap");
+  check(
+    "with the badge at the bottom middle, a reaction still rises at the edge",
+    withBadgeInMiddle != null &&
+      withBadgeInMiddle.x > 700 &&
+      withBadgeInMiddle.x < 780 &&
+      withBadgeInMiddle.y > 225,
+    JSON.stringify(withBadgeInMiddle),
+  );
+  await dragBadgeTo(740, 380);
+  const cornered = await a.openBadge();
+  await a.page.mouse.move(5, 600);
+  await wait(600);
+  const withBadgeInCorner = await firstSeenOnA("wow");
+  check(
+    "with the badge in that corner, a reaction starts above it, at the same edge",
+    withBadgeInCorner != null &&
+      withBadgeInCorner.x > 700 &&
+      withBadgeInCorner.x < 780 &&
+      withBadgeInCorner.y + withBadgeInCorner.height / 2 < cornered.y,
+    JSON.stringify([withBadgeInCorner, cornered]),
+  );
+
   if (shotDir) {
     await wait(2200);
     await b.react("heart");
